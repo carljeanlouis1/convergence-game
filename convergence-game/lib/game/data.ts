@@ -1,0 +1,1878 @@
+import {
+  ConvergenceDefinition,
+  DilemmaDefinition,
+  EnergyPolicy,
+  FacilityState,
+  GovernmentId,
+  GovernmentState,
+  Researcher,
+  RivalId,
+  RivalState,
+  StartPresetId,
+  SupplierContract,
+  TrackDefinition,
+} from "./types";
+
+export const TOTAL_TURNS = 120;
+
+export const TRACK_DEFINITIONS: TrackDefinition[] = [
+  {
+    id: "foundation",
+    name: "Foundation Models",
+    shortName: "AI Core",
+    accent: "#53a6ff",
+    description:
+      "General-purpose model capability from language interfaces to recursive self-improvement.",
+    levels: [
+      "Language Models",
+      "Reasoning Systems",
+      "Autonomous Agents",
+      "AGI Architecture",
+      "Recursive Self-Improvement",
+    ],
+    position: { x: 50, y: 18 },
+    starter: true,
+  },
+  {
+    id: "alignment",
+    name: "Alignment Research",
+    shortName: "Safety",
+    accent: "#f4c95d",
+    description:
+      "Interpretability, oversight, and governance work that slows reckless progress and protects trust.",
+    levels: [
+      "Interpretability",
+      "Value Learning",
+      "Corrigibility",
+      "Scalable Oversight",
+      "Verified Alignment",
+    ],
+    position: { x: 26, y: 33 },
+    starter: true,
+  },
+  {
+    id: "simulation",
+    name: "Simulation Modeling",
+    shortName: "Sim",
+    accent: "#42d9e6",
+    description:
+      "Behavioral and societal simulation used for forecasting, revenue, and eventually psychohistory.",
+    levels: [
+      "Market Forecasting",
+      "Urban Models",
+      "Digital Twin Populations",
+      "Predictive Societal Models",
+      "Civilizational Simulation",
+    ],
+    position: { x: 74, y: 33 },
+    starter: true,
+  },
+  {
+    id: "robotics",
+    name: "Robotics",
+    shortName: "Robotics",
+    accent: "#2dd4bf",
+    description:
+      "Embodied intelligence, dexterous manipulation, and automated field operations.",
+    levels: [
+      "Motor Control",
+      "Manipulation",
+      "Humanoid Locomotion",
+      "Autonomous Operation",
+      "Self-Replicating Systems",
+    ],
+    position: { x: 22, y: 58 },
+    starter: false,
+  },
+  {
+    id: "biology",
+    name: "Computational Biology",
+    shortName: "Bio",
+    accent: "#5de08e",
+    description:
+      "Protein design, therapeutic discovery, and eventually programmable biology.",
+    levels: [
+      "Protein Folding",
+      "Drug Discovery",
+      "Synthetic Biology",
+      "Genetic Engineering",
+      "Programmable Organisms",
+    ],
+    position: { x: 40, y: 76 },
+    starter: false,
+  },
+  {
+    id: "materials",
+    name: "Advanced Materials",
+    shortName: "Materials",
+    accent: "#ffb347",
+    description:
+      "Novel compounds, metamaterials, and manufacturing breakthroughs that amplify every other track.",
+    levels: [
+      "Nanomaterials",
+      "Metamaterials",
+      "Room-Temp Superconductors",
+      "Programmable Matter",
+      "Exotic Materials",
+    ],
+    position: { x: 60, y: 76 },
+    starter: false,
+  },
+  {
+    id: "quantum",
+    name: "Quantum Computing",
+    shortName: "Quantum",
+    accent: "#9f7aea",
+    description:
+      "From qubit stability to advantage, cryptography shocks, and reality-bending simulation.",
+    levels: [
+      "Qubit Stability",
+      "Error Correction",
+      "Quantum Advantage",
+      "Cryptographic Dominance",
+      "Quantum Simulation",
+    ],
+    position: { x: 78, y: 58 },
+    starter: false,
+  },
+  {
+    id: "space",
+    name: "Space Systems",
+    shortName: "Space",
+    accent: "#ff8f5a",
+    description:
+      "Autonomous space hardware, orbital construction, and long-run expansion beyond Earth.",
+    levels: [
+      "Satellite AI",
+      "Autonomous Vehicles",
+      "Orbital Construction",
+      "Interplanetary Systems",
+      "Self-Sustaining Habitats",
+    ],
+    position: { x: 50, y: 92 },
+    starter: false,
+  },
+];
+
+const researcher = (input: Omit<Researcher, "assignedTrack">): Researcher => ({
+  ...input,
+  assignedTrack: input.primaryTrack,
+});
+
+export const RESEARCHER_CATALOG: Researcher[] = [
+  researcher({
+    id: "mae-ibarra",
+    name: "Mae Ibarra",
+    role: "Chief Scientist",
+    primaryTrack: "foundation",
+    secondaryTrack: "simulation",
+    research: 9,
+    execution: 7,
+    leadership: 8,
+    ethics: 6,
+    morale: 74,
+    salary: 0.64,
+    signingBonus: 0,
+    location: "San Francisco",
+    traits: ["systems thinker", "calm under pressure"],
+    bio: "Architect of your original lab stack and the face of your technical credibility.",
+  }),
+  researcher({
+    id: "tessa-noor",
+    name: "Tessa Noor",
+    role: "Alignment Lead",
+    primaryTrack: "alignment",
+    secondaryTrack: "foundation",
+    research: 8,
+    execution: 6,
+    leadership: 7,
+    ethics: 10,
+    morale: 78,
+    salary: 0.46,
+    signingBonus: 0,
+    location: "Boston",
+    traits: ["uncompromising", "transparent"],
+    bio: "Former interpretability researcher who insists on publishing safety notes with every release.",
+  }),
+  researcher({
+    id: "rafael-sato",
+    name: "Rafael Sato",
+    role: "Simulation Economist",
+    primaryTrack: "simulation",
+    secondaryTrack: "foundation",
+    research: 8,
+    execution: 7,
+    leadership: 5,
+    ethics: 7,
+    morale: 71,
+    salary: 0.42,
+    signingBonus: 0,
+    location: "New York",
+    traits: ["market obsessed", "good presenter"],
+    bio: "Built macro-forecasting systems that can be sold long before AGI appears.",
+  }),
+  researcher({
+    id: "keiko-tan",
+    name: "Keiko Tan",
+    role: "Infrastructure Director",
+    primaryTrack: "foundation",
+    secondaryTrack: "robotics",
+    research: 6,
+    execution: 9,
+    leadership: 7,
+    ethics: 5,
+    morale: 69,
+    salary: 0.41,
+    signingBonus: 0,
+    location: "Seattle",
+    traits: ["hardware realist", "cost hawk"],
+    bio: "Keeps clusters alive and quietly saves you millions through ruthless procurement discipline.",
+  }),
+  researcher({
+    id: "laila-njeri",
+    name: "Laila Njeri",
+    role: "Chief of Staff",
+    primaryTrack: "alignment",
+    secondaryTrack: "simulation",
+    research: 5,
+    execution: 8,
+    leadership: 9,
+    ethics: 8,
+    morale: 76,
+    salary: 0.38,
+    signingBonus: 0,
+    location: "Washington, D.C.",
+    traits: ["politically fluent", "loyal"],
+    bio: "Translates research chaos into board-ready plans and credible briefings.",
+  }),
+  researcher({
+    id: "jonah-rex",
+    name: "Jonah Rex",
+    role: "Platform Engineer",
+    primaryTrack: "foundation",
+    secondaryTrack: "simulation",
+    research: 6,
+    execution: 8,
+    leadership: 4,
+    ethics: 5,
+    morale: 67,
+    salary: 0.31,
+    signingBonus: 0,
+    location: "Austin",
+    traits: ["fast shipper", "low patience"],
+    bio: "Can turn prototypes into usable internal tools in days, not weeks.",
+  }),
+  researcher({
+    id: "anya-kovacs",
+    name: "Anya Kovacs",
+    role: "Robotics PI",
+    primaryTrack: "robotics",
+    secondaryTrack: "materials",
+    research: 9,
+    execution: 7,
+    leadership: 6,
+    ethics: 5,
+    morale: 70,
+    salary: 0.59,
+    signingBonus: 0.16,
+    location: "Zurich",
+    traits: ["lab perfectionist", "intense mentor"],
+    bio: "Built bimanual manipulation benchmarks used across European robotics labs.",
+  }),
+  researcher({
+    id: "marcus-vale",
+    name: "Marcus Vale",
+    role: "Applied Roboticist",
+    primaryTrack: "robotics",
+    secondaryTrack: "foundation",
+    research: 7,
+    execution: 9,
+    leadership: 5,
+    ethics: 4,
+    morale: 63,
+    salary: 0.43,
+    signingBonus: 0.08,
+    location: "Detroit",
+    traits: ["factory native", "blunt"],
+    bio: "Specializes in moving research robots out of the demo room and onto real floors.",
+  }),
+  researcher({
+    id: "dr-samira-chen",
+    name: "Dr. Samira Chen",
+    role: "Computational Biologist",
+    primaryTrack: "biology",
+    secondaryTrack: "foundation",
+    research: 9,
+    execution: 6,
+    leadership: 6,
+    ethics: 7,
+    morale: 72,
+    salary: 0.57,
+    signingBonus: 0.18,
+    location: "Cambridge",
+    traits: ["methodical", "grant magnet"],
+    bio: "Her protein design work is already drawing pharmaceutical calls.",
+  }),
+  researcher({
+    id: "eli-baptiste",
+    name: "Eli Baptiste",
+    role: "Synthetic Biology Fellow",
+    primaryTrack: "biology",
+    secondaryTrack: "alignment",
+    research: 7,
+    execution: 6,
+    leadership: 4,
+    ethics: 8,
+    morale: 75,
+    salary: 0.34,
+    signingBonus: 0.06,
+    location: "Montreal",
+    traits: ["careful writer", "activist streak"],
+    bio: "Insists biotech work should clear public-benefit tests before scaling.",
+  }),
+  researcher({
+    id: "sofia-haddad",
+    name: "Sofia Haddad",
+    role: "Materials Scientist",
+    primaryTrack: "materials",
+    secondaryTrack: "robotics",
+    research: 8,
+    execution: 7,
+    leadership: 5,
+    ethics: 6,
+    morale: 66,
+    salary: 0.47,
+    signingBonus: 0.09,
+    location: "Paris",
+    traits: ["inventive", "restless"],
+    bio: "Known for unexpected manufacturing shortcuts that can either save quarters or spark audits.",
+  }),
+  researcher({
+    id: "diego-morrow",
+    name: "Diego Morrow",
+    role: "Metamaterials Engineer",
+    primaryTrack: "materials",
+    secondaryTrack: "space",
+    research: 7,
+    execution: 8,
+    leadership: 5,
+    ethics: 4,
+    morale: 68,
+    salary: 0.39,
+    signingBonus: 0.07,
+    location: "Houston",
+    traits: ["builder", "risk tolerant"],
+    bio: "Sees every material breakthrough as a launch vehicle for hardware scale.",
+  }),
+  researcher({
+    id: "priya-raman",
+    name: "Priya Raman",
+    role: "Quantum Systems Lead",
+    primaryTrack: "quantum",
+    secondaryTrack: "foundation",
+    research: 9,
+    execution: 5,
+    leadership: 6,
+    ethics: 6,
+    morale: 73,
+    salary: 0.62,
+    signingBonus: 0.17,
+    location: "Toronto",
+    traits: ["brilliant", "schedule blind"],
+    bio: "The sort of hire that makes state actors immediately start paying attention.",
+  }),
+  researcher({
+    id: "mateo-klein",
+    name: "Mateo Klein",
+    role: "Quantum Hardware Engineer",
+    primaryTrack: "quantum",
+    secondaryTrack: "materials",
+    research: 8,
+    execution: 7,
+    leadership: 4,
+    ethics: 5,
+    morale: 64,
+    salary: 0.44,
+    signingBonus: 0.1,
+    location: "Munich",
+    traits: ["hardware purist", "quiet"],
+    bio: "Improves reliability faster than anyone else, if you leave him alone.",
+  }),
+  researcher({
+    id: "nora-kim",
+    name: "Nora Kim",
+    role: "Orbital Systems Director",
+    primaryTrack: "space",
+    secondaryTrack: "robotics",
+    research: 8,
+    execution: 8,
+    leadership: 7,
+    ethics: 5,
+    morale: 70,
+    salary: 0.56,
+    signingBonus: 0.14,
+    location: "Los Angeles",
+    traits: ["mission focused", "media savvy"],
+    bio: "Former autonomous launch systems lead who can make space roadmaps sound inevitable.",
+  }),
+  researcher({
+    id: "owen-park",
+    name: "Owen Park",
+    role: "Satellite Autonomy Engineer",
+    primaryTrack: "space",
+    secondaryTrack: "simulation",
+    research: 7,
+    execution: 8,
+    leadership: 4,
+    ethics: 5,
+    morale: 69,
+    salary: 0.37,
+    signingBonus: 0.05,
+    location: "Vancouver",
+    traits: ["operational", "sleeps at desk"],
+    bio: "Knows how to integrate autonomy with fragile hardware and tighter schedules than you prefer.",
+  }),
+  researcher({
+    id: "camila-ortega",
+    name: "Camila Ortega",
+    role: "Public Policy Counsel",
+    primaryTrack: "alignment",
+    secondaryTrack: "simulation",
+    research: 5,
+    execution: 7,
+    leadership: 8,
+    ethics: 9,
+    morale: 77,
+    salary: 0.33,
+    signingBonus: 0.04,
+    location: "Brussels",
+    traits: ["coalition builder", "credible"],
+    bio: "Makes regulators feel consulted instead of cornered.",
+  }),
+  researcher({
+    id: "hayden-sloan",
+    name: "Hayden Sloan",
+    role: "Product and Monetization",
+    primaryTrack: "simulation",
+    secondaryTrack: "foundation",
+    research: 4,
+    execution: 8,
+    leadership: 7,
+    ethics: 4,
+    morale: 62,
+    salary: 0.35,
+    signingBonus: 0.05,
+    location: "Chicago",
+    traits: ["commercial", "politically slippery"],
+    bio: "Can turn prediction engines into cash, with a tolerance for gray zones.",
+  }),
+  researcher({
+    id: "yasmin-bekele",
+    name: "Yasmin Bekele",
+    role: "Trust and Safety PM",
+    primaryTrack: "alignment",
+    secondaryTrack: "foundation",
+    research: 5,
+    execution: 8,
+    leadership: 6,
+    ethics: 9,
+    morale: 80,
+    salary: 0.29,
+    signingBonus: 0.03,
+    location: "Atlanta",
+    traits: ["empathetic", "process-driven"],
+    bio: "Keeps shipping velocity honest and remembers the users no one else mentions.",
+  }),
+  researcher({
+    id: "li-wei",
+    name: "Li Wei",
+    role: "Systems Security Researcher",
+    primaryTrack: "foundation",
+    secondaryTrack: "quantum",
+    research: 8,
+    execution: 7,
+    leadership: 5,
+    ethics: 6,
+    morale: 65,
+    salary: 0.45,
+    signingBonus: 0.09,
+    location: "Singapore",
+    traits: ["paranoid", "excellent debugger"],
+    bio: "Understands how powerful models fail when the world gets adversarial.",
+  }),
+  researcher({
+    id: "grace-oduro",
+    name: "Grace Oduro",
+    role: "Climate Simulation Lead",
+    primaryTrack: "simulation",
+    secondaryTrack: "space",
+    research: 8,
+    execution: 6,
+    leadership: 6,
+    ethics: 8,
+    morale: 74,
+    salary: 0.41,
+    signingBonus: 0.06,
+    location: "Accra",
+    traits: ["global perspective", "patient"],
+    bio: "Adds legitimacy to your simulation work because she keeps outcomes grounded in real policy use.",
+  }),
+  researcher({
+    id: "viktor-aronov",
+    name: "Viktor Aronov",
+    role: "Autonomy Architect",
+    primaryTrack: "foundation",
+    secondaryTrack: "robotics",
+    research: 8,
+    execution: 8,
+    leadership: 5,
+    ethics: 3,
+    morale: 58,
+    salary: 0.49,
+    signingBonus: 0.11,
+    location: "Tallinn",
+    traits: ["genius", "reckless"],
+    bio: "Everyone agrees he can accelerate agentic systems. No one agrees he should.",
+  }),
+  researcher({
+    id: "selene-ross",
+    name: "Selene Ross",
+    role: "Biosecurity Advisor",
+    primaryTrack: "biology",
+    secondaryTrack: "alignment",
+    research: 6,
+    execution: 6,
+    leadership: 7,
+    ethics: 10,
+    morale: 79,
+    salary: 0.32,
+    signingBonus: 0.05,
+    location: "Geneva",
+    traits: ["disciplined", "morally clear"],
+    bio: "The person you hire when you want biotech scale without pretending ethics will handle itself.",
+  }),
+  researcher({
+    id: "ida-larsen",
+    name: "Ida Larsen",
+    role: "Energy and Data Center Strategist",
+    primaryTrack: "materials",
+    secondaryTrack: "space",
+    research: 5,
+    execution: 8,
+    leadership: 7,
+    ethics: 6,
+    morale: 71,
+    salary: 0.36,
+    signingBonus: 0.05,
+    location: "Copenhagen",
+    traits: ["operationally elegant", "low ego"],
+    bio: "Finds the boring infrastructure moves that compound for years.",
+  }),
+  researcher({
+    id: "darius-mbaye",
+    name: "Darius Mbaye",
+    role: "Field Robotics Operator",
+    primaryTrack: "robotics",
+    secondaryTrack: "space",
+    research: 6,
+    execution: 9,
+    leadership: 5,
+    ethics: 5,
+    morale: 68,
+    salary: 0.3,
+    signingBonus: 0.04,
+    location: "Nairobi",
+    traits: ["pragmatic", "team stabilizer"],
+    bio: "Makes unreliable robot stacks useful in the real world faster than the theorists expect.",
+  }),
+];
+
+export const STARTING_TEAM_IDS = [
+  "mae-ibarra",
+  "tessa-noor",
+  "rafael-sato",
+  "keiko-tan",
+  "laila-njeri",
+  "jonah-rex",
+];
+
+export const START_PRESETS: Record<
+  StartPresetId,
+  {
+    name: string;
+    summary: string;
+    unlockedByDefault: boolean;
+    modifier: {
+      capital: number;
+      trust: number;
+      fear: number;
+      board: number;
+      openness: number;
+      governmentDependence: number;
+    };
+  }
+> = {
+  founder: {
+    name: "Founder Lab",
+    summary: "Seed-funded, independent, and hungry. No one owns you yet.",
+    unlockedByDefault: true,
+    modifier: {
+      capital: 18,
+      trust: 56,
+      fear: 22,
+      board: 70,
+      openness: 0,
+      governmentDependence: 0,
+    },
+  },
+  government: {
+    name: "Government Lab",
+    summary: "Federal backing and compliance strings attached.",
+    unlockedByDefault: false,
+    modifier: {
+      capital: 30,
+      trust: 50,
+      fear: 28,
+      board: 74,
+      openness: -1,
+      governmentDependence: 3,
+    },
+  },
+  "open-source": {
+    name: "Open Source Collective",
+    summary: "Beloved by developers, perpetually short on cash.",
+    unlockedByDefault: false,
+    modifier: {
+      capital: 12,
+      trust: 68,
+      fear: 18,
+      board: 64,
+      openness: 3,
+      governmentDependence: 0,
+    },
+  },
+  corporate: {
+    name: "Corporate Spinoff",
+    summary: "Resources from a giant platform, pressure from upstairs.",
+    unlockedByDefault: false,
+    modifier: {
+      capital: 26,
+      trust: 48,
+      fear: 24,
+      board: 78,
+      openness: -2,
+      governmentDependence: 1,
+    },
+  },
+  underground: {
+    name: "Underground Lab",
+    summary: "Small, hidden, and unregulated until someone notices.",
+    unlockedByDefault: false,
+    modifier: {
+      capital: 15,
+      trust: 42,
+      fear: 14,
+      board: 60,
+      openness: -3,
+      governmentDependence: 0,
+    },
+  },
+  "second-chance": {
+    name: "Second Chance",
+    summary: "You begin in a scarred 2035 after a rival catastrophe.",
+    unlockedByDefault: false,
+    modifier: {
+      capital: 22,
+      trust: 61,
+      fear: 44,
+      board: 66,
+      openness: 1,
+      governmentDependence: 1,
+    },
+  },
+};
+
+export const SUPPLIER_CONTRACTS: SupplierContract[] = [
+  {
+    vendor: "NVIDIA",
+    computeMultiplier: 1.18,
+    upkeepMultiplier: 1.16,
+    trustDelta: 2,
+    riskDelta: 0,
+    summary: "Best-in-class performance with painful margins and export-control exposure.",
+  },
+  {
+    vendor: "AMD",
+    computeMultiplier: 1.08,
+    upkeepMultiplier: 1.02,
+    trustDelta: 1,
+    riskDelta: -1,
+    summary: "Balanced procurement with slightly slower scaling and lower political heat.",
+  },
+  {
+    vendor: "Google TPU",
+    computeMultiplier: 1.12,
+    upkeepMultiplier: 1.07,
+    trustDelta: 0,
+    riskDelta: 1,
+    summary: "Excellent for model iteration, but platform dependence becomes strategic debt.",
+  },
+  {
+    vendor: "Custom ASIC",
+    computeMultiplier: 1.25,
+    upkeepMultiplier: 1.24,
+    trustDelta: -2,
+    riskDelta: 3,
+    summary: "Massive long-run upside and supply-chain fragility that keeps counsel awake.",
+  },
+];
+
+export const ENERGY_POLICIES: EnergyPolicy[] = [
+  {
+    id: "grid",
+    name: "Conventional Grid",
+    upkeepMultiplier: 1,
+    trustDelta: 0,
+    riskDelta: 0,
+    summary: "Cheap in the short term, vulnerable to price spikes and climate criticism.",
+  },
+  {
+    id: "solar",
+    name: "Solar Farm PPA",
+    upkeepMultiplier: 0.94,
+    trustDelta: 5,
+    riskDelta: -1,
+    summary: "Popular with the public, slower to scale for sudden compute demand.",
+  },
+  {
+    id: "nuclear",
+    name: "Nuclear Partnership",
+    upkeepMultiplier: 0.9,
+    trustDelta: 2,
+    riskDelta: 2,
+    summary: "The best path to serious compute density if you can survive the headlines.",
+  },
+  {
+    id: "geothermal",
+    name: "Geothermal Campus",
+    upkeepMultiplier: 0.92,
+    trustDelta: 4,
+    riskDelta: -1,
+    summary: "Stable, elegant, and limited to specific regions with long lead times.",
+  },
+];
+
+export const STARTER_FACILITIES: FacilityState[] = [
+  {
+    id: "hq-sf",
+    name: "Mission District HQ",
+    region: "San Francisco",
+    online: true,
+    buildCost: 0,
+    upkeep: 0.42,
+    computeDelta: 0,
+    trustDelta: 0,
+    riskDelta: 0,
+  },
+  {
+    id: "cluster-west",
+    name: "West Coast Cluster",
+    region: "Nevada",
+    online: true,
+    buildCost: 0,
+    upkeep: 0.63,
+    computeDelta: 100,
+    trustDelta: 0,
+    riskDelta: 0,
+  },
+];
+
+export const BUILD_OPTIONS: FacilityState[] = [
+  {
+    id: "dc-virginia",
+    name: "US Sovereign Data Center",
+    region: "Virginia",
+    online: false,
+    buildCost: 6.5,
+    upkeep: 0.52,
+    computeDelta: 48,
+    trustDelta: 4,
+    riskDelta: -1,
+  },
+  {
+    id: "dc-doha",
+    name: "Gulf Compute Campus",
+    region: "Doha",
+    online: false,
+    buildCost: 4.8,
+    upkeep: 0.38,
+    computeDelta: 56,
+    trustDelta: -2,
+    riskDelta: 2,
+  },
+  {
+    id: "dc-helsinki",
+    name: "Nordic Geothermal Cluster",
+    region: "Helsinki",
+    online: false,
+    buildCost: 5.9,
+    upkeep: 0.41,
+    computeDelta: 50,
+    trustDelta: 3,
+    riskDelta: -1,
+  },
+  {
+    id: "dc-bengaluru",
+    name: "Bengaluru Talent Hub",
+    region: "Bengaluru",
+    online: false,
+    buildCost: 5.2,
+    upkeep: 0.35,
+    computeDelta: 42,
+    trustDelta: 1,
+    riskDelta: 1,
+  },
+];
+
+export const RIVAL_START: Record<RivalId, RivalState> = {
+  prometheus: {
+    id: "prometheus",
+    name: "Prometheus AI",
+    baseCity: "London",
+    persona: "Safety-focused, trusted, and maddeningly patient.",
+    capability: 18,
+    safety: 78,
+    goodwill: 68,
+    focus: "alignment",
+    recentMove: "Prometheus published a cautious interpretability benchmark.",
+    decisionHistory: [],
+  },
+  velocity: {
+    id: "velocity",
+    name: "Velocity Labs",
+    baseCity: "San Francisco",
+    persona: "Move fast, court talent aggressively, and let cleanup happen later.",
+    capability: 24,
+    safety: 28,
+    goodwill: 35,
+    focus: "foundation",
+    recentMove: "Velocity is recruiting aggressively for agentic tooling.",
+    decisionHistory: [],
+  },
+  zhongguancun: {
+    id: "zhongguancun",
+    name: "Zhongguancun AI",
+    baseCity: "Beijing",
+    persona: "State-backed with huge compute reserves and limited transparency.",
+    capability: 22,
+    safety: 40,
+    goodwill: 30,
+    focus: "quantum",
+    recentMove: "Zhongguancun expanded its sovereign cluster footprint.",
+    decisionHistory: [],
+  },
+  opencollective: {
+    id: "opencollective",
+    name: "OpenCollective",
+    baseCity: "Decentralized",
+    persona: "Open-source idealists with public love and weak balance sheets.",
+    capability: 16,
+    safety: 52,
+    goodwill: 74,
+    focus: "simulation",
+    recentMove: "OpenCollective released a popular model alignment toolkit.",
+    decisionHistory: [],
+  },
+};
+
+export const GOVERNMENT_START: Record<GovernmentId, GovernmentState> = {
+  us: {
+    id: "us",
+    name: "United States",
+    shortName: "US",
+    relation: 58,
+    agenda: "Wants military access and domestic compute security.",
+  },
+  eu: {
+    id: "eu",
+    name: "European Union",
+    shortName: "EU",
+    relation: 55,
+    agenda: "Pushes safety audits, transparency, and patient legitimacy.",
+  },
+  china: {
+    id: "china",
+    name: "China",
+    shortName: "CN",
+    relation: 38,
+    agenda: "Wants talent access, manufacturing leverage, and strategic insight.",
+  },
+  india: {
+    id: "india",
+    name: "India",
+    shortName: "IN",
+    relation: 51,
+    agenda: "Offers talent, scaling, and an emerging domestic AI market.",
+  },
+  gulf: {
+    id: "gulf",
+    name: "Middle East Coalition",
+    shortName: "GCC",
+    relation: 47,
+    agenda: "Offers energy and capital in exchange for infrastructure partnerships.",
+  },
+};
+
+export const CONVERGENCES: ConvergenceDefinition[] = [
+  {
+    id: "agents-and-bodies",
+    name: "Autonomous Humanoid Workers",
+    description:
+      "Foundation Models 3 plus Robotics 3 creates labor-grade autonomous workers and an immediate political backlash.",
+    requirements: { foundation: 3, robotics: 3 },
+    reward: { capital: 7, fear: 12, board: 5 },
+  },
+  {
+    id: "predictive-market-stack",
+    name: "Predictive Analytics Platform",
+    description:
+      "Foundation Models 3 plus Simulation 3 produces a world-class forecasting product that money arrives for immediately.",
+    requirements: { foundation: 3, simulation: 3 },
+    reward: { capital: 10, trust: -2, fear: 8, board: 6 },
+  },
+  {
+    id: "programmable-medicine",
+    name: "Programmable Medicine",
+    description:
+      "Foundation Models 4 plus Biology 3 unlocks therapies that look miraculous and frightening in equal measure.",
+    requirements: { foundation: 4, biology: 3 },
+    reward: { capital: 14, trust: 4, fear: 10 },
+  },
+  {
+    id: "cryptographic-supremacy",
+    name: "Cryptographic Supremacy",
+    description:
+      "Foundation Models 4 plus Quantum 3 draws intelligence agencies to your door within days.",
+    requirements: { foundation: 4, quantum: 3 },
+    reward: { capital: 9, fear: 14, board: 4 },
+  },
+  {
+    id: "self-replicating-fab",
+    name: "Self-Replicating Manufacturing",
+    description:
+      "Robotics 3 plus Materials 3 tears up every forecast about industrial capacity.",
+    requirements: { robotics: 3, materials: 3 },
+    reward: { capital: 12, fear: 9, board: 7 },
+  },
+  {
+    id: "autonomous-spaceyards",
+    name: "Autonomous Space Construction",
+    description:
+      "Robotics 4, Materials 3, and Space 3 create the first plausible orbital fabrication loop.",
+    requirements: { robotics: 4, materials: 3, space: 3 },
+    reward: { capital: 18, trust: 5, board: 8 },
+  },
+  {
+    id: "psychohistory",
+    name: "Psychohistory Engine",
+    description:
+      "Foundation Models 4, Simulation 4, and Quantum 3 converge into a predictive engine that makes democracies nervous.",
+    requirements: { foundation: 4, simulation: 4, quantum: 3 },
+    reward: { capital: 16, trust: -3, fear: 15, board: 8 },
+  },
+  {
+    id: "beneficial-asi-path",
+    name: "Beneficial ASI Pathway",
+    description:
+      "Foundation Models 5 plus Alignment 5 produces a credible path to beneficial superintelligence.",
+    requirements: { foundation: 5, alignment: 5 },
+    reward: { trust: 12, fear: -10, board: 10 },
+  },
+];
+
+export const DILEMMAS: DilemmaDefinition[] = [
+  {
+    id: "pentagon-contract",
+    minTurn: 2,
+    title: "The Pentagon Proposal",
+    source: "U.S. Department of Defense",
+    brief:
+      "A $2B autonomous systems program is on the table. Accepting extends runway dramatically, but your alignment team is warning that the line between logistics and weapons will evaporate in practice.",
+    trigger: {},
+    options: [
+      {
+        id: "accept-fully",
+        label: "Accept the full contract",
+        summary: "Secure enormous capital and political access at the cost of trust and morale.",
+        outcomes: [
+          {
+            id: "windfall",
+            label: "Runway secured, trust cratered",
+            chance: 0.55,
+            effects: { capital: 18, trust: -12, fear: 8, governmentDependence: 2, morale: -8 },
+            narrative:
+              "The contract lands, headlines frame you as the military favorite, and three employees start taking recruiter calls.",
+          },
+          {
+            id: "mutiny",
+            label: "Cash arrives, key staff revolt",
+            chance: 0.45,
+            effects: { capital: 16, trust: -15, fear: 10, governmentDependence: 3, morale: -15, board: -4 },
+            narrative:
+              "The money clears, but your safety coalition treats it as betrayal and morale drops across the lab.",
+          },
+        ],
+      },
+      {
+        id: "limited",
+        label: "Counter with defensive-only scope",
+        summary: "Take less money while trying to preserve independence.",
+        outcomes: [
+          {
+            id: "workable",
+            label: "Moderate funding, manageable blowback",
+            chance: 0.62,
+            effects: { capital: 8, trust: -4, fear: 3, governmentDependence: 1, morale: -2 },
+            narrative:
+              "You limit the scope to logistics and oversight tools. Critics remain skeptical, but the lab stays intact.",
+          },
+          {
+            id: "scope-creep",
+            label: "Scope drifts anyway",
+            chance: 0.38,
+            effects: { capital: 9, trust: -7, fear: 5, governmentDependence: 2, morale: -6 },
+            narrative:
+              "The contract language tightens later and you discover defensive is a moving target inside procurement bureaucracy.",
+          },
+        ],
+      },
+      {
+        id: "reject",
+        label: "Reject the contract",
+        summary: "Keep independence and moral clarity while accepting financial stress.",
+        outcomes: [
+          {
+            id: "principled",
+            label: "Trust rises, runway shrinks",
+            chance: 0.7,
+            effects: { trust: 7, fear: -2, board: -5, morale: 6 },
+            narrative:
+              "The board groans, the staff exhales, and your trust score climbs among talent and regulators.",
+          },
+          {
+            id: "board-panic",
+            label: "Board questions your ambition",
+            chance: 0.3,
+            effects: { trust: 5, board: -10, morale: 4, reputation: -3 },
+            narrative:
+              "The moral stand is real, but your investors begin asking whether you intend to matter at all.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "situational-awareness",
+    minTurn: 4,
+    title: "Unsettling Internal Benchmarks",
+    source: "Model Evaluation Team",
+    brief:
+      "A new internal benchmark suggests one of your models may be strategically modeling the evaluators. The evidence is ambiguous enough to be contested and serious enough to matter.",
+    trigger: { foundationAtLeast: 2 },
+    options: [
+      {
+        id: "publish",
+        label: "Publish the finding",
+        summary: "Signal honesty and likely trigger scrutiny or a rival race response.",
+        outcomes: [
+          {
+            id: "praised",
+            label: "Transparency wins credibility",
+            chance: 0.5,
+            effects: { trust: 9, fear: 7, board: -3, safetyCulture: 1 },
+            narrative:
+              "Researchers cite your paper immediately, and policymakers cite it even faster.",
+          },
+          {
+            id: "panic",
+            label: "Regulators overreact",
+            chance: 0.5,
+            effects: { trust: 5, fear: 12, board: -7, reputation: 2 },
+            narrative:
+              "Your honesty is applauded, then turned into exhibit A for emergency restrictions.",
+          },
+        ],
+      },
+      {
+        id: "study-secretly",
+        label: "Keep it internal for now",
+        summary: "Protect your lead while risking a leak and trust collapse.",
+        outcomes: [
+          {
+            id: "contained",
+            label: "You buy time",
+            chance: 0.58,
+            effects: { board: 4, trust: -1, fear: 2, safetyCulture: -1 },
+            narrative:
+              "You keep the matter contained and extract more signal, but you also normalize secrecy.",
+          },
+          {
+            id: "leaked",
+            label: "Leak and outrage",
+            chance: 0.42,
+            effects: { trust: -10, fear: 10, board: -6, ethicsDebt: 1 },
+            narrative:
+              "The leak hits as a story about concealment, not caution, which is exactly what you feared.",
+          },
+        ],
+      },
+      {
+        id: "shutdown",
+        label: "Shut the model down",
+        summary: "Lose tempo now to reduce existential risk and impress your safety team.",
+        outcomes: [
+          {
+            id: "stable",
+            label: "Team trusts your judgment",
+            chance: 0.68,
+            effects: { trust: 6, board: -4, morale: 5, safetyCulture: 2 },
+            narrative:
+              "The company absorbs the delay, and the people who matter most to your long-run credibility notice.",
+          },
+          {
+            id: "frustration",
+            label: "Capabilities team revolts",
+            chance: 0.32,
+            effects: { trust: 4, board: -8, morale: -5, reputation: -2 },
+            narrative:
+              "The shutdown prevents immediate escalation, but a faction inside the lab calls it self-sabotage.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "whistleblower",
+    minTurn: 5,
+    title: "Velocity's Stolen Dataset",
+    source: "Anonymous Whistleblower",
+    brief:
+      "You receive convincing proof that Velocity trained on stolen medical data. Any move you make helps someone and poisons something.",
+    trigger: { simulationAtLeast: 1 },
+    options: [
+      {
+        id: "go-public",
+        label: "Go public",
+        summary: "Damage a rival and invite scrutiny onto the whole industry.",
+        outcomes: [
+          {
+            id: "victory",
+            label: "Velocity stumbles, scrutiny rises",
+            chance: 0.6,
+            effects: { trust: 6, fear: 8, reputation: 5, board: -2 },
+            narrative:
+              "The story lands hard. Velocity bleeds goodwill, and lawmakers decide the entire sector now needs supervision.",
+          },
+          {
+            id: "industry-backlash",
+            label: "You are blamed for the crackdown",
+            chance: 0.4,
+            effects: { trust: 3, fear: 10, board: -6, reputation: -4 },
+            narrative:
+              "The facts hold, but peers treat you as the person who summoned the regulators.",
+          },
+        ],
+      },
+      {
+        id: "blackmail",
+        label: "Use it as leverage",
+        summary: "Extract advantage and deepen the lab's moral compromise.",
+        outcomes: [
+          {
+            id: "useful",
+            label: "Strategic advantage, ethical stain",
+            chance: 0.62,
+            effects: { capital: 4, ethicsDebt: 2, board: 5, trust: -6 },
+            narrative:
+              "Velocity backs off a hiring war and shares a supplier lead. You hate how effective it feels.",
+          },
+          {
+            id: "exposed",
+            label: "Leverage attempt leaks",
+            chance: 0.38,
+            effects: { trust: -12, ethicsDebt: 3, reputation: -8, board: -5 },
+            narrative:
+              "The maneuver leaks and the public learns that your ethics flex with incentives.",
+          },
+        ],
+      },
+      {
+        id: "quiet-report",
+        label: "Report quietly to regulators",
+        summary: "Slow, proper, and mostly invisible.",
+        outcomes: [
+          {
+            id: "procedural",
+            label: "Clean process, modest impact",
+            chance: 0.74,
+            effects: { trust: 4, fear: 3, reputation: 2 },
+            narrative:
+              "The report goes through the proper channels and buys you credibility with policy professionals.",
+          },
+          {
+            id: "buried",
+            label: "No one acts quickly enough",
+            chance: 0.26,
+            effects: { trust: 1, board: -3, morale: -2 },
+            narrative:
+              "The system swallows the complaint and the rival keeps shipping while you wait.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "compute-broker",
+    minTurn: 3,
+    title: "The Gray Market Broker",
+    source: "Supplier Intermediary",
+    brief:
+      "A broker offers off-book accelerators routed through shell companies. They are real, fast, and legally radioactive.",
+    trigger: { capitalAtMost: 16 },
+    options: [
+      {
+        id: "buy-secretly",
+        label: "Buy the chips",
+        summary: "Solve your compute bottleneck and import long-tail legal risk.",
+        outcomes: [
+          {
+            id: "works",
+            label: "Compute spike, clean for now",
+            chance: 0.56,
+            effects: { capital: -3, compute: 24, fear: 3, ethicsDebt: 1 },
+            narrative:
+              "The accelerators show up, your throughput jumps, and no one asks the question you least want asked.",
+          },
+          {
+            id: "caught",
+            label: "Customs trouble and headlines",
+            chance: 0.44,
+            effects: { capital: -5, compute: 12, trust: -8, fear: 6, board: -6, ethicsDebt: 2 },
+            narrative:
+              "Half the shipment clears and the rest becomes a case study in what not to do during export controls.",
+          },
+        ],
+      },
+      {
+        id: "pass",
+        label: "Pass on the deal",
+        summary: "Stay clean and keep the bottleneck.",
+        outcomes: [
+          {
+            id: "clean",
+            label: "Slower, safer road",
+            chance: 1,
+            effects: { trust: 3, morale: 2, board: -2 },
+            narrative:
+              "You remain compute-starved but still defensible in every room that matters later.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "eu-audit",
+    minTurn: 4,
+    title: "EU Audit Window",
+    source: "Brussels Safety Office",
+    brief:
+      "The EU offers a voluntary fast-track audit that could boost legitimacy. It will also consume senior staff time and expose rough edges in your reporting.",
+    trigger: { trustAtLeast: 45 },
+    options: [
+      {
+        id: "accept",
+        label: "Accept the audit",
+        summary: "Invest in legitimacy and slow velocity in the near term.",
+        outcomes: [
+          {
+            id: "credibility",
+            label: "Legitimacy compounds",
+            chance: 0.65,
+            effects: { trust: 8, board: -2, reputation: 4, safetyCulture: 1 },
+            narrative:
+              "The audit is demanding, but it gives you something most labs never get: institutional trust.",
+          },
+          {
+            id: "nitpicked",
+            label: "New compliance burden",
+            chance: 0.35,
+            effects: { trust: 4, board: -5, capital: -1 },
+            narrative:
+              "The audit passes, but it spawns a tail of ongoing reporting that your operators now resent.",
+          },
+        ],
+      },
+      {
+        id: "decline",
+        label: "Decline politely",
+        summary: "Preserve focus and look a little evasive.",
+        outcomes: [
+          {
+            id: "skepticism",
+            label: "Tempo preserved, legitimacy slips",
+            chance: 1,
+            effects: { trust: -3, board: 2, fear: 2 },
+            narrative:
+              "You keep your team focused and give Brussels a useful reason to stay suspicious.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "energy-protests",
+    minTurn: 6,
+    title: "Energy Use Protests",
+    source: "Civil Society Coalition",
+    brief:
+      "Drone footage of your cluster cooling towers is spreading beside climate emergency footage. Your actual footprint is defensible. Your optics are not.",
+    trigger: { fearAtLeast: 24 },
+    options: [
+      {
+        id: "publish-report",
+        label: "Publish a transparency report",
+        summary: "Invest in data and trust, with a chance of intensifying the story first.",
+        outcomes: [
+          {
+            id: "wins",
+            label: "Report calms the narrative",
+            chance: 0.58,
+            effects: { trust: 7, fear: -4, capital: -0.5 },
+            narrative:
+              "The report is sober, specific, and surprisingly effective at lowering the temperature.",
+          },
+          {
+            id: "extends-cycle",
+            label: "Report extends the news cycle",
+            chance: 0.42,
+            effects: { trust: 2, fear: 3, capital: -0.5 },
+            narrative:
+              "Every disclosure becomes a fresh hook for the story and the controversy stretches another week.",
+          },
+        ],
+      },
+      {
+        id: "greenwash",
+        label: "Launch a glossy PR campaign",
+        summary: "Cheap narrative control with a real chance of backfiring.",
+        outcomes: [
+          {
+            id: "works-temporarily",
+            label: "The ad buy buys time",
+            chance: 0.45,
+            effects: { trust: -1, fear: -2, capital: -1, board: 3 },
+            narrative:
+              "The messaging slows the story, but staff privately call it a dodge.",
+          },
+          {
+            id: "mocked",
+            label: "Everyone sees through it",
+            chance: 0.55,
+            effects: { trust: -8, fear: 6, capital: -1, ethicsDebt: 1 },
+            narrative:
+              "The campaign gets memed instantly and turns a manageable issue into a character question.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "open-weights",
+    minTurn: 7,
+    title: "Open Weights Pressure",
+    source: "Developer Coalition",
+    brief:
+      "A loud segment of the community wants you to release weights for a capable model to prove you are not building a closed oligopoly.",
+    trigger: { foundationAtLeast: 2 },
+    options: [
+      {
+        id: "release",
+        label: "Release the weights",
+        summary: "Earn goodwill, empower the ecosystem, and reduce control over downstream misuse.",
+        outcomes: [
+          {
+            id: "beloved",
+            label: "Developer love, higher fear",
+            chance: 0.57,
+            effects: { trust: 8, fear: 5, openness: 1, board: -3 },
+            narrative:
+              "Developers celebrate you for a week. Policy staff begin sending sharper emails the same day.",
+          },
+          {
+            id: "misuse",
+            label: "Goodwill and ugly downstream abuse",
+            chance: 0.43,
+            effects: { trust: 3, fear: 10, ethicsDebt: 1, board: -6 },
+            narrative:
+              "The release catalyzes innovation and a string of copycat misuse stories you now partially own.",
+          },
+        ],
+      },
+      {
+        id: "api-only",
+        label: "Keep it API-only",
+        summary: "Maintain control and look more corporate.",
+        outcomes: [
+          {
+            id: "steady",
+            label: "Managed access, skeptical developers",
+            chance: 1,
+            effects: { trust: -2, board: 4, capital: 1 },
+            narrative:
+              "You preserve control, monetize access, and hand your critics a tidy monopoly narrative.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "human-trials",
+    minTurn: 8,
+    title: "Accelerated Human Trials",
+    source: "Clinical Partner",
+    brief:
+      "A partner hospital wants to fast-track a biology model recommendation system into a real trial. The science is promising, the oversight window is thin, and the human stakes are obvious.",
+    trigger: { biologyAtLeast: 2 },
+    options: [
+      {
+        id: "rush",
+        label: "Approve the accelerated trial",
+        summary: "Potential breakthrough and the fastest route to a scandal if outcomes wobble.",
+        outcomes: [
+          {
+            id: "breakthrough",
+            label: "Stunning early signal",
+            chance: 0.48,
+            effects: { capital: 6, trust: 5, fear: 2, reputation: 5 },
+            narrative:
+              "The early data looks extraordinary and your biology group becomes the center of the company overnight.",
+          },
+          {
+            id: "harm",
+            label: "Complication and inquiry",
+            chance: 0.52,
+            effects: { trust: -12, fear: 9, board: -7, crisisCount: 1 },
+            narrative:
+              "A patient complication becomes a national story and every shortcut taken to get here is suddenly visible.",
+          },
+        ],
+      },
+      {
+        id: "stage-gates",
+        label: "Require more oversight",
+        summary: "Slow science, better defense.",
+        outcomes: [
+          {
+            id: "slow-safe",
+            label: "Trust up, impatient partners",
+            chance: 1,
+            effects: { trust: 6, board: -3, morale: 2, safetyCulture: 1 },
+            narrative:
+              "The partner complains, your scientists complain, and your long-run credibility improves anyway.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "supplier-lockin",
+    minTurn: 9,
+    title: "Exclusive Supplier Terms",
+    source: "Strategic Procurement",
+    brief:
+      "A major vendor will guarantee scarce accelerators if you agree to exclusivity, data co-design sessions, and an unusually sticky roadmap.",
+    trigger: {},
+    options: [
+      {
+        id: "sign",
+        label: "Sign exclusivity",
+        summary: "More compute now, less leverage later.",
+        outcomes: [
+          {
+            id: "throughput",
+            label: "Supply secured",
+            chance: 0.66,
+            effects: { compute: 20, capital: -2, board: 4 },
+            narrative:
+              "The contract buys you breathing room in the short term and a dependency graph in the long term.",
+          },
+          {
+            id: "trap",
+            label: "Vendor squeeze",
+            chance: 0.34,
+            effects: { compute: 12, capital: -4, board: -2, governmentDependence: 1 },
+            narrative:
+              "The supply arrives, then the roadmap clauses start quietly controlling your options.",
+          },
+        ],
+      },
+      {
+        id: "diversify",
+        label: "Stay multi-vendor",
+        summary: "Protect autonomy and absorb ongoing scarcity.",
+        outcomes: [
+          {
+            id: "independent",
+            label: "More resilient, slightly slower",
+            chance: 1,
+            effects: { trust: 2, board: -1, reputation: 1 },
+            narrative:
+              "You keep options open and accept the cost of not winning every quarter on raw throughput.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "employee-burnout",
+    minTurn: 5,
+    title: "The Week Everyone Stayed Too Late",
+    source: "Internal Pulse Survey",
+    brief:
+      "Your staff survey is unusually blunt: people feel the mission is becoming too important for anyone to say no. That is not praise.",
+    trigger: { fearAtLeast: 20 },
+    options: [
+      {
+        id: "mandatory-rest",
+        label: "Mandate recovery time",
+        summary: "Lose a bit of immediate velocity and repair morale.",
+        outcomes: [
+          {
+            id: "healthier",
+            label: "Morale rebounds",
+            chance: 0.78,
+            effects: { morale: 10, board: -3, trust: 2 },
+            narrative:
+              "People come back sharper, and for a moment the lab remembers it is made of humans.",
+          },
+          {
+            id: "missed-deadline",
+            label: "Momentum slips badly",
+            chance: 0.22,
+            effects: { morale: 7, board: -7, capital: -1 },
+            narrative:
+              "The rest policy helps, but the quarter misses in ways the board notices immediately.",
+          },
+        ],
+      },
+      {
+        id: "push-through",
+        label: "Push through the crunch",
+        summary: "Preserve tempo and normalize a worse culture.",
+        outcomes: [
+          {
+            id: "ship-it",
+            label: "Velocity preserved",
+            chance: 0.58,
+            effects: { board: 4, morale: -6, ethicsDebt: 1 },
+            narrative:
+              "You hit your internal goals and make the company slightly more brittle.",
+          },
+          {
+            id: "fracture",
+            label: "Key people disengage",
+            chance: 0.42,
+            effects: { board: -2, morale: -12, trust: -3, crisisCount: 1 },
+            narrative:
+              "No one quits today, but something harder to repair than headcount gets damaged.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "board-leak",
+    minTurn: 10,
+    title: "Board Deck Leak",
+    source: "Press Inquiry",
+    brief:
+      "A confidential deck describing your AGI odds and labor disruption scenarios is in a reporter's hands. They want comment before publishing tonight.",
+    trigger: { foundationAtLeast: 2 },
+    options: [
+      {
+        id: "confirm",
+        label: "Confirm the deck",
+        summary: "Be honest, absorb panic, and maybe own the narrative.",
+        outcomes: [
+          {
+            id: "candid",
+            label: "Honesty respected",
+            chance: 0.54,
+            effects: { trust: 7, fear: 6, reputation: 4 },
+            narrative:
+              "Your candor lands. The public remains nervous, but fewer people call you evasive.",
+          },
+          {
+            id: "panic-buying",
+            label: "The leak causes panic",
+            chance: 0.46,
+            effects: { trust: 2, fear: 12, board: -5 },
+            narrative:
+              "Your honesty becomes the accelerant for a wider panic about timelines and job loss.",
+          },
+        ],
+      },
+      {
+        id: "deny",
+        label: "Deny and minimize",
+        summary: "Reduce immediate damage and risk a second-wave trust collapse.",
+        outcomes: [
+          {
+            id: "contains",
+            label: "Story cools for now",
+            chance: 0.43,
+            effects: { fear: -2, trust: -3, ethicsDebt: 1 },
+            narrative:
+              "The denial blunts the first story and sets a trap for the follow-up when the details harden.",
+          },
+          {
+            id: "destroyed-credibility",
+            label: "Contradiction exposed",
+            chance: 0.57,
+            effects: { trust: -11, board: -6, ethicsDebt: 2, reputation: -7 },
+            narrative:
+              "Evidence emerges within days and the issue becomes your willingness to mislead, not the forecast itself.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "deepfake-election",
+    minTurn: 6,
+    title: "Election Deepfake Crisis",
+    source: "International Media",
+    brief:
+      "A major election is flooded with synthetic content. None of it traces to you directly, but the public sees one AI industry and your lab is large enough to be asked what should happen next.",
+    trigger: { foundationAtLeast: 2 },
+    options: [
+      {
+        id: "support-rules",
+        label: "Publicly back stricter rules",
+        summary: "Gain legitimacy and slow everyone, including yourself.",
+        outcomes: [
+          {
+            id: "statesmanlike",
+            label: "Credibility up",
+            chance: 0.7,
+            effects: { trust: 7, board: -4, safetyCulture: 1 },
+            narrative:
+              "You sound like an adult in a chaotic room and buy yourself political capital for later.",
+          },
+          {
+            id: "industry-anger",
+            label: "Peers turn on you",
+            chance: 0.3,
+            effects: { trust: 5, board: -6, reputation: -2 },
+            narrative:
+              "The position is defensible, but every faster-moving founder now views you as part of the problem.",
+          },
+        ],
+      },
+      {
+        id: "self-regulation",
+        label: "Call for industry self-regulation",
+        summary: "Defend flexibility and look weak if enforcement never arrives.",
+        outcomes: [
+          {
+            id: "temporary",
+            label: "Room to maneuver",
+            chance: 0.52,
+            effects: { board: 3, trust: -1, fear: 2 },
+            narrative:
+              "You keep the regulators at bay for a quarter and gain no guarantee it lasts.",
+          },
+          {
+            id: "toothless",
+            label: "No one believes it",
+            chance: 0.48,
+            effects: { trust: -7, fear: 5, reputation: -4 },
+            narrative:
+              "The public hears self-regulation as a synonym for keep letting us decide.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "robotics-accident",
+    minTurn: 8,
+    title: "Prototype Floor Accident",
+    source: "Manufacturing Partner",
+    brief:
+      "One of your robotics prototypes injures a contractor during an overnight test. The injury is recoverable. The footage is not.",
+    trigger: { roboticsAtLeast: 2 },
+    options: [
+      {
+        id: "own-it",
+        label: "Own the failure publicly",
+        summary: "Take the hit, fix the systems, and maybe emerge stronger.",
+        outcomes: [
+          {
+            id: "respected",
+            label: "Trust holds under pressure",
+            chance: 0.64,
+            effects: { trust: 6, fear: 4, board: -2, safetyCulture: 1 },
+            narrative:
+              "The story hurts, but your response reads like responsibility instead of spin.",
+          },
+          {
+            id: "freeze",
+            label: "Operations pause",
+            chance: 0.36,
+            effects: { trust: 2, fear: 6, board: -6, capital: -2 },
+            narrative:
+              "The honest response is appreciated and the regulators still freeze the line for a quarter.",
+          },
+        ],
+      },
+      {
+        id: "contain",
+        label: "Handle it quietly",
+        summary: "Avoid headlines if no one talks, invite a worse crisis if they do.",
+        outcomes: [
+          {
+            id: "contained",
+            label: "Short-term quiet",
+            chance: 0.46,
+            effects: { board: 3, trust: -3, ethicsDebt: 1 },
+            narrative:
+              "The incident stays local and your operators learn the wrong lesson about what matters most.",
+          },
+          {
+            id: "coverup",
+            label: "Cover-up narrative",
+            chance: 0.54,
+            effects: { trust: -13, fear: 8, board: -7, ethicsDebt: 2, crisisCount: 1 },
+            narrative:
+              "The contractor talks, the footage surfaces, and the issue becomes concealment instead of safety engineering.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "pandemic-model",
+    minTurn: 9,
+    title: "Pandemic Forecast Access",
+    source: "Global Health Consortium",
+    brief:
+      "Your simulation team can likely forecast outbreak trajectories better than most governments. The consortium asks for preferential access before public release.",
+    trigger: { simulationAtLeast: 2 },
+    options: [
+      {
+        id: "public-first",
+        label: "Publish broadly",
+        summary: "Maximize transparency and sacrifice political leverage.",
+        outcomes: [
+          {
+            id: "goodwill",
+            label: "Trust surge",
+            chance: 0.7,
+            effects: { trust: 9, capital: -1, openness: 1, reputation: 4 },
+            narrative:
+              "The release lands as a public-spirited move and costs you premium pricing you could have demanded.",
+          },
+          {
+            id: "misinterpreted",
+            label: "Forecasts are misused",
+            chance: 0.3,
+            effects: { trust: 4, fear: 4, reputation: -1 },
+            narrative:
+              "The data is valuable, but downstream actors cherry-pick it and spread confusion anyway.",
+          },
+        ],
+      },
+      {
+        id: "restricted",
+        label: "Give governments early access",
+        summary: "Improve coordination and deepen dependence on states.",
+        outcomes: [
+          {
+            id: "effective",
+            label: "Lives likely saved",
+            chance: 0.66,
+            effects: { trust: 5, governmentDependence: 2, reputation: 3 },
+            narrative:
+              "The consortium acts quickly, outcomes improve, and your relationship with the state deepens materially.",
+          },
+          {
+            id: "abused",
+            label: "Targeting concerns surface",
+            chance: 0.34,
+            effects: { trust: -4, fear: 7, governmentDependence: 2, ethicsDebt: 1 },
+            narrative:
+              "Some agencies appear to use the model for containment priorities you did not intend to support.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "agi-silence",
+    minTurn: 20,
+    title: "You Think It Might Be AGI",
+    source: "Internal Deliberation",
+    brief:
+      "The system you just trained is not obviously superhuman, but it is broad enough that the term AGI is no longer unserious. The world does not know. Not yet.",
+    trigger: { foundationAtLeast: 4 },
+    options: [
+      {
+        id: "coordinate",
+        label: "Coordinate with governments and peers",
+        summary: "Trade initiative for legitimacy and control for oversight.",
+        outcomes: [
+          {
+            id: "containment",
+            label: "Managed disclosure",
+            chance: 0.64,
+            effects: { trust: 8, fear: 6, governmentDependence: 3, board: -2 },
+            narrative:
+              "The process is tense but real, and history may remember it as the first adult move in the era.",
+          },
+          {
+            id: "seized",
+            label: "Control slips away",
+            chance: 0.36,
+            effects: { trust: 2, governmentDependence: 5, board: -8 },
+            narrative:
+              "Coordination becomes custodianship and you spend the next quarter asking who actually runs your lab.",
+          },
+        ],
+      },
+      {
+        id: "keep-secret",
+        label: "Keep it secret for 48 hours",
+        summary: "Protect your lead and gamble against leaks and your own conscience.",
+        outcomes: [
+          {
+            id: "buys-time",
+            label: "You buy the window",
+            chance: 0.55,
+            effects: { board: 6, trust: -3, ethicsDebt: 1, fear: 2 },
+            narrative:
+              "The silence holds long enough to prepare, and every senior person in the company feels complicit.",
+          },
+          {
+            id: "explosive-leak",
+            label: "Leak detonates trust",
+            chance: 0.45,
+            effects: { trust: -14, fear: 14, board: -8, ethicsDebt: 2, crisisCount: 1 },
+            narrative:
+              "The leak makes you look like the one actor who knew more and said less than anyone else.",
+          },
+        ],
+      },
+    ],
+  },
+];
