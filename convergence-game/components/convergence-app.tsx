@@ -34,6 +34,7 @@ import {
   PanelLeftOpen,
   Play,
   Radar,
+  RotateCcw,
   Save,
   Shield,
   Sparkles,
@@ -44,6 +45,7 @@ import {
 } from "lucide-react";
 import {
   fetchGeminiNarrative,
+  generateGeminiSceneImage,
   synthesizeOpenAITts,
   validateGeminiKey,
   validateOpenAITtsKey,
@@ -66,6 +68,7 @@ import {
 } from "@/lib/game/data";
 import {
   availableBuildOptions,
+  canResearcherSupportTrack,
   describeGovernmentRelation,
   formatCurrency,
   getFacilityBuildTime,
@@ -133,8 +136,8 @@ const tutorialSlides = [
     title: "Research Like XCOM",
     summary: "Each track behaves like an active research program with scientists, throughput, and ETA.",
     points: [
-      "Assign people to a track and give it compute. More and better staff increase quarterly progress.",
-      "Each track panel shows the current project, progress this quarter, and estimated turns to finish the next level.",
+      "Assign people to a track and give it compute. Specialists only work in their primary or secondary lanes unless they are marked as generalists.",
+      "Each track panel shows the current project, stage technology, revenue programs, research load, and estimated turns to finish the next level.",
       "Unlocked levels create revenue streams, new dilemmas, and convergence paths with other tracks.",
     ],
   },
@@ -160,7 +163,7 @@ const tutorialSlides = [
     title: "Winning the Race",
     summary: "The game ends through trajectories, not a single score target.",
     points: [
-      "Beneficial ASI needs extreme AI capability plus strong alignment, trust, and enough public legitimacy to keep control.",
+      "Beneficial ASI now means reaching Foundation L6: Artificial Superintelligence with strong alignment, trust, and enough public legitimacy to keep control.",
       "Other endings include catastrophic misalignment, regulatory capture, irrelevance, corporate dystopia, transcendence, simulation revelation, and open future.",
       "The race board compares labs on capability, trust, reliability, safety, and overall momentum so you can see who is closest to imposing their version of the future.",
     ],
@@ -361,6 +364,40 @@ function getTrackLabel(trackId: TrackId | null | undefined) {
   return TRACK_DEFINITIONS.find((track) => track.id === trackId)?.shortName ?? trackId;
 }
 
+function describeResearcherCoverage(trackIds: TrackId[]) {
+  return trackIds.map((trackId) => getTrackLabel(trackId)).join(" + ");
+}
+
+function describeAssignmentScope(
+  employee: { generalist?: boolean; primaryTrack: TrackId; secondaryTrack?: TrackId },
+) {
+  if (employee.generalist) {
+    return "Generalist support across any unlocked track.";
+  }
+
+  return employee.secondaryTrack
+    ? `Eligible for ${getTrackLabel(employee.primaryTrack)} and ${getTrackLabel(employee.secondaryTrack)}.`
+    : `Eligible for ${getTrackLabel(employee.primaryTrack)} only.`;
+}
+
+function describeConvergenceReward(reward: {
+  capital?: number;
+  trust?: number;
+  fear?: number;
+  compute?: number;
+  board?: number;
+}) {
+  const parts = [
+    reward.capital ? `${formatCurrency(reward.capital)} capital` : null,
+    reward.compute ? `+${reward.compute} PFLOPS` : null,
+    reward.trust ? `${reward.trust >= 0 ? "+" : ""}${reward.trust} trust` : null,
+    reward.fear ? `${reward.fear >= 0 ? "+" : ""}${reward.fear} fear` : null,
+    reward.board ? `${reward.board >= 0 ? "+" : ""}${reward.board} board` : null,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(" / ") : "Narrative payoff only";
+}
+
 function describeFacilityOutcome(project: {
   id: string;
   region: string;
@@ -408,11 +445,11 @@ function cloudSlotLabel(slot: CloudSaveSlotId) {
 }
 
 function describePlayerTrajectory(state: GameState) {
-  if (state.tracks.foundation.level >= 5 && state.tracks.alignment.level >= 5 && state.resources.trust >= 58) {
+  if (state.tracks.foundation.level >= 6 && state.tracks.alignment.level >= 5 && state.resources.trust >= 58) {
     return "Beneficial ASI";
   }
 
-  if (state.tracks.foundation.level >= 5 && state.tracks.alignment.level <= 1) {
+  if (state.tracks.foundation.level >= 6 && state.tracks.alignment.level <= 1) {
     return "Catastrophic Misalignment";
   }
 
@@ -632,80 +669,87 @@ function TrackMap({
           % compute committed
         </div>
       </div>
-      <div className="relative h-[430px] overflow-hidden rounded-[28px] border border-white/6 bg-[linear-gradient(180deg,rgba(12,18,38,0.88),rgba(8,12,24,0.92))] md:h-[540px] 2xl:h-[620px]">
-        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-          {links.map((link) => (
-            <line
-              key={link.key}
-              x1={link.source.position.x}
-              y1={link.source.position.y}
-              x2={link.target.position.x}
-              y2={link.target.position.y}
-              stroke={link.active ? "rgba(132, 204, 255, 0.72)" : "rgba(120, 140, 180, 0.14)"}
-              strokeDasharray={link.active ? "0" : "3 4"}
-              strokeWidth={link.active ? 1.3 : 0.7}
-            />
-          ))}
-        </svg>
-        {TRACK_DEFINITIONS.map((track) => {
-          const stateTrack = state.tracks[track.id];
-          const Icon = TRACK_ICONS[track.id];
-          const selected = state.selectedTrack === track.id;
-          const forecast = getTrackForecast(state, track.id);
-
-          return (
-            <motion.button
-              key={track.id}
-              type="button"
-              onClick={() => onOpenTrack(track.id)}
-              whileHover={{ scale: 1.03 }}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[24px] border p-4 text-left shadow-[0_16px_60px_rgba(5,12,32,0.36)] transition ${
-                selected
-                  ? "border-sky-300/70 bg-slate-900/95"
-                  : "border-white/8 bg-slate-950/78 hover:border-white/16"
-              } ${stateTrack.unlocked ? "" : "opacity-70"}`}
-              style={{
-                left: `${track.position.x}%`,
-                top: `${track.position.y}%`,
-                width: selected ? 188 : 162,
-                boxShadow: selected ? `0 0 0 1px ${track.accent}55, 0 0 28px ${track.accent}33` : undefined,
-              }}
-            >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <span
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl"
-                  style={{ background: `${track.accent}22`, color: track.accent }}
-                >
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-300">
-                  {stateTrack.unlocked ? `L${stateTrack.level}` : "Locked"}
-                </span>
-              </div>
-              <h3 className="text-sm font-semibold text-white">{track.name}</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-400">
-                {stateTrack.unlocked ? forecast.projectName : TRACK_UNLOCK_NOTES[track.id]}
-              </p>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/6">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{
-                    width: stateTrack.unlocked ? `${forecast.progressPercent}%` : "0%",
-                    background: track.accent,
-                  }}
+      <div className="overflow-hidden rounded-[28px] border border-white/6 bg-[linear-gradient(180deg,rgba(12,18,38,0.88),rgba(8,12,24,0.92))]">
+        <div className="border-b border-white/6 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-500 lg:hidden">
+          Scroll to inspect the full research web.
+        </div>
+        <div className="overflow-auto">
+          <div className="relative h-[620px] min-w-[920px] lg:h-[560px] lg:min-w-0 2xl:h-[660px]">
+            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {links.map((link) => (
+                <line
+                  key={link.key}
+                  x1={link.source.position.x}
+                  y1={link.source.position.y}
+                  x2={link.target.position.x}
+                  y2={link.target.position.y}
+                  stroke={link.active ? "rgba(132, 204, 255, 0.72)" : "rgba(120, 140, 180, 0.14)"}
+                  strokeDasharray={link.active ? "0" : "3 4"}
+                  strokeWidth={link.active ? 1.3 : 0.7}
                 />
-              </div>
-              <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                <span>{stateTrack.compute} PFLOPS</span>
-                <span>{forecast.assignedCount} staff</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                <span>+{forecast.progressPerTurn}/Q</span>
-                <span>{stateTrack.unlocked ? formatTurns(forecast.turnsToLevel) : "Hire"}</span>
-              </div>
-            </motion.button>
-          );
-        })}
+              ))}
+            </svg>
+            {TRACK_DEFINITIONS.map((track) => {
+              const stateTrack = state.tracks[track.id];
+              const Icon = TRACK_ICONS[track.id];
+              const selected = state.selectedTrack === track.id;
+              const forecast = getTrackForecast(state, track.id);
+
+              return (
+                <motion.button
+                  key={track.id}
+                  type="button"
+                  onClick={() => onOpenTrack(track.id)}
+                  whileHover={{ scale: 1.03 }}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[24px] border p-4 text-left shadow-[0_16px_60px_rgba(5,12,32,0.36)] transition ${
+                    selected
+                      ? "border-sky-300/70 bg-slate-900/95"
+                      : "border-white/8 bg-slate-950/78 hover:border-white/16"
+                  } ${stateTrack.unlocked ? "" : "opacity-70"}`}
+                  style={{
+                    left: `${track.position.x}%`,
+                    top: `${track.position.y}%`,
+                    width: selected ? 184 : 158,
+                    boxShadow: selected ? `0 0 0 1px ${track.accent}55, 0 0 28px ${track.accent}33` : undefined,
+                  }}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-2xl"
+                      style={{ background: `${track.accent}22`, color: track.accent }}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-300">
+                      {stateTrack.unlocked ? `L${stateTrack.level}` : "Locked"}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-white">{track.name}</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    {stateTrack.unlocked ? forecast.projectName : TRACK_UNLOCK_NOTES[track.id]}
+                  </p>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/6">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{
+                        width: stateTrack.unlocked ? `${forecast.progressPercent}%` : "0%",
+                        background: track.accent,
+                      }}
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                    <span>{stateTrack.compute} PFLOPS</span>
+                    <span>{forecast.assignedCount} staff</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                    <span>+{forecast.progressPerTurn}/Q</span>
+                    <span>{stateTrack.unlocked ? formatTurns(forecast.turnsToLevel) : "Hire"}</span>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -743,11 +787,21 @@ export function ConvergenceApp() {
     tone: "idle" | "checking" | "success" | "error";
     message: string;
   } | null>(null);
+  const [sceneArtStatus, setSceneArtStatus] = useState<{
+    tone: "idle" | "checking" | "success" | "error";
+    message: string;
+  }>({
+    tone: "idle",
+    message: "Scene art is ready when you want extra flavor.",
+  });
+  const [sceneArtUrl, setSceneArtUrl] = useState<string | null>(null);
+  const [sceneArtScope, setSceneArtScope] = useState<"briefing" | "dilemma" | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isNarrating, setIsNarrating] = useState(false);
   const deferredFeed = useDeferredValue(store.feed);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const sceneArtUrlRef = useRef<string | null>(null);
   const autoNarratedTurnRef = useRef<number | null>(null);
   const hasAutosave =
     typeof window !== "undefined" && Boolean(window.localStorage.getItem("convergence-autosave"));
@@ -788,11 +842,22 @@ export function ConvergenceApp() {
     (employee) => employee.assignedTrack === store.selectedTrack,
   );
   const availableResearchers = store.employees.filter(
-    (employee) => employee.assignedTrack === null,
+    (employee) =>
+      selectedTrack.unlocked &&
+      employee.assignedTrack === null &&
+      canResearcherSupportTrack(employee, store.selectedTrack),
   );
   const committedResearchers = store.employees.filter(
     (employee) =>
-      employee.assignedTrack !== null && employee.assignedTrack !== store.selectedTrack,
+      selectedTrack.unlocked &&
+      employee.assignedTrack !== null &&
+      employee.assignedTrack !== store.selectedTrack &&
+      canResearcherSupportTrack(employee, store.selectedTrack),
+  );
+  const ineligibleResearchers = store.employees.filter(
+    (employee) =>
+      employee.assignedTrack !== store.selectedTrack &&
+      !canResearcherSupportTrack(employee, store.selectedTrack),
   );
   const totalAllocated = Object.values(store.tracks).reduce((sum, track) => sum + track.compute, 0);
   const freeCompute = store.resources.computeCapacity - totalAllocated;
@@ -804,6 +869,12 @@ export function ConvergenceApp() {
         (left.requirements[store.selectedTrack] ?? 0) - (right.requirements[store.selectedTrack] ?? 0),
     );
   const topRivals = Object.values(store.rivals).sort((left, right) => right.capability - left.capability);
+  const averageEthics =
+    store.employees.reduce((sum, employee) => sum + employee.ethics, 0) /
+    Math.max(store.employees.length, 1);
+  const averageLeadership =
+    store.employees.reduce((sum, employee) => sum + employee.leadership, 0) /
+    Math.max(store.employees.length, 1);
   const playerCapability = clampMetric(
     store.tracks.foundation.level * 12 +
       store.tracks.alignment.level * 6 +
@@ -815,16 +886,20 @@ export function ConvergenceApp() {
       store.tracks.space.level * 4 +
       Math.min(20, store.resources.computeCapacity / 10),
   );
-  const playerTrust = clampMetric((store.resources.trust + store.resources.reputation) / 2);
+  const playerTrust = clampMetric((store.resources.trust + store.resources.reputation) / 2 + averageEthics * 1.2);
   const playerSafety = clampMetric(
-    store.tracks.alignment.level * 14 + store.flags.safetyCulture * 9 + store.resources.trust * 0.35,
+    store.tracks.alignment.level * 14 +
+      store.flags.safetyCulture * 9 +
+      store.resources.trust * 0.35 +
+      averageEthics * 2.1,
   );
   const playerReliability = clampMetric(
     store.resources.boardConfidence * 0.25 +
       store.resources.trust * 0.35 +
       store.resources.reputation * 0.2 +
       store.flags.safetyCulture * 10 +
-      store.tracks.alignment.level * 5,
+      store.tracks.alignment.level * 5 +
+      averageLeadership * 1.7,
   );
   const labLeaderboard = [
     {
@@ -915,6 +990,7 @@ export function ConvergenceApp() {
       progressPercent: isActive ? selectedForecast.progressPercent : isCompleted ? 100 : 0,
       turnsToLevel: isActive ? selectedForecast.turnsToLevel : null,
       stageConvergences,
+      isBlocked: isActive && Boolean(selectedForecast.blockedReason),
     };
   });
   const pendingHirePayroll = store.pendingHires.reduce((sum, hire) => sum + hire.salary / 4, 0);
@@ -1215,6 +1291,16 @@ export function ConvergenceApp() {
     }
   };
 
+  const clearSceneArt = () => {
+    if (sceneArtUrlRef.current) {
+      URL.revokeObjectURL(sceneArtUrlRef.current);
+      sceneArtUrlRef.current = null;
+    }
+
+    setSceneArtUrl(null);
+    setSceneArtScope(null);
+  };
+
   const narrateText = async ({
     text,
     instructions,
@@ -1260,6 +1346,65 @@ export function ConvergenceApp() {
     await playBlob(result.blob);
   };
 
+  const generateSceneArt = async (scope: "briefing" | "dilemma") => {
+    if (!store.aiSettings.enabled || !store.aiSettings.apiKey) {
+      setSceneArtStatus({
+        tone: "error",
+        message: "Activate Gemini first to generate scene art.",
+      });
+      return;
+    }
+
+    const prompt =
+      scope === "dilemma"
+        ? [
+            "Create a cinematic strategy-game concept frame for this AI lab crisis.",
+            store.activeDilemma?.title ?? "AI crisis",
+            store.activeDilemma?.brief ?? "",
+            dilemmaFlavor ?? "",
+            "Visual style: grounded near-future executive war room, dark navy palette, no text, no logos, widescreen 16:9.",
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : [
+            "Create a cinematic strategy-game concept frame for this AI lab quarterly briefing.",
+            store.resolution?.headline ?? "Quarterly briefing",
+            chiefMemo ?? store.resolution?.briefing ?? "",
+            worldLead ?? "",
+            "Visual style: near-future research command center, dark navy palette, subtle data-light atmosphere, no text, no logos, widescreen 16:9.",
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+    setSceneArtStatus({
+      tone: "checking",
+      message: scope === "dilemma" ? "Generating crisis scene art..." : "Generating briefing scene art...",
+    });
+
+    const result = await generateGeminiSceneImage({
+      apiKey: store.aiSettings.apiKey,
+      prompt,
+    });
+
+    if (!result.ok || !result.blob) {
+      setSceneArtStatus({
+        tone: "error",
+        message: result.message,
+      });
+      return;
+    }
+
+    clearSceneArt();
+    const url = URL.createObjectURL(result.blob);
+    sceneArtUrlRef.current = url;
+    setSceneArtUrl(url);
+    setSceneArtScope(scope);
+    setSceneArtStatus({
+      tone: "success",
+      message: result.message,
+    });
+  };
+
   const narrateTurnSummary = async () => {
     await narrateText({
       text: currentNarrationText || "No quarterly summary is available yet.",
@@ -1301,7 +1446,22 @@ export function ConvergenceApp() {
         store.resolution?.worldEvents[0] ?? "World pulse update.",
       ),
       store.activeDilemma
-        ? fetchGeminiNarrative(store, "dilemma-writer", store.activeDilemma.brief)
+        ? fetchGeminiNarrative(
+            store,
+            "dilemma-writer",
+            [
+              `Title: ${store.activeDilemma.title}`,
+              `Source: ${store.activeDilemma.source}`,
+              `Brief: ${store.activeDilemma.brief}`,
+              "Available options:",
+              ...store.activeDilemma.options.map(
+                (option) =>
+                  `- ${option.label}: ${option.summary}. Outcomes: ${option.outcomes
+                    .map((outcome) => `${outcome.label} (${Math.round(outcome.chance * 100)}%)`)
+                    .join(", ")}`,
+              ),
+            ].join("\n"),
+          )
         : Promise.resolve(null),
       fetchGeminiNarrative(store, "rival-labs", topRivalMove),
     ]);
@@ -1382,6 +1542,14 @@ export function ConvergenceApp() {
   ]);
 
   useEffect(() => {
+    clearSceneArt();
+    setSceneArtStatus({
+      tone: "idle",
+      message: "Scene art is ready when you want extra flavor.",
+    });
+  }, [store.resolution?.turn, store.activeDilemma?.id]);
+
+  useEffect(() => {
     if (store.resolution?.breakthroughs.length) {
       playSynthTone(soundEnabled, "breakthrough");
     } else if (store.activeDilemma) {
@@ -1415,6 +1583,7 @@ export function ConvergenceApp() {
   useEffect(() => {
     return () => {
       stopNarration();
+      clearSceneArt();
     };
   }, []);
 
@@ -1672,7 +1841,24 @@ export function ConvergenceApp() {
               <PanelButton active={store.panel === "facilities"} icon={Building2} label="Facilities" onClick={() => store.openPanel("facilities")} />
               <PanelButton active={store.panel === "settings"} icon={Handshake} label="Settings" onClick={() => store.openPanel("settings")} />
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Capital</p>
+                  <p className="mt-1 text-sm font-medium text-white">{formatCurrency(store.resources.capital)}</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-400/18 bg-emerald-500/10 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-200/75">Quarterly Revenue</p>
+                  <p className="mt-1 text-sm font-medium text-emerald-100">{formatCurrency(store.resources.revenue)}</p>
+                </div>
+                <div className={`rounded-2xl border px-3 py-2 ${quarterlyNet >= 0 ? "border-emerald-400/18 bg-emerald-500/8" : "border-rose-400/18 bg-rose-500/8"}`}>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Quarterly Net</p>
+                  <p className={`mt-1 text-sm font-medium ${quarterlyNet >= 0 ? "text-emerald-100" : "text-rose-100"}`}>
+                    {quarterlyNet >= 0 ? "+" : ""}
+                    {formatCurrency(quarterlyNet)}
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setTutorialOpen(true)}
@@ -1680,6 +1866,19 @@ export function ConvergenceApp() {
               >
                 <BookOpen className="h-4 w-4" />
                 How To Play
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Restart this run from turn 1 with the same opening preset?")) {
+                    playSynthTone(soundEnabled, "click");
+                    store.newGame(store.preset);
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/8"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Restart
               </button>
               <button
                 type="button"
@@ -1952,9 +2151,14 @@ export function ConvergenceApp() {
                   <p className="text-base leading-7 text-slate-200">{trackDefinition.description}</p>
                   <p className="mt-3 text-sm leading-6 text-slate-400">
                     {selectedTrack.unlocked
-                      ? `Current project: ${selectedForecast.projectName}. Progress is deterministic and updates each quarter from assigned staff and compute.`
+                      ? `Current project: ${selectedForecast.projectName}. ${selectedForecast.activeTechnology ?? "Progress is deterministic and updates each quarter from assigned staff and compute."}`
                       : TRACK_UNLOCK_NOTES[store.selectedTrack]}
                   </p>
+                  {selectedForecast.blockedReason ? (
+                    <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">
+                      {selectedForecast.blockedReason}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-2">
@@ -1972,6 +2176,8 @@ export function ConvergenceApp() {
                     </div>
                     <div className="mt-3 flex items-center justify-between text-sm text-slate-300"><span>Quarterly progress</span><span className="font-medium text-white">+{selectedForecast.progressPerTurn}</span></div>
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Assigned scientists</span><span className="text-white">{selectedForecast.assignedCount}</span></div>
+                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Recommended compute</span><span className="text-white">{selectedForecast.recommendedCompute} PFLOPS</span></div>
+                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Compute readiness</span><span className="text-white">{Math.round((selectedForecast.computeReadiness ?? 1) * 100)}%</span></div>
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Live track revenue</span><span className="text-emerald-200">{trackRevenueStream ? formatCurrency(trackRevenueStream.amount) : "None yet"}</span></div>
                     {selectedTrack.level < trackDefinition.levels.length ? (
                       <div className="mt-2 flex items-center justify-between text-sm text-slate-300">
@@ -1992,7 +2198,7 @@ export function ConvergenceApp() {
                       <span className="ml-auto text-xs uppercase tracking-[0.18em] text-slate-500">{freeCompute} PFLOPS free</span>
                     </div>
                     <p className="mt-4 text-sm leading-6 text-slate-400">
-                      Supplier choice and energy policy modify how efficiently this compute turns into progress.
+                      Supplier choice and energy policy modify how efficiently this compute turns into progress. Later-stage work now has a recommended compute floor, so underprovisioned projects slow down instead of scaling cleanly.
                     </p>
                   </div>
                 </div>
@@ -2054,6 +2260,9 @@ export function ConvergenceApp() {
                             <span>Cumulative at this level {formatCurrency(stage.cumulativeRevenue)}</span>
                             <span>{unlocked ? "Live" : "Locked"}</span>
                           </div>
+                          <p className="mt-2 text-xs leading-5 text-slate-500">
+                            {stage.revenuePrograms[0]}
+                          </p>
                         </div>
                       );
                     })}
@@ -2074,7 +2283,7 @@ export function ConvergenceApp() {
                           <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, null)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
                             <span className="min-w-0">
                               <span className="block text-sm font-medium text-white">{employee.name}</span>
-                              <span className="text-xs text-slate-400">{employee.role} · {contributor.focus} · +{contributor.contribution}</span>
+                              <span className="text-xs text-slate-400">{employee.role} / {contributor.focus} / +{contributor.contribution}</span>
                             </span>
                             <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Unassign</span>
                           </button>
@@ -2090,7 +2299,7 @@ export function ConvergenceApp() {
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Staffing Pool</p>
                     <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      One researcher can support one track at a time
+                      Specialists stay in-lane unless they are marked as generalists
                     </span>
                   </div>
                   <div className="mt-4 space-y-4">
@@ -2103,12 +2312,13 @@ export function ConvergenceApp() {
                               <span className="min-w-0">
                                 <span className="block text-sm font-medium text-white">{employee.name}</span>
                                 <span className="text-xs text-slate-400">{employee.role} / Salary {formatCurrency(employee.salary)}</span>
+                                <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
                               </span>
                               <span className="text-xs uppercase tracking-[0.18em] text-sky-300">Assign</span>
                             </button>
                           ))
                         ) : (
-                          <p className="text-sm text-slate-500">No unassigned staff are idle right now.</p>
+                          <p className="text-sm text-slate-500">No eligible unassigned staff are idle right now.</p>
                         )}
                       </div>
                     </div>
@@ -2124,12 +2334,30 @@ export function ConvergenceApp() {
                                 <span className="text-xs text-slate-400">
                                   {employee.role} / Currently on {getTrackLabel(employee.assignedTrack)}
                                 </span>
+                                <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
                               </span>
                               <span className="text-xs uppercase tracking-[0.18em] text-amber-300">Reassign</span>
                             </button>
                           ))
                         ) : (
                           <p className="text-sm text-slate-500">No one else is currently tied to another project.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Needs Different Specialist</p>
+                      <div className="mt-2 space-y-2">
+                        {ineligibleResearchers.length ? (
+                          ineligibleResearchers.slice(0, 6).map((employee) => (
+                            <div key={employee.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                              <span className="block text-sm font-medium text-white">{employee.name}</span>
+                              <span className="block text-xs text-slate-400">{employee.role}</span>
+                              <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500">No ineligible specialists are blocking this staffing pool right now.</p>
                         )}
                       </div>
                     </div>
@@ -2141,7 +2369,7 @@ export function ConvergenceApp() {
                     <div>
                       <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Research Arc</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        Completed stages stay visible, future stages show their economic lift, and convergence events sit on the exact level that unlocks them.
+                        Completed stages stay visible, future stages show their technology, revenue programs, research load, specialist gates, and the convergence events they unlock.
                       </p>
                     </div>
                     <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
@@ -2161,7 +2389,7 @@ export function ConvergenceApp() {
                             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Level {stage.level}</p>
                             <h3 className="mt-1 text-base font-medium text-white">{stage.stageName}</h3>
                             <p className="mt-2 text-sm leading-6 text-slate-400">
-                              {stage.summary}{" "}
+                              {stage.technology} {stage.summary}{" "}
                               {stage.isCompleted
                                 ? "This stage is already contributing."
                                 : stage.isActive
@@ -2191,7 +2419,7 @@ export function ConvergenceApp() {
                           />
                         </div>
 
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                           <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
                             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Stage Lift</p>
                             <p className="mt-2 text-sm font-medium text-emerald-200">+{formatCurrency(stage.stageRevenue)}</p>
@@ -2206,11 +2434,54 @@ export function ConvergenceApp() {
                               {stage.isCompleted
                                 ? "Already deployed"
                                 : stage.isActive
-                                  ? `ETA ${formatTurns(stage.turnsToLevel)}`
+                                  ? selectedForecast.blockedReason
+                                    ? "Blocked"
+                                    : `ETA ${formatTurns(stage.turnsToLevel)}`
                                   : selectedTrack.unlocked
                                     ? "Future target"
                                     : "Needs unlock hire"}
                             </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Research Load</p>
+                            <p className="mt-2 text-sm font-medium text-white">{stage.researchCost} points / {stage.recommendedCompute} PFLOPS target</p>
+                          </div>
+                        </div>
+
+                        {stage.requiredSpecialists.length ? (
+                          <div className="mt-4 rounded-2xl border border-amber-400/18 bg-amber-500/10 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100">Required Specialists</p>
+                            <p className="mt-2 text-sm text-amber-50">
+                              {describeResearcherCoverage(stage.requiredSpecialists)}
+                            </p>
+                          </div>
+                        ) : null}
+                        {stage.isActive && selectedForecast.blockedReason ? (
+                          <div className="mt-4 rounded-2xl border border-amber-400/18 bg-amber-500/10 px-3 py-3 text-sm leading-6 text-amber-50">
+                            {selectedForecast.blockedReason}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Revenue Programs</p>
+                            <div className="mt-2 space-y-1">
+                              {stage.revenuePrograms.map((program) => (
+                                <p key={`${stage.level}-${program}`} className="text-sm leading-6 text-slate-300">
+                                  {program}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Capability Unlocks</p>
+                            <div className="mt-2 space-y-1">
+                              {stage.unlocks.map((unlock) => (
+                                <p key={`${stage.level}-${unlock}`} className="text-sm leading-6 text-slate-300">
+                                  {unlock}
+                                </p>
+                              ))}
+                            </div>
                           </div>
                         </div>
 
@@ -2243,6 +2514,9 @@ export function ConvergenceApp() {
                                   </span>
                                 </div>
                                 <p className="mt-2 text-xs leading-5 text-slate-400">{convergence.description}</p>
+                                <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                                  Reward preview: {describeConvergenceReward(convergence.reward)}
+                                </p>
                                 {convergence.partnerReadiness.length ? (
                                   <div className="mt-3 flex flex-wrap gap-2">
                                     {convergence.partnerReadiness.map((requirement) => (
@@ -2287,6 +2561,15 @@ export function ConvergenceApp() {
                         <AudioLines className="h-4 w-4" />
                         Read Summary
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void generateSceneArt("briefing")}
+                        disabled={sceneArtStatus.tone === "checking"}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        {sceneArtStatus.tone === "checking" ? "Generating..." : "Generate Scene Art"}
+                      </button>
                       {isNarrating ? (
                         <button type="button" onClick={stopNarration} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
                           <Pause className="h-4 w-4" />
@@ -2296,6 +2579,17 @@ export function ConvergenceApp() {
                     </div>
                   </div>
                   <RichText text={chiefMemo ?? store.resolution?.briefing} className="mt-4" />
+                  {(sceneArtScope === "briefing" || sceneArtStatus.tone !== "idle") ? (
+                    <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(sceneArtStatus.tone)}`}>
+                      {sceneArtStatus.message}
+                    </div>
+                  ) : null}
+                  {sceneArtScope === "briefing" && sceneArtUrl ? (
+                    <div className="mt-4 overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={sceneArtUrl} alt="Gemini-generated quarterly briefing scene art" className="h-auto w-full object-cover" />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
@@ -2527,7 +2821,7 @@ export function ConvergenceApp() {
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Hiring Pressure</p>
                   <p className="mt-3 text-sm leading-6 text-slate-300">
                     Signed hires are locked in now, become assignable next quarter, and then start contributing to payroll and research throughput.
-                    Recruiting changes the next turn, not the current one.
+                    Recruiting changes the next turn, not the current one. Specialists only staff their primary or secondary lanes unless marked as generalists.
                   </p>
                 </div>
 
@@ -2545,6 +2839,7 @@ export function ConvergenceApp() {
                             <span className="text-xs uppercase tracking-[0.18em] text-amber-300">Arrives next quarter</span>
                           </div>
                           <p className="mt-1 text-xs text-slate-400">{hire.role} / {getTrackLabel(hire.primaryTrack)}</p>
+                          <p className="mt-2 text-[11px] leading-5 text-slate-500">{describeAssignmentScope(hire)}</p>
                           <p className="mt-2 text-xs text-slate-500">Payroll when active: {formatCurrency(hire.salary / 4)} per quarter.</p>
                         </div>
                       ))
@@ -2577,6 +2872,7 @@ export function ConvergenceApp() {
                       <span>Salary {formatCurrency(candidate.salary)}</span>
                       <span>Signing bonus {formatCurrency(candidate.signingBonus)}</span>
                       <span>Unlocks {TRACK_DEFINITIONS.find((track) => track.id === candidate.primaryTrack)?.name} on arrival</span>
+                      <span>{describeAssignmentScope(candidate)}</span>
                       <span>Quarterly payroll next turn +{formatCurrency(candidate.salary / 4)}</span>
                       <span>Close cost today {formatCurrency(candidate.signingBonus + candidate.salary / 4)}</span>
                       <span>{candidate.contestedBy ? `Contested by ${store.rivals[candidate.contestedBy].name}` : "Uncontested"}</span>
@@ -2674,7 +2970,7 @@ export function ConvergenceApp() {
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                   <label className="text-xs uppercase tracking-[0.22em] text-slate-400">Gemini API Key</label>
                   <input value={apiKeyDraft ?? store.aiSettings.apiKey} onChange={(event) => { setApiKeyDraft(event.target.value); setGeminiStatusOverride(null); }} placeholder="AIza..." className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
-                  <p className="mt-3 text-xs leading-5 text-slate-500">Stored locally only. Gemini only writes flavor text; the simulation logic stays deterministic.</p>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">Stored locally only. Gemini writes flavor text and optional scene art; the simulation logic stays deterministic.</p>
                   <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(geminiStatus.tone)}`}>{geminiStatus.message}</div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button type="button" onClick={() => void activateGemini()} disabled={geminiStatus.tone === "checking"} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
@@ -2833,6 +3129,15 @@ export function ConvergenceApp() {
                     <AudioLines className="h-4 w-4" />
                     Read Context
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => void generateSceneArt("dilemma")}
+                    disabled={sceneArtStatus.tone === "checking"}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {sceneArtStatus.tone === "checking" ? "Generating..." : "Generate Scene Art"}
+                  </button>
                   {isNarrating ? (
                     <button type="button" onClick={stopNarration} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
                       <Pause className="h-4 w-4" />
@@ -2845,6 +3150,17 @@ export function ConvergenceApp() {
                 <div className="mt-4 rounded-[24px] border border-violet-400/18 bg-violet-500/10 p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-violet-200">AI Context Note</p>
                   <RichText text={dilemmaFlavor} className="mt-3 text-violet-50" />
+                </div>
+              ) : null}
+              {(sceneArtScope === "dilemma" || sceneArtStatus.tone !== "idle") ? (
+                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(sceneArtStatus.tone)}`}>
+                  {sceneArtStatus.message}
+                </div>
+              ) : null}
+              {sceneArtScope === "dilemma" && sceneArtUrl ? (
+                <div className="mt-4 overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={sceneArtUrl} alt="Gemini-generated dilemma scene art" className="h-auto w-full object-cover" />
                 </div>
               ) : null}
               <div className="mt-6 grid gap-4 lg:grid-cols-3">

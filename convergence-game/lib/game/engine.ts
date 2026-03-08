@@ -45,6 +45,13 @@ const clamp = (value: number, min: number, max: number) =>
 export const trackById = (trackId: TrackId) =>
   TRACK_DEFINITIONS.find((track) => track.id === trackId)!;
 
+export const getTrackLevelCount = (trackId: TrackId) => trackById(trackId).levels.length;
+
+export const getTrackStageAtIndex = (trackId: TrackId, index: number) =>
+  trackById(trackId).levels[index] ?? null;
+
+const currentStageForTrack = (trackId: TrackId, level: number) => getTrackStageAtIndex(trackId, level);
+
 export const formatCurrency = (value: number) => {
   const absolute = Math.abs(value);
   const prefix = value < 0 ? "-$" : "$";
@@ -116,7 +123,15 @@ const rollFromOptions = <T extends { chance: number }>(rng: () => number, option
   return options[options.length - 1];
 };
 
-const computeTrackThreshold = (level: number) => 72 + level * 34;
+const computeTrackThreshold = (trackId: TrackId, level: number) =>
+  currentStageForTrack(trackId, level)?.researchCost ?? 0;
+
+export const canResearcherSupportTrack = (employee: Researcher, trackId: TrackId) =>
+  Boolean(
+    employee.generalist ||
+      employee.primaryTrack === trackId ||
+      employee.secondaryTrack === trackId,
+  );
 
 const cloneResearcher = (researcher: Researcher): Researcher => ({ ...researcher });
 
@@ -333,10 +348,53 @@ export const buildCandidatePool = (
 ): Candidate[] => {
   const employedIds = new Set(currentEmployees.map((employee) => employee.id));
   const rng = makeTurnRng(seed, turn, "candidates");
-  const choices = shuffle(
+  const availableCatalog = shuffle(
     RESEARCHER_CATALOG.filter((researcher) => !employedIds.has(researcher.id)),
     rng,
-  ).slice(0, 6);
+  );
+  const staffCoverage = currentEmployees.reduce((accumulator, employee) => {
+    const tracks = new Set<TrackId>([employee.primaryTrack]);
+    if (employee.secondaryTrack) {
+      tracks.add(employee.secondaryTrack);
+    }
+
+    tracks.forEach((trackId) => {
+      accumulator[trackId] = (accumulator[trackId] ?? 0) + 1;
+    });
+
+    return accumulator;
+  }, {} as Partial<Record<TrackId, number>>);
+  const undercoveredTracks = (TRACK_DEFINITIONS.map((track) => track.id) as TrackId[]).sort(
+    (left, right) => (staffCoverage[left] ?? 0) - (staffCoverage[right] ?? 0),
+  );
+  const guaranteedChoices: Researcher[] = [];
+  const seenIds = new Set<string>();
+
+  undercoveredTracks.forEach((trackId) => {
+    const candidate = availableCatalog.find(
+      (researcher) =>
+        !seenIds.has(researcher.id) &&
+        (researcher.primaryTrack === trackId || researcher.secondaryTrack === trackId),
+    );
+
+    if (!candidate) {
+      return;
+    }
+
+    guaranteedChoices.push(candidate);
+    seenIds.add(candidate.id);
+  });
+
+  const generalists = availableCatalog.filter(
+    (researcher) => researcher.generalist && !seenIds.has(researcher.id),
+  );
+  generalists.slice(0, 2).forEach((candidate) => {
+    guaranteedChoices.push(candidate);
+    seenIds.add(candidate.id);
+  });
+
+  const overflowChoices = availableCatalog.filter((researcher) => !seenIds.has(researcher.id));
+  const choices = [...guaranteedChoices, ...overflowChoices].slice(0, 8);
   const rivalIds: RivalId[] = ["velocity", "prometheus", "zhongguancun", "opencollective"];
 
   return choices.map((researcher) => ({
@@ -506,11 +564,50 @@ const ensureUnlocks = (state: GameState) => {
   });
 };
 
+const normalizeAssignments = (state: GameState) => {
+  state.employees = state.employees.map((employee) => {
+    if (!employee.assignedTrack) {
+      return employee;
+    }
+
+    if (
+      !state.tracks[employee.assignedTrack].unlocked ||
+      !canResearcherSupportTrack(employee, employee.assignedTrack)
+    ) {
+      return {
+        ...employee,
+        assignedTrack: null,
+      };
+    }
+
+    return employee;
+  });
+};
+
+const hasSpecialistOnStaff = (state: GameState, specialistTrack: TrackId) =>
+  state.employees.some(
+    (employee) =>
+      employee.primaryTrack === specialistTrack || employee.secondaryTrack === specialistTrack,
+  );
+
+const missingStageSpecialists = (state: GameState, trackId: TrackId, level: number) => {
+  const stage = currentStageForTrack(trackId, level);
+  if (!stage?.requiredSpecialists?.length) {
+    return [] as TrackId[];
+  }
+
+  return stage.requiredSpecialists.filter((requiredTrack) => !hasSpecialistOnStaff(state, requiredTrack));
+};
+
 const researcherContribution = (
   employee: Researcher,
   trackId: TrackId,
   state: GameState,
 ) => {
+  if (!canResearcherSupportTrack(employee, trackId)) {
+    return 0;
+  }
+
   const specialtyBonus = employee.primaryTrack === trackId ? 5 : 0;
   const secondaryBonus = employee.secondaryTrack === trackId ? 2 : 0;
   const moraleFactor = employee.morale / 100;
@@ -583,14 +680,26 @@ const trackResearchCost = (trackId: TrackId, track: TrackState, assignedCount: n
     return 0;
   }
 
+  const activeStage = currentStageForTrack(trackId, track.level);
+
   const wetLabPremium =
     trackId === "biology" || trackId === "robotics" || trackId === "materials" || trackId === "quantum"
       ? 0.18
       : trackId === "space"
         ? 0.12
         : 0.06;
+  const stagePressure = activeStage
+    ? activeStage.recommendedCompute / 280 + activeStage.researchCost / 1400
+    : 0.06;
 
-  return 0.08 + track.level * 0.05 + assignedCount * 0.07 + (track.compute / 100) * 0.22 + wetLabPremium;
+  return (
+    0.08 +
+    track.level * 0.05 +
+    assignedCount * 0.07 +
+    (track.compute / 100) * 0.22 +
+    wetLabPremium +
+    stagePressure
+  );
 };
 
 export const getFacilityBuildTime = (state: GameState, facilityId: string) => {
@@ -628,7 +737,10 @@ const generateDynamicBuildOptions = (state: GameState): FacilityState[] => {
 
 export const getTrackForecast = (state: GameState, trackId: TrackId) => {
   const track = state.tracks[trackId];
-  const target = computeTrackThreshold(track.level);
+  const maxLevel = getTrackLevelCount(trackId);
+  const activeStage = currentStageForTrack(trackId, track.level);
+  const target = computeTrackThreshold(trackId, track.level);
+  const specialistGaps = missingStageSpecialists(state, trackId, track.level);
   const assigned = state.employees.filter((employee) => employee.assignedTrack === trackId);
   const contributors = assigned
     .map((employee) => ({
@@ -644,28 +756,41 @@ export const getTrackForecast = (state: GameState, trackId: TrackId) => {
     assigned.length === 0 ? 0.32 : assigned.length === 1 ? 0.74 : assigned.length === 2 ? 0.92 : 1.04 + (assigned.length - 3) * 0.04;
   const supplierBonus = 1 + (supplierTrackModifiers[state.supplier.vendor][trackId] ?? 0);
   const energyBonus = 1 + (energyTrackModifiers[state.energyPolicy.id][trackId] ?? 0);
+  const computeReadiness = activeStage
+    ? clamp(track.compute / Math.max(activeStage.recommendedCompute, 1), 0.4, 1.2)
+    : 1;
   const computeFactor =
     (track.compute / 7.4) *
     state.supplier.computeMultiplier *
     supplierBonus *
     energyBonus *
     energyUtilizationMultiplier(state) *
-    (trackId === "foundation" ? 1.04 : 1);
+    (trackId === "foundation" ? 1.04 : 1) *
+    computeReadiness;
   const teamFactor =
-    contributors.reduce((sum, contributor) => sum + contributor.contribution, 0) * 0.34 * staffCoverage;
+    contributors.reduce((sum, contributor) => sum + contributor.contribution, 0) *
+    0.34 *
+    staffCoverage *
+    Math.max(0.72, computeReadiness);
   const synergy = trackSynergy(trackId, state) * 0.95;
   const governancePenalty =
     trackId === "foundation" || trackId === "quantum"
       ? Math.max(0, (state.resources.fear - state.resources.trust) * 0.08)
       : 0;
   const staffingPenalty = assigned.length === 0 ? 6 : assigned.length === 1 ? 2.6 : 0;
-  const progressPerTurn = Math.max(
-    0,
-    computeFactor + teamFactor + synergy - governancePenalty - staffingPenalty,
-  );
+  const progressPerTurn = specialistGaps.length
+    ? 0
+    : Math.max(0, computeFactor + teamFactor + synergy - governancePenalty - staffingPenalty);
   const remaining = Math.max(0, target - track.progress);
   const turnsToLevel =
-    !track.unlocked || track.level >= 5 || progressPerTurn <= 0 ? null : Math.ceil(remaining / progressPerTurn);
+    !track.unlocked || track.level >= maxLevel || progressPerTurn <= 0 ? null : Math.ceil(remaining / progressPerTurn);
+  const blockedReason = !track.unlocked
+    ? trackUnlockHints[trackId]
+    : specialistGaps.length
+      ? `Needs ${specialistGaps.map((requiredTrack) => trackById(requiredTrack).shortName).join(" + ")} specialists on payroll before this stage can move.`
+      : assigned.length === 0
+        ? "Assign eligible staff to start this stage moving like XCOM research."
+        : null;
 
   return {
     trackId,
@@ -676,10 +801,16 @@ export const getTrackForecast = (state: GameState, trackId: TrackId) => {
     turnsToLevel,
     assignedCount: assigned.length,
     contributors,
-    projectName: track.level >= 5 ? "Completed" : trackById(trackId).levels[track.level],
+    projectName: track.level >= maxLevel ? "Completed" : activeStage?.name ?? "Completed",
     completedStage:
-      track.level <= 0 ? "No completed stage yet." : trackById(trackId).levels[Math.max(0, track.level - 1)],
+      track.level <= 0 ? "No completed stage yet." : trackById(trackId).levels[Math.max(0, track.level - 1)].name,
     unlockHint: trackUnlockHints[trackId],
+    blockedReason,
+    recommendedCompute: activeStage?.recommendedCompute ?? 0,
+    researchCost: activeStage?.researchCost ?? 0,
+    activeTechnology: activeStage?.technology ?? null,
+    specialistGaps,
+    computeReadiness: Number(computeReadiness.toFixed(2)),
   };
 };
 
@@ -697,17 +828,18 @@ const applyResearch = (state: GameState) => {
 
   (Object.keys(nextTracks) as TrackId[]).forEach((trackId) => {
     const next = nextTracks[trackId];
-    if (!next.unlocked || next.level >= 5) {
+    const maxLevel = getTrackLevelCount(trackId);
+    if (!next.unlocked || next.level >= maxLevel) {
       return;
     }
 
     next.progress += generateTrackProgress(trackId, state, next);
 
-    while (next.level < 5 && next.progress >= computeTrackThreshold(next.level)) {
-      next.progress -= computeTrackThreshold(next.level);
+    while (next.level < maxLevel && next.progress >= computeTrackThreshold(trackId, next.level)) {
+      next.progress -= computeTrackThreshold(trackId, next.level);
       next.level += 1;
       breakthroughs.push(
-        `${trackById(trackId).name} reached L${next.level}: ${trackById(trackId).levels[next.level - 1]}.`,
+        `${trackById(trackId).name} reached L${next.level}: ${trackById(trackId).levels[next.level - 1].name}.`,
       );
     }
   });
@@ -1074,24 +1206,12 @@ export const resolveDilemmaOption = (state: GameState, option: DilemmaOption) =>
 const revenueForTrack = (trackId: TrackId, level: number) => {
   if (level <= 0) return 0;
 
-  switch (trackId) {
-    case "foundation":
-      return 1.1 + level * 1.05 + (level >= 3 ? 0.8 : 0);
-    case "simulation":
-      return 0.9 + level * 1.15 + (level >= 3 ? 0.6 : 0);
-    case "biology":
-      return 0.4 + level * 0.9 + (level >= 2 ? 0.7 : 0);
-    case "robotics":
-      return 0.3 + level * 0.82 + (level >= 3 ? 0.8 : 0);
-    case "materials":
-      return 0.25 + level * 0.7 + (level >= 3 ? 0.9 : 0);
-    case "space":
-      return 0.2 + level * 0.62 + (level >= 3 ? 1.1 : 0);
-    case "quantum":
-      return 0.35 + level * 0.8 + (level >= 3 ? 1.2 : 0);
-    case "alignment":
-      return 0.1 + level * 0.24;
-  }
+  return Number(
+    trackById(trackId)
+      .levels.slice(0, level)
+      .reduce((sum, stage) => sum + stage.revenueLift, 0)
+      .toFixed(2),
+  );
 };
 
 export const getTrackRevenueAtLevel = (trackId: TrackId, level: number) =>
@@ -1100,18 +1220,24 @@ export const getTrackRevenueAtLevel = (trackId: TrackId, level: number) =>
 export const getTrackRevenueBreakdown = (trackId: TrackId) => {
   const metadata = trackRevenueNames[trackId];
 
-  return trackById(trackId).levels.map((stageName, index) => {
+  return trackById(trackId).levels.map((stage, index) => {
     const level = index + 1;
     const cumulativeRevenue = getTrackRevenueAtLevel(trackId, level);
     const priorRevenue = level > 1 ? getTrackRevenueAtLevel(trackId, level - 1) : 0;
 
     return {
       level,
-      stageName,
+      stageName: stage.name,
+      technology: stage.technology,
       source: metadata.source,
-      summary: metadata.summary,
+      summary: stage.summary,
       stageRevenue: Number((cumulativeRevenue - priorRevenue).toFixed(2)),
       cumulativeRevenue,
+      revenuePrograms: stage.revenuePrograms,
+      unlocks: stage.unlocks,
+      researchCost: stage.researchCost,
+      recommendedCompute: stage.recommendedCompute,
+      requiredSpecialists: stage.requiredSpecialists ?? [],
     };
   });
 };
@@ -1142,6 +1268,16 @@ const convergenceRevenue: Record<string, { amount: number; source: string; summa
     source: "Aerospace",
     summary: "Launch and orbital contractors buy into autonomous construction capability.",
   },
+  "orbital-command-mesh": {
+    amount: 7.4,
+    source: "Orbital",
+    summary: "Autonomous orbital command and logistics becomes a premium systems business almost overnight.",
+  },
+  "asi-fabrication-loop": {
+    amount: 6.8,
+    source: "Industrial",
+    summary: "The ASI-directed fabrication loop compounds capacity, margin, and bargaining power every quarter.",
+  },
 };
 
 const deriveRevenueStreams = (state: GameState): RevenueStream[] => {
@@ -1170,7 +1306,7 @@ const deriveRevenueStreams = (state: GameState): RevenueStream[] => {
       name: metadata.name,
       amount: Number(revenueForTrack(trackId, level).toFixed(2)),
       source: metadata.source,
-      summary: `${metadata.summary} Current tier: ${trackById(trackId).levels[level - 1]}.`,
+      summary: `${metadata.summary} Current tier: ${trackById(trackId).levels[level - 1].name}.`,
     });
   });
 
@@ -1282,6 +1418,7 @@ const updateGovernments = (state: GameState) => {
 
 export const recalculateState = (state: GameState) => {
   ensureUnlocks(state);
+  normalizeAssignments(state);
 
   const facilityCapacity = computeCapacityFromFacilities(state.facilities);
   const computeCapacity = facilityCapacity || state.resources.computeCapacity;
@@ -1349,7 +1486,7 @@ const evaluateEnding = (state: GameState): EndingResult | null => {
     rivals[0],
   );
 
-  if (state.tracks.foundation.level >= 5 && state.tracks.alignment.level >= 5 && state.resources.trust >= 58) {
+  if (state.tracks.foundation.level >= 6 && state.tracks.alignment.level >= 5 && state.resources.trust >= 58) {
     return {
       id: "beneficial-asi",
       title: "Beneficial ASI",
@@ -1360,7 +1497,7 @@ const evaluateEnding = (state: GameState): EndingResult | null => {
     };
   }
 
-  if (state.tracks.foundation.level >= 5 && state.tracks.alignment.level <= 1) {
+  if (state.tracks.foundation.level >= 6 && state.tracks.alignment.level <= 1) {
     return {
       id: "catastrophic-misalignment",
       title: "Catastrophic Misalignment",
@@ -1546,6 +1683,15 @@ export const updateTrackCompute = (state: GameState, trackId: TrackId, delta: nu
 };
 
 export const assignResearcher = (state: GameState, researcherId: string, trackId: TrackId | null) => {
+  const employee = state.employees.find((entry) => entry.id === researcherId);
+  if (!employee) {
+    return;
+  }
+
+  if (trackId && (!state.tracks[trackId].unlocked || !canResearcherSupportTrack(employee, trackId))) {
+    return;
+  }
+
   state.employees = state.employees.map((employee) =>
     employee.id === researcherId ? { ...employee, assignedTrack: trackId } : employee,
   );

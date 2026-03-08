@@ -59,12 +59,24 @@ export interface TrackDefinition {
   shortName: string;
   accent: string;
   description: string;
-  levels: string[];
+  levels: TrackStageDefinition[];
   position: {
     x: number;
     y: number;
   };
   starter: boolean;
+}
+
+export interface TrackStageDefinition {
+  name: string;
+  technology: string;
+  summary: string;
+  revenueLift: number;
+  revenuePrograms: string[];
+  unlocks: string[];
+  researchCost: number;
+  recommendedCompute: number;
+  requiredSpecialists?: TrackId[];
 }
 
 export interface TrackState {
@@ -81,6 +93,7 @@ export interface Researcher {
   role: string;
   primaryTrack: TrackId;
   secondaryTrack?: TrackId;
+  generalist?: boolean;
   research: number;
   execution: number;
   leadership: number;

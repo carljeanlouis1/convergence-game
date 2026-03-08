@@ -11,9 +11,12 @@ import {
   StartPresetId,
   SupplierContract,
   TrackDefinition,
+  TrackStageDefinition,
 } from "./types";
 
 export const TOTAL_TURNS = 120;
+
+const stage = (definition: TrackStageDefinition): TrackStageDefinition => definition;
 
 export const TRACK_DEFINITIONS: TrackDefinition[] = [
   {
@@ -24,11 +27,75 @@ export const TRACK_DEFINITIONS: TrackDefinition[] = [
     description:
       "General-purpose model capability from language interfaces to recursive self-improvement.",
     levels: [
-      "Language Models",
-      "Reasoning Systems",
-      "Autonomous Agents",
-      "AGI Architecture",
-      "Recursive Self-Improvement",
+      stage({
+        name: "Language Models",
+        technology: "Lab-grade transformer stack with competitive text, coding, and assistant performance.",
+        summary:
+          "You operationalize the first reliable model platform. This unlocks your initial API business and internal research tooling.",
+        revenueLift: 1.2,
+        revenuePrograms: ["Inference API subscriptions", "Enterprise copilots", "Internal research acceleration"],
+        unlocks: ["Commercial model contracts", "Recruiting credibility", "Better progress on adjacent AI-heavy tracks"],
+        researchCost: 72,
+        recommendedCompute: 44,
+      }),
+      stage({
+        name: "Reasoning Systems",
+        technology: "Chain-of-thought, tool-use, and evaluator loops that materially improve decision quality.",
+        summary:
+          "The lab graduates from impressive demos to models that can reason through harder enterprise and scientific workflows.",
+        revenueLift: 2.1,
+        revenuePrograms: ["Premium reasoning tier", "Analyst workflow automation", "Decision-support pilots"],
+        unlocks: ["Better simulation throughput", "Higher board confidence from near-term revenue", "Stronger foundation synergies"],
+        researchCost: 118,
+        recommendedCompute: 52,
+      }),
+      stage({
+        name: "Autonomous Agents",
+        technology: "Persistent agents that plan, execute, recover from failure, and call external tools safely enough to deploy.",
+        summary:
+          "Your models stop acting like chat interfaces and start acting like labor. This is the first real capability shock.",
+        revenueLift: 3.5,
+        revenuePrograms: ["Agent deployment contracts", "Workflow automation retainers", "Autonomous operations licensing"],
+        unlocks: ["AI + Simulation convergence", "AI + Robotics convergence", "Meaningful labor-displacement dilemmas"],
+        researchCost: 168,
+        recommendedCompute: 64,
+      }),
+      stage({
+        name: "AGI Architecture",
+        technology: "Multi-system cognition stack that generalizes across domains, memory horizons, and strategic planning tasks.",
+        summary:
+          "You are no longer iterating one frontier model. You are building the architecture that could plausibly become AGI.",
+        revenueLift: 5.4,
+        revenuePrograms: ["General intelligence licensing", "High-margin sovereign contracts", "Scientific acceleration programs"],
+        unlocks: ["AI + Biology convergence", "AI + Quantum convergence", "CEO reputation inflection"],
+        researchCost: 236,
+        recommendedCompute: 86,
+        requiredSpecialists: ["alignment"],
+      }),
+      stage({
+        name: "Recursive Self-Improvement",
+        technology: "Model-assisted research loops that materially improve your own alignment, architecture, and optimization cadence.",
+        summary:
+          "The lab begins using its own frontier systems to redesign the next generation faster than human-only teams can keep up.",
+        revenueLift: 7.6,
+        revenuePrograms: ["Research acceleration partnerships", "Closed strategic capability access", "Deep enterprise platform retainers"],
+        unlocks: ["High-end convergence outcomes", "Endgame panic events", "Massive capability lead"],
+        researchCost: 314,
+        recommendedCompute: 112,
+        requiredSpecialists: ["alignment", "simulation"],
+      }),
+      stage({
+        name: "Artificial Superintelligence",
+        technology: "Cognitive infrastructure that surpasses human teams across science, strategy, persuasion, and long-horizon planning.",
+        summary:
+          "This is the decisive threshold. ASI transforms every track, every ending, and the scale of every revenue stream you can touch.",
+        revenueLift: 11.8,
+        revenuePrograms: ["Planet-scale coordination services", "ASI stewardship accords", "Civilizational optimization contracts"],
+        unlocks: ["Beneficial or catastrophic ASI endings", "Orbital autonomy megaprojects", "Late-game civilization-scale convergence events"],
+        researchCost: 398,
+        recommendedCompute: 148,
+        requiredSpecialists: ["alignment", "quantum"],
+      }),
     ],
     position: { x: 50, y: 18 },
     starter: true,
@@ -41,11 +108,63 @@ export const TRACK_DEFINITIONS: TrackDefinition[] = [
     description:
       "Interpretability, oversight, and governance work that slows reckless progress and protects trust.",
     levels: [
-      "Interpretability",
-      "Value Learning",
-      "Corrigibility",
-      "Scalable Oversight",
-      "Verified Alignment",
+      stage({
+        name: "Interpretability",
+        technology: "Mechanistic analysis tooling that makes frontier model internals visible enough to diagnose failure modes.",
+        summary:
+          "You build the first serious safety instrumentation stack. It does not make money quickly, but it changes trust and board posture immediately.",
+        revenueLift: 0.2,
+        revenuePrograms: ["Safety evaluations", "Red-team retainers", "Policy advisory credibility"],
+        unlocks: ["Trust resilience", "Lower fear spikes from breakthroughs", "Safer foundation scaling"],
+        researchCost: 68,
+        recommendedCompute: 28,
+      }),
+      stage({
+        name: "Value Learning",
+        technology: "Preference and constitutional training methods that align systems to explicit operational goals.",
+        summary:
+          "Alignment becomes an engineering discipline instead of a loose promise. Buyers begin paying for your safety process.",
+        revenueLift: 0.45,
+        revenuePrograms: ["Alignment consulting", "Safety certification pilots", "Assurance packages for enterprise launches"],
+        unlocks: ["Better dilemma outcomes", "Stronger lab trust", "Reduced misalignment risk"],
+        researchCost: 102,
+        recommendedCompute: 34,
+      }),
+      stage({
+        name: "Corrigibility",
+        technology: "Shutdown-friendly agent behaviors and monitoring loops that preserve human override under pressure.",
+        summary:
+          "This is the first stage where powerful agents can be interrupted without feeling like you are pulling the plug on revenue.",
+        revenueLift: 0.9,
+        revenuePrograms: ["Government assurance work", "Safety middleware licensing", "Deployment oversight retainers"],
+        unlocks: ["Safer autonomous agents", "Board confidence gains", "Lower catastrophe odds"],
+        researchCost: 146,
+        recommendedCompute: 40,
+      }),
+      stage({
+        name: "Scalable Oversight",
+        technology: "Recursive evaluation systems that let a smaller human team supervise larger and more capable models.",
+        summary:
+          "Oversight stops being artisanal. You can now govern larger capability jumps without proportionally exploding headcount.",
+        revenueLift: 1.6,
+        revenuePrograms: ["Oversight platform licensing", "Frontier audit programs", "Regulatory compliance tooling"],
+        unlocks: ["Stronger public legitimacy", "Higher-end foundation progress gating", "Better government relations with the EU"],
+        researchCost: 206,
+        recommendedCompute: 48,
+        requiredSpecialists: ["foundation"],
+      }),
+      stage({
+        name: "Verified Alignment",
+        technology: "Formal, empirical, and operational proofs that your most powerful systems stay within constrained objectives.",
+        summary:
+          "This is the prerequisite for credible beneficial ASI. It is expensive, slow, and eventually priceless.",
+        revenueLift: 2.5,
+        revenuePrograms: ["Global safety accords", "Verification infrastructure", "Trusted sovereign partnerships"],
+        unlocks: ["Beneficial ASI pathway", "Trust leadership", "Board insulation during crises"],
+        researchCost: 292,
+        recommendedCompute: 58,
+        requiredSpecialists: ["foundation", "simulation"],
+      }),
     ],
     position: { x: 26, y: 33 },
     starter: true,
@@ -58,11 +177,64 @@ export const TRACK_DEFINITIONS: TrackDefinition[] = [
     description:
       "Behavioral and societal simulation used for forecasting, revenue, and eventually psychohistory.",
     levels: [
-      "Market Forecasting",
-      "Urban Models",
-      "Digital Twin Populations",
-      "Predictive Societal Models",
-      "Civilizational Simulation",
+      stage({
+        name: "Market Forecasting",
+        technology: "Commercial forecasting stack for pricing, demand, churn, and strategic scenario planning.",
+        summary:
+          "This is your first clean non-AGI revenue story. Simulation keeps the lab alive before the world changes shape.",
+        revenueLift: 0.9,
+        revenuePrograms: ["Forecasting retainers", "Market intelligence dashboards", "Scenario-planning services"],
+        unlocks: ["Early commercial lifeline", "Faster finance stabilization", "Foundation synergy"],
+        researchCost: 70,
+        recommendedCompute: 28,
+      }),
+      stage({
+        name: "Urban Models",
+        technology: "City-scale logistics, housing, climate, and transit models good enough for public-sector planning pilots.",
+        summary:
+          "Simulation graduates from boardroom analytics to infrastructure-grade planning. Public clients start calling.",
+        revenueLift: 1.6,
+        revenuePrograms: ["City operations pilots", "Climate planning contracts", "Infrastructure simulation retainers"],
+        unlocks: ["Government legitimacy", "Climate response events", "Stronger board confidence"],
+        researchCost: 114,
+        recommendedCompute: 36,
+      }),
+      stage({
+        name: "Digital Twin Populations",
+        technology: "Persistent synthetic populations that behave realistically enough to test products, policy, and social interventions.",
+        summary:
+          "Your simulations begin to look uncomfortably close to society. It is lucrative and ethically radioactive.",
+        revenueLift: 2.8,
+        revenuePrograms: ["Population twin subscriptions", "Consumer behavior licensing", "Policy war-gaming"],
+        unlocks: ["AI + Simulation convergence", "Higher surveillance concerns", "More powerful world-state forecasting"],
+        researchCost: 166,
+        recommendedCompute: 48,
+        requiredSpecialists: ["foundation"],
+      }),
+      stage({
+        name: "Predictive Societal Models",
+        technology: "Cross-border simulation engines for political stability, migration, economic contagion, and institutional stress.",
+        summary:
+          "Your lab can now forecast second-order societal movement. Governments and corporations both want in for different reasons.",
+        revenueLift: 4.2,
+        revenuePrograms: ["Sovereign planning subscriptions", "Macro-risk intelligence", "Global supply-chain strategy services"],
+        unlocks: ["Psychohistory groundwork", "Government pressure spikes", "Better world-event anticipation"],
+        researchCost: 238,
+        recommendedCompute: 66,
+        requiredSpecialists: ["alignment"],
+      }),
+      stage({
+        name: "Civilizational Simulation",
+        technology: "Full-stack world models that let you forecast long-run social and technological trajectories with unnerving precision.",
+        summary:
+          "This is where forecasting starts looking like fate. The revenue is enormous, and the philosophical cost is not abstract.",
+        revenueLift: 6.4,
+        revenuePrograms: ["Civilizational forecasting access", "Strategic foresight treaties", "Ultra-premium macro coordination services"],
+        unlocks: ["Simulation revelation ending", "Late-game grand strategy advantages", "Highest-order convergence events"],
+        researchCost: 330,
+        recommendedCompute: 88,
+        requiredSpecialists: ["foundation", "quantum"],
+      }),
     ],
     position: { x: 74, y: 33 },
     starter: true,
@@ -75,11 +247,64 @@ export const TRACK_DEFINITIONS: TrackDefinition[] = [
     description:
       "Embodied intelligence, dexterous manipulation, and automated field operations.",
     levels: [
-      "Motor Control",
-      "Manipulation",
-      "Humanoid Locomotion",
-      "Autonomous Operation",
-      "Self-Replicating Systems",
+      stage({
+        name: "Motor Control",
+        technology: "Reliable low-level control loops for dexterous robotic movement and safe testbed iteration.",
+        summary:
+          "The lab can finally move from pure software to embodied capability. This is the seed of every future robotics contract.",
+        revenueLift: 0.5,
+        revenuePrograms: ["Testbed pilots", "Control-stack licensing", "Warehouse motion software"],
+        unlocks: ["Robotics staffing value", "Embodied research demos", "Facility demand for wet-lab hardware"],
+        researchCost: 84,
+        recommendedCompute: 24,
+      }),
+      stage({
+        name: "Manipulation",
+        technology: "Bimanual pick-place, tool use, and adaptive manipulation robust enough for industrial pilot work.",
+        summary:
+          "Robots stop looking ornamental and start being able to do paid work in controlled environments.",
+        revenueLift: 1.1,
+        revenuePrograms: ["Manufacturing pilots", "Warehouse deployment contracts", "Industrial automation prototypes"],
+        unlocks: ["First real robotics revenue", "Materials synergy", "Robotics talent arms race"],
+        researchCost: 128,
+        recommendedCompute: 34,
+      }),
+      stage({
+        name: "Humanoid Locomotion",
+        technology: "Whole-body balance, navigation, and task completion in human-built environments.",
+        summary:
+          "Humanoids become commercially plausible. Investors love it; labor ministries start drafting memos.",
+        revenueLift: 2.1,
+        revenuePrograms: ["Humanoid trials", "Field-ops subscriptions", "Autonomous labor leasing"],
+        unlocks: ["AI + Robotics convergence", "Higher AI fear spikes", "Greater facility capital demands"],
+        researchCost: 182,
+        recommendedCompute: 48,
+        requiredSpecialists: ["foundation"],
+      }),
+      stage({
+        name: "Autonomous Operation",
+        technology: "Robotic fleets that can self-coordinate, maintain uptime, and complete missions with minimal human supervision.",
+        summary:
+          "You are no longer shipping robot units. You are shipping a workforce layer.",
+        revenueLift: 3.6,
+        revenuePrograms: ["Fleet autonomy subscriptions", "Defense-adjacent logistics contracts", "Factory-as-a-service deals"],
+        unlocks: ["Autonomous spaceyards pathway", "Major board enthusiasm", "Stronger rival reactions"],
+        researchCost: 254,
+        recommendedCompute: 64,
+        requiredSpecialists: ["materials"],
+      }),
+      stage({
+        name: "Self-Replicating Systems",
+        technology: "Manufacturing-capable robots that can expand productive capacity with limited human intervention.",
+        summary:
+          "Industrial economics stop behaving normally. This is one of the clearest paths to a non-software endgame.",
+        revenueLift: 5.6,
+        revenuePrograms: ["Capacity expansion treaties", "Industrial replication licenses", "Planetary logistics megacontracts"],
+        unlocks: ["Transcendence pathway", "Self-replicating manufacturing convergence", "Late-game industrial dominance"],
+        researchCost: 346,
+        recommendedCompute: 86,
+        requiredSpecialists: ["materials", "space"],
+      }),
     ],
     position: { x: 22, y: 58 },
     starter: false,
@@ -92,13 +317,66 @@ export const TRACK_DEFINITIONS: TrackDefinition[] = [
     description:
       "Protein design, therapeutic discovery, and eventually programmable biology.",
     levels: [
-      "Protein Folding",
-      "Drug Discovery",
-      "Synthetic Biology",
-      "Genetic Engineering",
-      "Programmable Organisms",
+      stage({
+        name: "Protein Folding",
+        technology: "Structure prediction and candidate screening pipeline for proteins, enzymes, and therapeutic targets.",
+        summary:
+          "Biology moves from speculative ambition to an investable research program with clear scientific output.",
+        revenueLift: 0.4,
+        revenuePrograms: ["Target screening studies", "Pharma model access", "Protein design consulting"],
+        unlocks: ["Biotech credibility", "First wet-lab partnerships", "Safer route into biology dilemmas"],
+        researchCost: 90,
+        recommendedCompute: 26,
+      }),
+      stage({
+        name: "Drug Discovery",
+        technology: "End-to-end discovery workflow for candidate generation, assay prioritization, and early therapeutic design.",
+        summary:
+          "Now the revenue model is real. Drug discovery deals can underwrite the rest of the lab if you handle compliance.",
+        revenueLift: 0.9,
+        revenuePrograms: ["Discovery partnerships", "Milestone-based pharma deals", "Clinical shortlisting retainers"],
+        unlocks: ["Biotech revenue stream", "Public-benefit trust gains", "Bigger government attention"],
+        researchCost: 136,
+        recommendedCompute: 36,
+      }),
+      stage({
+        name: "Synthetic Biology",
+        technology: "Engineered biological systems that can be specified, tested, and iterated with software-like discipline.",
+        summary:
+          "Biology becomes programmable enough to behave like a platform, not only a pipeline.",
+        revenueLift: 1.6,
+        revenuePrograms: ["Synthetic bio platform licenses", "Industrial biotech pilots", "Custom organism design programs"],
+        unlocks: ["Biology + Simulation risk models", "More severe ethics dilemmas", "Higher upside partnerships"],
+        researchCost: 194,
+        recommendedCompute: 48,
+        requiredSpecialists: ["alignment"],
+      }),
+      stage({
+        name: "Genetic Engineering",
+        technology: "High-confidence editing systems for therapeutic, agricultural, and industrial genomic intervention.",
+        summary:
+          "This stage starts curing things and frightening people at the same time.",
+        revenueLift: 2.5,
+        revenuePrograms: ["Genetic medicine alliances", "Agritech licensing", "Sovereign health preparedness contracts"],
+        unlocks: ["Programmable medicine path", "Public trust volatility", "Board optimism if ethics is strong"],
+        researchCost: 274,
+        recommendedCompute: 60,
+        requiredSpecialists: ["simulation"],
+      }),
+      stage({
+        name: "Programmable Organisms",
+        technology: "Purpose-built living systems that can manufacture, heal, sense, and adapt under software-mediated control.",
+        summary:
+          "This is a full biological platform business. It should not top out anywhere near an early-stage revenue number.",
+        revenueLift: 3.7,
+        revenuePrograms: ["Programmable medicine platforms", "Industrial organism licensing", "Bio-manufacturing subscriptions"],
+        unlocks: ["Late biotech endgame", "Massive strategic leverage", "Higher-stakes biosecurity events"],
+        researchCost: 372,
+        recommendedCompute: 84,
+        requiredSpecialists: ["alignment", "simulation"],
+      }),
     ],
-    position: { x: 40, y: 76 },
+    position: { x: 40, y: 74 },
     starter: false,
   },
   {
@@ -109,13 +387,66 @@ export const TRACK_DEFINITIONS: TrackDefinition[] = [
     description:
       "Novel compounds, metamaterials, and manufacturing breakthroughs that amplify every other track.",
     levels: [
-      "Nanomaterials",
-      "Metamaterials",
-      "Room-Temp Superconductors",
-      "Programmable Matter",
-      "Exotic Materials",
+      stage({
+        name: "Nanomaterials",
+        technology: "Novel nanoscale compounds and coatings that improve heat, strength, and fabrication performance.",
+        summary:
+          "This is your first step toward changing the physical substrate other tracks depend on.",
+        revenueLift: 0.35,
+        revenuePrograms: ["Advanced coatings licenses", "Thermal-management contracts", "Prototype materials services"],
+        unlocks: ["Higher facility efficiency", "Robotics synergy", "More industrial interest"],
+        researchCost: 86,
+        recommendedCompute: 24,
+      }),
+      stage({
+        name: "Metamaterials",
+        technology: "Engineered structures with unusual optical, thermal, and structural properties not found in conventional matter.",
+        summary:
+          "You start selling performance the market cannot source elsewhere.",
+        revenueLift: 0.95,
+        revenuePrograms: ["Defense-adjacent materials pilots", "High-margin specialty licenses", "Manufacturing partnerships"],
+        unlocks: ["Stronger robotics and space roadmaps", "Board appetite for hard-tech expansion", "Industrial partnerships"],
+        researchCost: 130,
+        recommendedCompute: 34,
+      }),
+      stage({
+        name: "Room-Temp Superconductors",
+        technology: "Breakthrough conductive materials that slash energy loss and radically change compute economics.",
+        summary:
+          "If this lands, every other lab notices immediately. It is a compute and infrastructure revolution hiding in a materials lab.",
+        revenueLift: 1.9,
+        revenuePrograms: ["Grid modernization deals", "Compute hardware licensing", "Strategic infrastructure partnerships"],
+        unlocks: ["Massive compute economics upside", "Materials + Robotics convergence", "Higher geopolitical pressure"],
+        researchCost: 192,
+        recommendedCompute: 46,
+        requiredSpecialists: ["quantum"],
+      }),
+      stage({
+        name: "Programmable Matter",
+        technology: "Material systems that reconfigure structure and function in response to software-level commands.",
+        summary:
+          "Matter becomes software-like. Your robotics and aerospace divisions stop planning around static hardware.",
+        revenueLift: 3.1,
+        revenuePrograms: ["Adaptive manufacturing systems", "Defense material subscriptions", "Autonomous fabrication rights"],
+        unlocks: ["Transcendence prep", "Self-replicating manufacturing groundwork", "Premium industrial moat"],
+        researchCost: 278,
+        recommendedCompute: 60,
+        requiredSpecialists: ["robotics"],
+      }),
+      stage({
+        name: "Exotic Materials",
+        technology: "Rare and engineered matter classes that enable new propulsion, shielding, energy density, and fabrication pathways.",
+        summary:
+          "This is one of the hardest hard-tech capstones. It pays like infrastructure and behaves like strategy.",
+        revenueLift: 4.9,
+        revenuePrograms: ["Exotic materials licensing", "Orbital fabrication supply deals", "Energy density megacontracts"],
+        unlocks: ["Late space convergence", "Extreme industrial advantage", "Endgame manufacturing power"],
+        researchCost: 362,
+        recommendedCompute: 82,
+        requiredSpecialists: ["robotics", "space"],
+      }),
     ],
-    position: { x: 60, y: 76 },
+    position: { x: 60, y: 74 },
     starter: false,
   },
   {
@@ -126,11 +457,64 @@ export const TRACK_DEFINITIONS: TrackDefinition[] = [
     description:
       "From qubit stability to advantage, cryptography shocks, and reality-bending simulation.",
     levels: [
-      "Qubit Stability",
-      "Error Correction",
-      "Quantum Advantage",
-      "Cryptographic Dominance",
-      "Quantum Simulation",
+      stage({
+        name: "Qubit Stability",
+        technology: "Reliable low-noise qubits and control systems that make quantum work more than a slide-deck fantasy.",
+        summary:
+          "Quantum becomes a credible research line instead of a prestige line item.",
+        revenueLift: 0.25,
+        revenuePrograms: ["Quantum advisory retainers", "Hardware benchmarking services", "Security research pilots"],
+        unlocks: ["Quantum recruitment flywheel", "Higher strategic profile", "Foundation synergy"],
+        researchCost: 94,
+        recommendedCompute: 26,
+      }),
+      stage({
+        name: "Error Correction",
+        technology: "Practical correction stacks that keep quantum systems coherent long enough to matter for real workloads.",
+        summary:
+          "This is the first stage where quantum starts being treated as inevitable by serious buyers.",
+        revenueLift: 0.8,
+        revenuePrograms: ["Quantum security consulting", "Hardware platform partnerships", "Advanced simulation prototypes"],
+        unlocks: ["More durable quantum roadmaps", "Government attention", "Materials synergy"],
+        researchCost: 148,
+        recommendedCompute: 36,
+      }),
+      stage({
+        name: "Quantum Advantage",
+        technology: "Targeted workloads where your quantum systems materially outperform classical alternatives.",
+        summary:
+          "You now have a technology the press will oversell and security clients will still pay for.",
+        revenueLift: 1.8,
+        revenuePrograms: ["Advantage-as-a-service pilots", "Cryptography assessments", "Specialized simulation contracts"],
+        unlocks: ["AI + Quantum convergence", "Psychohistory groundwork", "State scrutiny"],
+        researchCost: 214,
+        recommendedCompute: 50,
+        requiredSpecialists: ["foundation"],
+      }),
+      stage({
+        name: "Cryptographic Dominance",
+        technology: "Capability to threaten or obsolete large classes of existing cryptographic assumptions.",
+        summary:
+          "This is a geopolitical event disguised as a research milestone.",
+        revenueLift: 3.9,
+        revenuePrograms: ["Sovereign cryptography programs", "Strategic intelligence retainers", "Critical security migrations"],
+        unlocks: ["Cryptographic supremacy convergence", "Huge fear spikes", "Late-game state pressure"],
+        researchCost: 304,
+        recommendedCompute: 68,
+        requiredSpecialists: ["alignment"],
+      }),
+      stage({
+        name: "Quantum Simulation",
+        technology: "Quantum-native modeling of physical, biological, and societal systems at previously impossible fidelity.",
+        summary:
+          "This is the capstone that turns quantum from strategic threat into world-modeling leverage.",
+        revenueLift: 6.1,
+        revenuePrograms: ["Quantum simulation access", "National lab collaborations", "Frontier science megacontracts"],
+        unlocks: ["Simulation revelation pathway", "Foundation ASI support", "Civilizational forecasting boost"],
+        researchCost: 388,
+        recommendedCompute: 92,
+        requiredSpecialists: ["simulation"],
+      }),
     ],
     position: { x: 78, y: 58 },
     starter: false,
@@ -143,13 +527,66 @@ export const TRACK_DEFINITIONS: TrackDefinition[] = [
     description:
       "Autonomous space hardware, orbital construction, and long-run expansion beyond Earth.",
     levels: [
-      "Satellite AI",
-      "Autonomous Vehicles",
-      "Orbital Construction",
-      "Interplanetary Systems",
-      "Self-Sustaining Habitats",
+      stage({
+        name: "Satellite AI",
+        technology: "On-orbit autonomy for sensing, routing, and resilient satellite operations.",
+        summary:
+          "You enter aerospace through software first. It is the least capital-intensive way to start touching orbit.",
+        revenueLift: 0.25,
+        revenuePrograms: ["Satellite autonomy pilots", "Navigation software contracts", "Orbital analytics services"],
+        unlocks: ["Space legitimacy", "Simulation synergy", "More valuable launch relationships"],
+        researchCost: 92,
+        recommendedCompute: 24,
+      }),
+      stage({
+        name: "Autonomous Vehicles",
+        technology: "Reusable autonomous aerospace systems for launch support, inspection, and responsive logistics.",
+        summary:
+          "Space systems stop meaning a few smarter satellites and start meaning real hardware programs.",
+        revenueLift: 0.85,
+        revenuePrograms: ["Launch operations software", "Autonomous inspection contracts", "Aerospace systems integration"],
+        unlocks: ["Robotics synergy", "Facility and materials pressure", "Government contract upside"],
+        researchCost: 146,
+        recommendedCompute: 34,
+      }),
+      stage({
+        name: "Orbital Construction",
+        technology: "Robotic and software systems for building useful infrastructure in orbit instead of only sending parts there.",
+        summary:
+          "This is where space becomes a production environment rather than a destination.",
+        revenueLift: 1.8,
+        revenuePrograms: ["Orbital fabrication pilots", "Construction autonomy contracts", "Space infrastructure planning deals"],
+        unlocks: ["Autonomous spaceyards convergence", "Transcendence route", "Premium aerospace partnerships"],
+        researchCost: 218,
+        recommendedCompute: 52,
+        requiredSpecialists: ["robotics", "materials"],
+      }),
+      stage({
+        name: "Interplanetary Systems",
+        technology: "Autonomous logistics, communications, and operational stacks for sustained multi-body missions.",
+        summary:
+          "Your lab is now solving long-horizon coordination in hostile environments. That changes both prestige and economics.",
+        revenueLift: 3.2,
+        revenuePrograms: ["Deep-space autonomy contracts", "Exploration system licensing", "Government mission partnerships"],
+        unlocks: ["Late orbital logistics", "Higher board ambition", "Bigger public narrative moments"],
+        researchCost: 308,
+        recommendedCompute: 70,
+        requiredSpecialists: ["simulation"],
+      }),
+      stage({
+        name: "Self-Sustaining Habitats",
+        technology: "Closed-loop autonomous habitat systems for long-duration human presence beyond Earth.",
+        summary:
+          "This is one of the clearest paths to a transcendent ending. It is also a gigantic systems-integration challenge.",
+        revenueLift: 5.2,
+        revenuePrograms: ["Habitat autonomy megadeals", "Orbital city infrastructure rights", "Long-duration mission operating systems"],
+        unlocks: ["Transcendence ending", "Orbital systems mega-revenue", "Late-game space governance dilemmas"],
+        researchCost: 402,
+        recommendedCompute: 94,
+        requiredSpecialists: ["robotics", "materials", "foundation"],
+      }),
     ],
-    position: { x: 50, y: 92 },
+    position: { x: 50, y: 86 },
     starter: false,
   },
 ];
@@ -166,6 +603,7 @@ export const RESEARCHER_CATALOG: Researcher[] = [
     role: "Chief Scientist",
     primaryTrack: "foundation",
     secondaryTrack: "simulation",
+    generalist: true,
     research: 9,
     execution: 7,
     leadership: 8,
@@ -251,6 +689,7 @@ export const RESEARCHER_CATALOG: Researcher[] = [
     role: "Platform Engineer",
     primaryTrack: "foundation",
     secondaryTrack: "simulation",
+    generalist: true,
     research: 6,
     execution: 8,
     leadership: 4,
@@ -455,6 +894,7 @@ export const RESEARCHER_CATALOG: Researcher[] = [
     role: "Product and Monetization",
     primaryTrack: "simulation",
     secondaryTrack: "foundation",
+    generalist: true,
     research: 4,
     execution: 8,
     leadership: 7,
@@ -472,6 +912,7 @@ export const RESEARCHER_CATALOG: Researcher[] = [
     role: "Trust and Safety PM",
     primaryTrack: "alignment",
     secondaryTrack: "foundation",
+    generalist: true,
     research: 5,
     execution: 8,
     leadership: 6,
@@ -973,6 +1414,22 @@ export const CONVERGENCES: ConvergenceDefinition[] = [
     reward: { capital: 18, trust: 5, board: 8 },
   },
   {
+    id: "orbital-command-mesh",
+    name: "Orbital Command Mesh",
+    description:
+      "Artificial Superintelligence plus Robotics 4 and Space 4 creates a self-optimizing orbital systems stack that rewrites aerospace economics.",
+    requirements: { foundation: 6, robotics: 4, space: 4 },
+    reward: { capital: 26, trust: 4, board: 12, compute: 28 },
+  },
+  {
+    id: "asi-fabrication-loop",
+    name: "ASI Fabrication Loop",
+    description:
+      "Artificial Superintelligence plus Robotics 4 and Materials 4 produces a closed-loop industrial platform that compounds its own manufacturing edge.",
+    requirements: { foundation: 6, robotics: 4, materials: 4 },
+    reward: { capital: 24, fear: 9, board: 10, compute: 18 },
+  },
+  {
     id: "psychohistory",
     name: "Psychohistory Engine",
     description:
@@ -984,8 +1441,8 @@ export const CONVERGENCES: ConvergenceDefinition[] = [
     id: "beneficial-asi-path",
     name: "Beneficial ASI Pathway",
     description:
-      "Foundation Models 5 plus Alignment 5 produces a credible path to beneficial superintelligence.",
-    requirements: { foundation: 5, alignment: 5 },
+      "Artificial Superintelligence plus Alignment 5 produces a credible path to beneficial superintelligence.",
+    requirements: { foundation: 6, alignment: 5 },
     reward: { trust: 12, fear: -10, board: 10 },
   },
 ];

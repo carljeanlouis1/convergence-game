@@ -2,6 +2,8 @@ import { GameState, NarrativeSystemId } from "./types";
 
 const GEMINI_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const GEMINI_IMAGE_ENDPOINT =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent";
 const OPENAI_TTS_ENDPOINT = "https://api.openai.com/v1/audio/speech";
 const OPENAI_TTS_MODEL = "gpt-4o-mini-tts";
 
@@ -13,7 +15,7 @@ const SYSTEM_PROMPTS: Record<NarrativeSystemId, string> = {
   discovery:
     "You narrate research breakthroughs for a strategy game. Make them vivid, specific, and slightly ominous without becoming purple prose. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
   "dilemma-writer":
-    "You write strategy game dilemmas where no option is cleanly correct. Include visible tradeoffs and avoid moralizing. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
+    "You write strategy game context notes for an existing dilemma. You must stay faithful to the supplied title, brief, and exact option labels. Do not invent new options or contradict the listed choices. Frame the stakes so the available options feel like natural responses. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
   "chief-of-staff":
     "You write internal chief-of-staff briefings for an AI lab CEO. Sound crisp, candid, and strategically literate. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
 };
@@ -76,6 +78,25 @@ const extractText = (payload: unknown) => {
   };
 
   return response.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? null;
+};
+
+const extractImagePart = (payload: unknown) => {
+  const response = payload as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          inlineData?: {
+            mimeType?: string;
+            data?: string;
+          };
+        }>;
+      };
+    }>;
+  };
+
+  return (
+    response.candidates?.[0]?.content?.parts?.find((part) => part.inlineData?.data)?.inlineData ?? null
+  );
 };
 
 export const buildNarrativePrompt = (
@@ -240,6 +261,93 @@ export const validateGeminiKey = async (apiKey: string) => {
     return {
       ok: false,
       message: "Unable to reach Gemini. Check the key and network connection.",
+    };
+  }
+};
+
+export const generateGeminiSceneImage = async ({
+  apiKey,
+  prompt,
+}: {
+  apiKey: string;
+  prompt: string;
+}) => {
+  if (!apiKey.trim()) {
+    return {
+      ok: false as const,
+      message: "Activate Gemini first.",
+      blob: null as Blob | null,
+    };
+  }
+
+  try {
+    const response = await fetch(`${GEMINI_IMAGE_ENDPOINT}?key=${encodeURIComponent(apiKey.trim())}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          imageConfig: {
+            aspectRatio: "16:9",
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      let message = "Gemini image generation failed.";
+
+      try {
+        const json = (await response.json()) as {
+          error?: {
+            message?: string;
+          };
+        };
+        message = json.error?.message ?? message;
+      } catch {
+        // Use the fallback message if the body cannot be parsed.
+      }
+
+      return {
+        ok: false as const,
+        message,
+        blob: null as Blob | null,
+      };
+    }
+
+    const json = (await response.json()) as unknown;
+    const imagePart = extractImagePart(json);
+    if (!imagePart?.data || !imagePart.mimeType) {
+      return {
+        ok: false as const,
+        message: "Gemini responded without an image.",
+        blob: null as Blob | null,
+      };
+    }
+
+    const binary = Uint8Array.from(atob(imagePart.data), (character) => character.charCodeAt(0));
+    const blob = new Blob([binary], { type: imagePart.mimeType });
+
+    return {
+      ok: true as const,
+      message: "Gemini scene art generated successfully.",
+      blob,
+    };
+  } catch {
+    return {
+      ok: false as const,
+      message: "Unable to reach Gemini image generation right now.",
+      blob: null as Blob | null,
     };
   }
 };
