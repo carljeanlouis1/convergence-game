@@ -232,6 +232,48 @@ const facilityBuildTimes: Record<string, number> = {
   "dc-bengaluru": 2,
 };
 
+const frontierFacilityTemplates: Array<{
+  slug: string;
+  name: string;
+  region: string;
+  buildCost: number;
+  upkeep: number;
+  computeDelta: number;
+  trustDelta: number;
+  riskDelta: number;
+}> = [
+  {
+    slug: "phoenix",
+    name: "Desert Inference Yard",
+    region: "Phoenix",
+    buildCost: 6.8,
+    upkeep: 0.44,
+    computeDelta: 54,
+    trustDelta: 1,
+    riskDelta: 0,
+  },
+  {
+    slug: "singapore",
+    name: "Maritime Model Hub",
+    region: "Singapore",
+    buildCost: 7.2,
+    upkeep: 0.47,
+    computeDelta: 58,
+    trustDelta: 2,
+    riskDelta: 1,
+  },
+  {
+    slug: "reykjavik",
+    name: "North Atlantic Cooling Stack",
+    region: "Reykjavik",
+    buildCost: 7.4,
+    upkeep: 0.42,
+    computeDelta: 56,
+    trustDelta: 3,
+    riskDelta: -1,
+  },
+];
+
 const initialRetainerAmounts: Record<StartPresetId, number> = {
   founder: 1.1,
   government: 2.1,
@@ -348,6 +390,7 @@ export const createNewGame = (preset: StartPresetId = "founder"): GameState => {
     energyPolicy: ENERGY_POLICIES[0],
     tracks: createInitialTracks(),
     employees: staff,
+    pendingHires: [],
     candidates: buildCandidatePool(933, startTurn, staff),
     facilities: STARTER_FACILITIES.map((facility) => ({ ...facility })),
     projects: [],
@@ -417,6 +460,7 @@ export const normalizeGameState = (input: GameState): GameState => {
     apiKey: "",
     cache: {},
   };
+  state.pendingHires = state.pendingHires ?? [];
   state.revenueStreams = state.revenueStreams ?? [];
   state.decisionLog = state.decisionLog ?? [];
   state.openAISettings = state.openAISettings ?? defaultOpenAISettings();
@@ -556,6 +600,30 @@ export const getFacilityBuildTime = (state: GameState, facilityId: string) => {
     state.energyPolicy.id === "nuclear" ? 1 : state.energyPolicy.id === "solar" && facilityId !== "dc-helsinki" ? 1 : 0;
 
   return baseTurns + supplierDelay + energyDelay;
+};
+
+const generatedExpansionCount = (state: GameState) =>
+  [...state.facilities, ...state.projects].filter((facility) => facility.id.startsWith("frontier-")).length;
+
+const generateDynamicBuildOptions = (state: GameState): FacilityState[] => {
+  if (state.turn < 12) {
+    return [];
+  }
+
+  const cycle = Math.floor(generatedExpansionCount(state) / frontierFacilityTemplates.length) + 1;
+  const scale = Math.max(0, Math.floor((state.turn - 1) / 16) + cycle - 1);
+
+  return frontierFacilityTemplates.map((template, index) => ({
+    id: `frontier-${cycle}-${template.slug}`,
+    name: cycle === 1 ? template.name : `${template.name} Mk ${cycle}`,
+    region: template.region,
+    online: false,
+    buildCost: Number((template.buildCost + scale * 0.65 + index * 0.18).toFixed(2)),
+    upkeep: Number((template.upkeep + scale * 0.03).toFixed(2)),
+    computeDelta: template.computeDelta + scale * 8 + index * 3,
+    trustDelta: template.trustDelta + (scale >= 2 && template.trustDelta > 0 ? 1 : 0),
+    riskDelta: template.riskDelta + (scale >= 2 && template.riskDelta >= 0 ? 1 : 0),
+  }));
 };
 
 export const getTrackForecast = (state: GameState, trackId: TrackId) => {
@@ -865,6 +933,34 @@ const reconcileProjects = (state: GameState, worldEvents: string[]) => {
   });
 
   state.projects = remainingProjects;
+};
+
+const onboardPendingHires = (state: GameState, worldEvents: string[]) => {
+  if (state.pendingHires.length === 0) {
+    return;
+  }
+
+  const arrivals = state.pendingHires.map((hire) => ({
+    ...hire,
+    assignedTrack: null,
+  }));
+
+  state.employees = [...state.employees, ...arrivals];
+  state.pendingHires = [];
+  worldEvents.push(
+    `${arrivals.map((hire) => hire.name).join(", ")} arrive and are ready for assignment this quarter.`,
+  );
+  state.feed = [
+    ...arrivals.map((hire) => ({
+      id: `arrival-${state.turn}-${hire.id}`,
+      turn: state.turn,
+      title: `${hire.name} arrives on site`,
+      body: `${hire.role} is now available for staffing decisions.`,
+      severity: "info" as const,
+      kind: "system" as const,
+    })),
+    ...state.feed,
+  ].slice(0, 30);
 };
 
 const applyMorale = (employees: Researcher[], delta: number) =>
@@ -1381,10 +1477,11 @@ export const advanceTurn = (current: GameState) => {
   state.flags.lastWorldTags = worldNews.map(
     (item) => worldTemplates.find((template) => template.title === item.title)?.tag ?? "general",
   );
-  state.candidates = buildCandidatePool(state.seed, nextTurn, state.employees);
   state.turn = nextTurn;
   state.year = nextLabel.year;
   state.quarterIndex = nextLabel.quarterIndex;
+  onboardPendingHires(state, worldEvents);
+  state.candidates = buildCandidatePool(state.seed, nextTurn, state.employees);
   state.resolution = {
     turn: state.turn - 1,
     year: currentLabel.year,
@@ -1444,15 +1541,14 @@ export const hireCandidate = (state: GameState, candidateId: string) => {
   const { contestedBy, ask, ...hire } = candidate;
   void contestedBy;
   void ask;
-  state.employees = [...state.employees, hire];
+  state.pendingHires = [...state.pendingHires, { ...hire, assignedTrack: null }];
   state.candidates = state.candidates.filter((entry) => entry.id !== candidateId);
-  ensureUnlocks(state);
   state.feed = [
     {
       id: `hire-${state.turn}-${candidate.id}`,
       turn: state.turn,
-      title: `${candidate.name} joined the lab`,
-      body: `${candidate.role} joined from ${candidate.location}. ${candidate.ask}`,
+      title: `${candidate.name} signed with the lab`,
+      body: `${candidate.role} accepted from ${candidate.location}. Arrival and payroll begin next quarter. ${candidate.ask}`,
       severity: "info" as const,
       kind: "system" as const,
     },
@@ -1462,7 +1558,7 @@ export const hireCandidate = (state: GameState, candidateId: string) => {
 };
 
 export const buildFacility = (state: GameState, facilityId: string) => {
-  const option = BUILD_OPTIONS.find((facility) => facility.id === facilityId);
+  const option = availableBuildOptions(state).find((facility) => facility.id === facilityId);
   if (!option) return;
   if (state.resources.capital < option.buildCost || state.projects.some((project) => project.id === option.id)) {
     return;
@@ -1624,7 +1720,16 @@ export const loadMetaProgression = () => {
 };
 
 export const availableBuildOptions = (state: GameState) =>
-  BUILD_OPTIONS.filter(
+  [
+    ...BUILD_OPTIONS,
+    ...(BUILD_OPTIONS.every(
+      (option) =>
+        state.projects.some((project) => project.id === option.id) ||
+        state.facilities.some((facility) => facility.id === option.id),
+    )
+      ? generateDynamicBuildOptions(state)
+      : []),
+  ].filter(
     (option) =>
       !state.projects.some((project) => project.id === option.id) &&
       !state.facilities.some((facility) => facility.id === option.id),

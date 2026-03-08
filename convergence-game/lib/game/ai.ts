@@ -7,15 +7,51 @@ const OPENAI_TTS_MODEL = "gpt-4o-mini-tts";
 
 const SYSTEM_PROMPTS: Record<NarrativeSystemId, string> = {
   "world-news":
-    "You write terse, high-signal AI industry news in a Reuters meets Wired voice. Keep it grounded, specific, and aware of geopolitical context.",
+    "You write terse, high-signal AI industry news in a Reuters meets Wired voice. Keep it grounded, specific, and aware of geopolitical context. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
   "rival-labs":
-    "You roleplay rival AI lab CEOs choosing strategic moves. Be competitive, realistic, and consistent with prior decisions. Output one concise move summary.",
+    "You roleplay rival AI lab CEOs choosing strategic moves. Be competitive, realistic, and consistent with prior decisions. Output one concise move summary. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
   discovery:
-    "You narrate research breakthroughs for a strategy game. Make them vivid, specific, and slightly ominous without becoming purple prose.",
+    "You narrate research breakthroughs for a strategy game. Make them vivid, specific, and slightly ominous without becoming purple prose. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
   "dilemma-writer":
-    "You write strategy game dilemmas where no option is cleanly correct. Include visible tradeoffs and avoid moralizing.",
+    "You write strategy game dilemmas where no option is cleanly correct. Include visible tradeoffs and avoid moralizing. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
   "chief-of-staff":
-    "You write internal chief-of-staff briefings for an AI lab CEO. Sound crisp, candid, and strategically literate.",
+    "You write internal chief-of-staff briefings for an AI lab CEO. Sound crisp, candid, and strategically literate. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
+};
+
+const formatMoney = (value: number) => {
+  const absolute = Math.abs(value);
+
+  if (absolute >= 1000) {
+    return `${value < 0 ? "-" : ""}$${(absolute / 1000).toFixed(1)}B`;
+  }
+
+  if (absolute >= 1) {
+    return `${value < 0 ? "-" : ""}$${absolute.toFixed(1)}M`;
+  }
+
+  return `${value < 0 ? "-" : ""}$${Math.round(absolute * 1000)}K`;
+};
+
+const MONEY_VALUE_PATTERN = "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)";
+
+const normalizeNarrativeMoney = (text: string) => {
+  const formatToken = (raw: string) => {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? formatMoney(parsed) : raw;
+  };
+
+  const nounFirst = new RegExp(
+    `\\b((?:capital(?:\\s+infusion)?|cash|funding|grant|contract|deal|offer|payment|price|cost|spend|expense|expenses|burn|budget|payroll|salary|bonus|upkeep|revenue(?:\\s+(?:per|a)\\s+(?:turn|quarter))?(?:\\s+boost)?|profit)(?:\\s+(?:of|worth|for|at|near))?\\s*)(${MONEY_VALUE_PATTERN})(?![%\\dA-Za-z])`,
+    "gi",
+  );
+  const valueFirst = new RegExp(
+    `\\b(${MONEY_VALUE_PATTERN})(?=\\s+(?:in\\s+)?(?:capital|cash|funding|grant|contract|revenue(?:\\s+per\\s+(?:turn|quarter))?|expenses?|burn|budget|payroll|salary|bonus|upkeep|profit)\\b)`,
+    "gi",
+  );
+
+  return text
+    .replace(nounFirst, (_match, prefix: string, value: string) => `${prefix}${formatToken(value)}`)
+    .replace(valueFirst, (value: string) => formatToken(value));
 };
 
 const stableHash = (value: unknown) => {
@@ -46,32 +82,56 @@ export const buildNarrativePrompt = (
   system: NarrativeSystemId,
   state: GameState,
   context: string,
-) => ({
-  system,
-  prompt: `${SYSTEM_PROMPTS[system]}\n\nContext:\n${context}\n\nState summary:\n${JSON.stringify(
-    {
-      turn: state.turn,
-      year: state.year,
-      quarter: state.quarterIndex + 1,
-      resources: state.resources,
-      tracks: Object.fromEntries(
-        Object.entries(state.tracks).map(([trackId, track]) => [
-          trackId,
-          { level: track.level, progress: track.progress, unlocked: track.unlocked },
-        ]),
+) => {
+  const formattedState = {
+    turn: state.turn,
+    year: state.year,
+    quarter: state.quarterIndex + 1,
+    resources: {
+      capital: formatMoney(state.resources.capital),
+      revenuePerQuarter: formatMoney(state.resources.revenue),
+      burnPerQuarter: formatMoney(state.resources.burn),
+      runwayMonths: state.resources.runwayMonths,
+      computeCapacityPf: state.resources.computeCapacity,
+      trust: state.resources.trust,
+      fear: state.resources.fear,
+      boardConfidence: state.resources.boardConfidence,
+      reputation: state.resources.reputation,
+      wealth: formatMoney(state.resources.wealth),
+      expenses: Object.fromEntries(
+        Object.entries(state.resources.expenses).map(([label, amount]) => [label, formatMoney(amount)]),
       ),
-      rivals: Object.fromEntries(
-        Object.entries(state.rivals).map(([rivalId, rival]) => [
-          rivalId,
-          { capability: rival.capability, safety: rival.safety, focus: rival.focus },
-        ]),
-      ),
-      flags: state.flags,
     },
-    null,
-    2,
-  )}\n\nRespond with plain text only.`,
-});
+    tracks: Object.fromEntries(
+      Object.entries(state.tracks).map(([trackId, track]) => [
+        trackId,
+        { level: track.level, progress: track.progress, unlocked: track.unlocked },
+      ]),
+    ),
+    rivals: Object.fromEntries(
+      Object.entries(state.rivals).map(([rivalId, rival]) => [
+        rivalId,
+        {
+          capability: rival.capability,
+          safety: rival.safety,
+          goodwill: rival.goodwill,
+          focus: rival.focus,
+        },
+      ]),
+    ),
+    flags: state.flags,
+    note: "All money values are USD. Values at or above 1.0 are millions. Values below 1.0 are thousands.",
+  };
+
+  return {
+    system,
+    prompt: `${SYSTEM_PROMPTS[system]}\n\nContext:\n${context}\n\nState summary:\n${JSON.stringify(
+      formattedState,
+      null,
+      2,
+    )}\n\nRespond with plain text only.`,
+  };
+};
 
 export const fetchGeminiNarrative = async (
   state: GameState,
@@ -119,7 +179,7 @@ export const fetchGeminiNarrative = async (
     return null;
   }
 
-  return { cacheKey, text };
+  return { cacheKey, text: normalizeNarrativeMoney(text) };
 };
 
 export const validateGeminiKey = async (apiKey: string) => {

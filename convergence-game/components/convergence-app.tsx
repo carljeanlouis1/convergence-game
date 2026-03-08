@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type ReactNode,
   useDeferredValue,
   useEffect,
   useEffectEvent,
@@ -12,9 +13,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   AudioLines,
+  BarChart3,
   BookOpen,
   BrainCircuit,
   Building2,
+  ChevronDown,
+  ChevronRight,
   Cpu,
   FlaskConical,
   Globe2,
@@ -22,6 +26,8 @@ import {
   Lock,
   Orbit,
   Pause,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
   Radar,
   Save,
@@ -54,7 +60,7 @@ import {
   tutorialNotes,
 } from "@/lib/game/engine";
 import { useConvergenceStore } from "@/lib/game/store";
-import { GameState, SaveSlotId, StartPresetId, TrackId } from "@/lib/game/types";
+import { GameState, RivalId, SaveSlotId, StartPresetId, TrackId } from "@/lib/game/types";
 import { PixiBackground } from "./pixi-background";
 
 const TRACK_ICONS: Record<TrackId, typeof BrainCircuit> = {
@@ -125,6 +131,15 @@ const tutorialSlides = [
       "Different chip suppliers favor different research styles: raw model scale, simulation throughput, or balanced deployment.",
       "Energy choices affect cost, reputation, and sustained high-utilization performance.",
       "Facility projects take quarters to finish, just like XCOM infrastructure. Commit only when the timing works.",
+    ],
+  },
+  {
+    title: "Winning the Race",
+    summary: "The game ends through trajectories, not a single score target.",
+    points: [
+      "Beneficial ASI needs extreme AI capability plus strong alignment, trust, and enough public legitimacy to keep control.",
+      "Other endings include catastrophic misalignment, regulatory capture, irrelevance, corporate dystopia, transcendence, simulation revelation, and open future.",
+      "The race board compares labs on capability, trust, reliability, safety, and overall momentum so you can see who is closest to imposing their version of the future.",
     ],
   },
   {
@@ -280,6 +295,119 @@ function PanelButton({
       {label}
     </button>
   );
+}
+
+function IntelSection({
+  title,
+  subtitle,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">{title}</p>
+          <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-slate-500">{subtitle}</p>
+        </div>
+        <span className="rounded-full border border-white/10 bg-slate-950/65 p-1 text-slate-400">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </span>
+      </button>
+      {open ? <div className="mt-4">{children}</div> : null}
+    </div>
+  );
+}
+
+function getTrackLabel(trackId: TrackId | null | undefined) {
+  if (!trackId) {
+    return "Unassigned";
+  }
+
+  return TRACK_DEFINITIONS.find((track) => track.id === trackId)?.shortName ?? trackId;
+}
+
+function describeFacilityOutcome(project: {
+  id: string;
+  region: string;
+  computeDelta: number;
+  trustDelta: number;
+  riskDelta: number;
+}) {
+  const baseline = `On completion: +${project.computeDelta} PFLOPS for research allocation.`;
+
+  switch (project.id) {
+    case "dc-virginia":
+      return `${baseline} Improves U.S. trust and makes defense-facing expansion more politically stable.`;
+    case "dc-doha":
+      return `${baseline} Opens cheap Gulf compute with higher geopolitical exposure and trust drag.`;
+    case "dc-helsinki":
+      return `${baseline} Best public-trust profile, with low risk and clean-infrastructure signaling.`;
+    case "dc-bengaluru":
+      return `${baseline} Strengthens India ties and broadens your talent and deployment footprint.`;
+    default:
+      return `${baseline} Trust ${project.trustDelta >= 0 ? "+" : ""}${project.trustDelta}, risk ${
+        project.riskDelta >= 0 ? "+" : ""
+      }${project.riskDelta}.`;
+  }
+}
+
+function clampMetric(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function describePlayerTrajectory(state: GameState) {
+  if (state.tracks.foundation.level >= 5 && state.tracks.alignment.level >= 5 && state.resources.trust >= 58) {
+    return "Beneficial ASI";
+  }
+
+  if (state.tracks.foundation.level >= 5 && state.tracks.alignment.level <= 1) {
+    return "Catastrophic Misalignment";
+  }
+
+  if (state.flags.governmentDependence >= 10) {
+    return "Regulatory Capture";
+  }
+
+  if (state.resources.revenue >= 22 && state.flags.ethicsDebt >= 8 && state.tracks.foundation.level >= 4) {
+    return "Corporate Dystopia";
+  }
+
+  if (state.tracks.robotics.level >= 4 && state.tracks.space.level >= 4 && state.tracks.materials.level >= 4) {
+    return "Transcendence";
+  }
+
+  if (state.tracks.simulation.level >= 5 && state.tracks.quantum.level >= 4 && state.tracks.foundation.level >= 4) {
+    return "Simulation Revelation";
+  }
+
+  return state.tracks.foundation.level >= state.tracks.alignment.level + 2 ? "Capability Sprint" : "Open Future";
+}
+
+function describeRivalTrajectory(rivalId: RivalId) {
+  switch (rivalId) {
+    case "prometheus":
+      return "Beneficial ASI Vector";
+    case "velocity":
+      return "Reckless Capability Sprint";
+    case "zhongguancun":
+      return "Sovereign Scale Push";
+    case "opencollective":
+      return "Open Future Vector";
+    default:
+      return "Strategic Drift";
+  }
 }
 
 function MenuCard({
@@ -548,6 +676,10 @@ export function ConvergenceApp() {
   const initialize = store.initialize;
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [intelCollapsed, setIntelCollapsed] = useState(false);
+  const [worldStateOpen, setWorldStateOpen] = useState(true);
+  const [governmentsOpen, setGovernmentsOpen] = useState(true);
+  const [rivalsOpen, setRivalsOpen] = useState(true);
   const [chiefMemo, setChiefMemo] = useState<string | null>(null);
   const [worldLead, setWorldLead] = useState<string | null>(null);
   const [dilemmaFlavor, setDilemmaFlavor] = useState<string | null>(null);
@@ -593,7 +725,11 @@ export function ConvergenceApp() {
     (employee) => employee.assignedTrack === store.selectedTrack,
   );
   const availableResearchers = store.employees.filter(
-    (employee) => employee.assignedTrack !== store.selectedTrack,
+    (employee) => employee.assignedTrack === null,
+  );
+  const committedResearchers = store.employees.filter(
+    (employee) =>
+      employee.assignedTrack !== null && employee.assignedTrack !== store.selectedTrack,
   );
   const totalAllocated = Object.values(store.tracks).reduce((sum, track) => sum + track.compute, 0);
   const freeCompute = store.resources.computeCapacity - totalAllocated;
@@ -602,10 +738,65 @@ export function ConvergenceApp() {
     Object.keys(convergence.requirements).includes(store.selectedTrack),
   );
   const topRivals = Object.values(store.rivals).sort((left, right) => right.capability - left.capability);
+  const playerCapability = clampMetric(
+    store.tracks.foundation.level * 12 +
+      store.tracks.alignment.level * 6 +
+      store.tracks.simulation.level * 6 +
+      store.tracks.quantum.level * 5 +
+      store.tracks.robotics.level * 4 +
+      store.tracks.biology.level * 4 +
+      store.tracks.materials.level * 4 +
+      store.tracks.space.level * 4 +
+      Math.min(20, store.resources.computeCapacity / 10),
+  );
+  const playerTrust = clampMetric((store.resources.trust + store.resources.reputation) / 2);
+  const playerSafety = clampMetric(
+    store.tracks.alignment.level * 14 + store.flags.safetyCulture * 9 + store.resources.trust * 0.35,
+  );
+  const playerReliability = clampMetric(
+    store.resources.boardConfidence * 0.25 +
+      store.resources.trust * 0.35 +
+      store.resources.reputation * 0.2 +
+      store.flags.safetyCulture * 10 +
+      store.tracks.alignment.level * 5,
+  );
+  const labLeaderboard = [
+    {
+      id: "player",
+      name: "Convergence",
+      capability: playerCapability,
+      trust: playerTrust,
+      reliability: playerReliability,
+      safety: playerSafety,
+      raceScore: clampMetric(playerCapability * 0.5 + playerSafety * 0.15 + playerTrust * 0.15 + playerReliability * 0.2),
+      trajectory: describePlayerTrajectory(store),
+      isPlayer: true,
+    },
+    ...topRivals.map((rival) => ({
+      id: rival.id,
+      name: rival.name,
+      capability: clampMetric(rival.capability),
+      trust: clampMetric(rival.goodwill),
+      reliability: clampMetric(rival.safety * 0.55 + rival.goodwill * 0.45),
+      safety: clampMetric(rival.safety),
+      raceScore: clampMetric(rival.capability * 0.55 + rival.safety * 0.2 + rival.goodwill * 0.1 + (rival.safety * 0.55 + rival.goodwill * 0.45) * 0.15),
+      trajectory: describeRivalTrajectory(rival.id),
+      isPlayer: false,
+    })),
+  ].sort((left, right) => right.raceScore - left.raceScore);
   const topRivalMove = topRivals[0]?.recentMove ?? "Rival status";
   const expenseEntries = Object.entries(store.resources.expenses).sort((left, right) => right[1] - left[1]);
   const quarterlyNet = Number((store.resources.revenue - store.resources.burn).toFixed(2));
   const trackRevenueStream = store.revenueStreams.find((stream) => stream.id === `track-${store.selectedTrack}`);
+  const pendingHirePayroll = store.pendingHires.reduce((sum, hire) => sum + hire.salary / 4, 0);
+  const pendingHireCloseCost = store.pendingHires.reduce(
+    (sum, hire) => sum + hire.salary / 4 + hire.signingBonus,
+    0,
+  );
+  const payrollEntries = [...store.employees].sort((left, right) => right.salary - left.salary);
+  const layoutClass = intelCollapsed
+    ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)] 2xl:grid-cols-[88px_minmax(0,1fr)_minmax(330px,380px)]"
+    : "grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)_minmax(330px,380px)]";
   const currentNarrationText = [
     store.resolution?.headline,
     chiefMemo ?? store.resolution?.briefing,
@@ -616,6 +807,18 @@ export function ConvergenceApp() {
   ]
     .filter(Boolean)
     .join(" ");
+  const currentDilemmaNarrationText = store.activeDilemma
+    ? [
+        store.activeDilemma.title,
+        store.activeDilemma.brief,
+        dilemmaFlavor ? `Context note. ${dilemmaFlavor}` : null,
+        `Options: ${store.activeDilemma.options
+          .map((option) => `${option.label}. ${option.summary}`)
+          .join(" ")}`,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : "";
 
   const stopNarration = () => {
     if (audioRef.current) {
@@ -662,7 +865,17 @@ export function ConvergenceApp() {
     }
   };
 
-  const narrateTurnSummary = async () => {
+  const narrateText = async ({
+    text,
+    instructions,
+    loadingMessage,
+    successMessage,
+  }: {
+    text: string;
+    instructions: string;
+    loadingMessage: string;
+    successMessage: string;
+  }) => {
     if (!store.openAISettings.enabled || !store.openAISettings.apiKey) {
       setOpenAiStatusOverride({
         tone: "error",
@@ -673,14 +886,13 @@ export function ConvergenceApp() {
 
     setOpenAiStatusOverride({
       tone: "checking",
-      message: "Generating narrated briefing...",
+      message: loadingMessage,
     });
 
     const result = await synthesizeOpenAITts({
       apiKey: store.openAISettings.apiKey,
-      text: currentNarrationText || "No quarterly summary is available yet.",
-      instructions:
-        "Read this like a calm strategic operations briefing. Crisp, serious, and slightly dramatic.",
+      text,
+      instructions,
     });
 
     if (!result.ok || !result.blob) {
@@ -693,9 +905,29 @@ export function ConvergenceApp() {
 
     setOpenAiStatusOverride({
       tone: "success",
-      message: "Narration ready.",
+      message: successMessage,
     });
     await playBlob(result.blob);
+  };
+
+  const narrateTurnSummary = async () => {
+    await narrateText({
+      text: currentNarrationText || "No quarterly summary is available yet.",
+      instructions:
+        "Read this like a calm strategic operations briefing. Crisp, serious, and slightly dramatic.",
+      loadingMessage: "Generating narrated briefing...",
+      successMessage: "Briefing narration ready.",
+    });
+  };
+
+  const narrateDilemmaSummary = async () => {
+    await narrateText({
+      text: currentDilemmaNarrationText || "No dilemma context is available yet.",
+      instructions:
+        "Read this like a tense executive crisis briefing. Controlled, serious, and clear about the stakes.",
+      loadingMessage: "Generating narrated dilemma context...",
+      successMessage: "Dilemma narration ready.",
+    });
   };
 
   const loadNarratives = async () => {
@@ -981,6 +1213,7 @@ export function ConvergenceApp() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <PanelButton active={store.panel === "briefing"} icon={Globe2} label="Briefing" onClick={() => store.openPanel("briefing")} />
+              <PanelButton active={store.panel === "finance"} icon={BarChart3} label="Finance" onClick={() => store.openPanel("finance")} />
               <PanelButton active={store.panel === "track"} icon={BrainCircuit} label="Research" onClick={() => store.openPanel("track")} />
               <PanelButton active={store.panel === "hiring"} icon={Users} label="Hiring" onClick={() => store.openPanel("hiring")} />
               <PanelButton active={store.panel === "facilities"} icon={Building2} label="Facilities" onClick={() => store.openPanel("facilities")} />
@@ -1024,88 +1257,174 @@ export function ConvergenceApp() {
           </div>
         </header>
 
-        <div className="grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)_minmax(330px,380px)]">
-          <aside className="min-w-0 space-y-4 rounded-[28px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">World State</p>
-              <div className="mt-4 space-y-4">
-                <MetricBar label="Runway (months)" value={Math.min(store.resources.runwayMonths, 36)} max={36} tone={store.resources.runwayMonths < 10 ? "red" : "green"} helper="Time before cash runs out if this quarter's ledger holds." />
-                <MetricBar label="Lab Trust" value={store.resources.trust} tone="green" helper="High trust buys tolerance with regulators, partners, and staff." />
-                <MetricBar label="AI Fear" value={store.resources.fear} tone="red" helper="Fear raises scrutiny, protests, and policy pressure." />
-                <MetricBar label="Board Confidence" value={store.resources.boardConfidence} tone="amber" helper="If this collapses, the board can replace you." />
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Quarterly Ledger</p>
-                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.18em] ${quarterlyNet >= 0 ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-200" : "border-rose-400/25 bg-rose-500/10 text-rose-200"}`}>
-                  {quarterlyNet >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                  {quarterlyNet >= 0 ? "Positive cashflow" : "Negative cashflow"}
+        <div className={layoutClass}>
+          <aside
+            className={`min-w-0 rounded-[28px] border border-white/10 bg-slate-950/78 backdrop-blur ${
+              intelCollapsed ? "p-3" : "p-5"
+            }`}
+          >
+            <div
+              className={`flex ${intelCollapsed ? "flex-col items-center gap-3" : "items-center justify-between gap-3"}`}
+            >
+              {intelCollapsed ? (
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-400">
+                  Intel
                 </span>
-              </div>
-              <div className="mt-4 space-y-2 text-sm">
-                <div className="flex items-center justify-between"><span className="text-slate-400">Capital</span><span className="font-medium text-white">{formatCurrency(store.resources.capital)}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-400">Revenue</span><span className="text-emerald-300">{formatCurrency(store.resources.revenue)}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-400">Expenses</span><span className="text-rose-300">{formatCurrency(store.resources.burn)}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-400">Net</span><span className={quarterlyNet >= 0 ? "text-emerald-200" : "text-rose-200"}>{quarterlyNet >= 0 ? "+" : ""}{formatCurrency(quarterlyNet)}</span></div>
-                <div className="flex items-center justify-between"><span className="text-slate-400">Compute Capacity</span><span className="text-white">{store.resources.computeCapacity} PFLOPS</span></div>
-              </div>
-              <div className="mt-4 grid gap-2 text-xs text-slate-400">
-                {expenseEntries.map(([label, amount]) => (
-                  <div key={label} className="flex items-center justify-between">
-                    <span className="capitalize">{label}</span>
-                    <span>{formatCurrency(amount)}</span>
-                  </div>
-                ))}
-              </div>
+              ) : (
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">World Intel</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                    Collapse this rail when you want a cleaner strategy view
+                  </p>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setIntelCollapsed((value) => !value)}
+                className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/8"
+              >
+                {intelCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              </button>
             </div>
 
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Governments</p>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Relation drives contracts and pressure</span>
+            {intelCollapsed ? (
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIntelCollapsed(false);
+                    setWorldStateOpen(true);
+                  }}
+                  className="flex w-full items-center justify-center rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-[11px] uppercase tracking-[0.18em] text-slate-300"
+                >
+                  World
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIntelCollapsed(false);
+                    setGovernmentsOpen(true);
+                  }}
+                  className="flex w-full items-center justify-center rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-[11px] uppercase tracking-[0.18em] text-slate-300"
+                >
+                  Gov
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIntelCollapsed(false);
+                    setRivalsOpen(true);
+                  }}
+                  className="flex w-full items-center justify-center rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-[11px] uppercase tracking-[0.18em] text-slate-300"
+                >
+                  Rivals
+                </button>
               </div>
-              <div className="space-y-3">
-                {Object.values(store.governments).map((government) => (
-                  <div key={government.id} className="rounded-2xl border border-white/8 bg-white/4 p-3">
-                    <div className="flex items-center justify-between gap-3 text-sm text-white">
-                      <span>{government.name}</span>
-                      <span className="text-slate-400">{Math.round(government.relation)}</span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/6">
-                      <div className="h-full rounded-full bg-gradient-to-r from-sky-300 to-emerald-400" style={{ width: `${government.relation}%` }} />
-                    </div>
-                    <p className="mt-2 text-xs font-medium text-slate-300">{describeGovernmentRelation(government.relation)}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{government.agenda}</p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <IntelSection
+                  title="World State"
+                  subtitle="Runway, trust, fear, and the compact ledger"
+                  open={worldStateOpen}
+                  onToggle={() => setWorldStateOpen((value) => !value)}
+                >
+                  <div className="space-y-4">
+                    <MetricBar label="Runway (months)" value={Math.min(store.resources.runwayMonths, 36)} max={36} tone={store.resources.runwayMonths < 10 ? "red" : "green"} helper="Time before cash runs out if this quarter's ledger holds." />
+                    <MetricBar label="Lab Trust" value={store.resources.trust} tone="green" helper="High trust buys tolerance with regulators, partners, and staff." />
+                    <MetricBar label="AI Fear" value={store.resources.fear} tone="red" helper="Fear raises scrutiny, protests, and policy pressure." />
+                    <MetricBar label="Board Confidence" value={store.resources.boardConfidence} tone="amber" helper="If this collapses, the board can replace you." />
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div className="mt-4 rounded-[20px] border border-white/8 bg-slate-950/65 p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Quarterly Ledger</p>
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.18em] ${quarterlyNet >= 0 ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-200" : "border-rose-400/25 bg-rose-500/10 text-rose-200"}`}>
+                        {quarterlyNet >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                        {quarterlyNet >= 0 ? "Positive cashflow" : "Negative cashflow"}
+                      </span>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm">
+                      <div className="flex items-center justify-between"><span className="text-slate-400">Capital</span><span className="font-medium text-white">{formatCurrency(store.resources.capital)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-400">Revenue</span><span className="text-emerald-300">{formatCurrency(store.resources.revenue)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-400">Expenses</span><span className="text-rose-300">{formatCurrency(store.resources.burn)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-400">Net</span><span className={quarterlyNet >= 0 ? "text-emerald-200" : "text-rose-200"}>{quarterlyNet >= 0 ? "+" : ""}{formatCurrency(quarterlyNet)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-400">Compute Capacity</span><span className="text-white">{store.resources.computeCapacity} PFLOPS</span></div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      Open the Finance tab for the full revenue, payroll, and commitment view.
+                    </p>
+                  </div>
+                </IntelSection>
 
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Rival Labs</p>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Capability · Safety · Goodwill</span>
-              </div>
-              <div className="space-y-3">
-                {topRivals.map((rival) => (
-                  <div key={rival.id} className="rounded-2xl border border-white/8 bg-white/4 p-3">
-                    <div className="flex items-center justify-between gap-3 text-sm text-white">
-                      <span>{rival.name}</span>
-                      <span className="text-slate-400">{Math.round(rival.capability)}</span>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      <MetricBar label="Capability" value={rival.capability} tone="blue" />
-                      <MetricBar label="Safety" value={rival.safety} tone="amber" />
-                      <MetricBar label="Goodwill" value={rival.goodwill} tone="green" />
-                    </div>
-                    <p className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">Focus: {TRACK_DEFINITIONS.find((track) => track.id === rival.focus)?.shortName}</p>
-                    <p className="mt-2 text-xs leading-5 text-slate-500">{rival.recentMove}</p>
+                <IntelSection
+                  title="Governments"
+                  subtitle="Relation drives contracts, pressure, and legitimacy"
+                  open={governmentsOpen}
+                  onToggle={() => setGovernmentsOpen((value) => !value)}
+                >
+                  <div className="space-y-3">
+                    {Object.values(store.governments).map((government) => (
+                      <div key={government.id} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
+                        <div className="flex items-center justify-between gap-3 text-sm text-white">
+                          <span>{government.name}</span>
+                          <span className="text-slate-400">{Math.round(government.relation)}</span>
+                        </div>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/6">
+                          <div className="h-full rounded-full bg-gradient-to-r from-sky-300 to-emerald-400" style={{ width: `${government.relation}%` }} />
+                        </div>
+                        <p className="mt-2 text-xs font-medium text-slate-300">{describeGovernmentRelation(government.relation)}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{government.agenda}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </IntelSection>
+
+                <IntelSection
+                  title="Rival Labs"
+                  subtitle="Capability, safety, and goodwill"
+                  open={rivalsOpen}
+                  onToggle={() => setRivalsOpen((value) => !value)}
+                >
+                  <div className="space-y-3">
+                    {topRivals.map((rival) => (
+                      <div key={rival.id} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
+                        <div className="flex items-center justify-between gap-3 text-sm text-white">
+                          <span>{rival.name}</span>
+                          <span className="text-slate-400">{Math.round(rival.capability)}</span>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          <MetricBar label="Capability" value={rival.capability} tone="blue" />
+                          <MetricBar label="Safety" value={rival.safety} tone="amber" />
+                          <MetricBar label="Goodwill" value={rival.goodwill} tone="green" />
+                        </div>
+                        <p className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">
+                          Focus: {TRACK_DEFINITIONS.find((track) => track.id === rival.focus)?.shortName}
+                        </p>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">{rival.recentMove}</p>
+                      </div>
+                    ))}
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Race Board</p>
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Closest trajectory</span>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {labLeaderboard.map((entry, index) => (
+                          <div key={entry.id} className="flex items-start justify-between gap-3 rounded-2xl border border-white/8 bg-[#081021] px-3 py-3">
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-white">
+                                #{index + 1} {entry.name}
+                              </span>
+                              <span className="text-xs text-slate-400">{entry.trajectory}</span>
+                            </span>
+                            <span className="shrink-0 text-sm text-sky-200">{entry.raceScore}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </IntelSection>
               </div>
-            </div>
+            )}
           </aside>
 
           <section className="min-w-0 space-y-4">
@@ -1156,6 +1475,8 @@ export function ConvergenceApp() {
                 <h2 className="mt-2 text-2xl font-semibold text-white">
                   {store.panel === "track"
                     ? trackDefinition.name
+                    : store.panel === "finance"
+                      ? "Finance and Revenue"
                     : store.panel === "hiring"
                       ? "Talent Market"
                       : store.panel === "facilities"
@@ -1244,17 +1565,52 @@ export function ConvergenceApp() {
                 </div>
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Available Staff</p>
-                  <div className="mt-3 space-y-2">
-                    {availableResearchers.slice(0, 6).map((employee) => (
-                      <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
-                        <span className="min-w-0">
-                          <span className="block text-sm font-medium text-white">{employee.name}</span>
-                          <span className="text-xs text-slate-400">{employee.role} · Salary {formatCurrency(employee.salary)}</span>
-                        </span>
-                        <span className="text-xs uppercase tracking-[0.18em] text-sky-300">Assign</span>
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Staffing Pool</p>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      One researcher can support one track at a time
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Ready To Assign</p>
+                      <div className="mt-2 space-y-2">
+                        {availableResearchers.length ? (
+                          availableResearchers.slice(0, 6).map((employee) => (
+                            <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium text-white">{employee.name}</span>
+                                <span className="text-xs text-slate-400">{employee.role} / Salary {formatCurrency(employee.salary)}</span>
+                              </span>
+                              <span className="text-xs uppercase tracking-[0.18em] text-sky-300">Assign</span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500">No unassigned staff are idle right now.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Committed Elsewhere</p>
+                      <div className="mt-2 space-y-2">
+                        {committedResearchers.length ? (
+                          committedResearchers.slice(0, 6).map((employee) => (
+                            <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium text-white">{employee.name}</span>
+                                <span className="text-xs text-slate-400">
+                                  {employee.role} / Currently on {getTrackLabel(employee.assignedTrack)}
+                                </span>
+                              </span>
+                              <span className="text-xs uppercase tracking-[0.18em] text-amber-300">Reassign</span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500">No one else is currently tied to another project.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1365,6 +1721,167 @@ export function ConvergenceApp() {
                     </div>
                   </div>
                 ) : null}
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Race Leaderboard</p>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      Capability / Trust / Reliability / Safety
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {labLeaderboard.map((entry, index) => (
+                      <div key={entry.id} className={`rounded-2xl border px-3 py-3 ${entry.isPlayer ? "border-sky-400/25 bg-sky-500/10" : "border-white/8 bg-slate-950/65"}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium text-white">
+                            #{index + 1} {entry.name}
+                          </span>
+                          <span className="text-sm text-sky-200">{entry.raceScore}</span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-400 sm:grid-cols-4">
+                          <span>Capability {entry.capability}</span>
+                          <span>Trust {entry.trust}</span>
+                          <span>Reliability {entry.reliability}</span>
+                          <span>Safety {entry.safety}</span>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">Trajectory: {entry.trajectory}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {store.panel === "finance" ? (
+              <div className="space-y-4 text-sm text-slate-300">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Capital</p>
+                    <p className="mt-3 text-2xl font-semibold text-white">{formatCurrency(store.resources.capital)}</p>
+                    <p className="mt-2 text-xs text-slate-500">Cash on hand after all current commitments.</p>
+                  </div>
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Quarterly Net</p>
+                    <p className={`mt-3 text-2xl font-semibold ${quarterlyNet >= 0 ? "text-emerald-200" : "text-rose-200"}`}>{quarterlyNet >= 0 ? "+" : ""}{formatCurrency(quarterlyNet)}</p>
+                    <p className="mt-2 text-xs text-slate-500">Revenue minus burn for the current quarter.</p>
+                  </div>
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Runway</p>
+                    <p className="mt-3 text-2xl font-semibold text-white">{store.resources.runwayMonths} months</p>
+                    <p className="mt-2 text-xs text-slate-500">If this ledger holds, this is how long the lab survives.</p>
+                  </div>
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Compute Capacity</p>
+                    <p className="mt-3 text-2xl font-semibold text-white">{store.resources.computeCapacity} PFLOPS</p>
+                    <p className="mt-2 text-xs text-slate-500">Total PFLOPS available to allocate across research tracks.</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Revenue Streams</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Quarterly total {formatCurrency(store.resources.revenue)}</span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {store.revenueStreams.map((stream) => (
+                        <div key={stream.id} className="flex items-start justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-white">{stream.name}</span>
+                            <span className="text-xs text-slate-400">{stream.source} / {stream.summary}</span>
+                          </span>
+                          <span className="shrink-0 text-sm text-emerald-200">{formatCurrency(stream.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Expense Breakdown</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Quarterly total {formatCurrency(store.resources.burn)}</span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {expenseEntries.map(([label, amount]) => (
+                        <div key={label} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium capitalize text-white">{label}</span>
+                            <span className="text-sm text-rose-200">{formatCurrency(amount)}</span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">
+                            {store.resources.burn > 0 ? `${Math.round((amount / store.resources.burn) * 100)}% of quarterly burn.` : "No burn recorded."}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Payroll</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Current payroll {formatCurrency(store.resources.expenses.payroll)}</span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {payrollEntries.map((employee) => (
+                        <div key={employee.id} className="flex items-start justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-white">{employee.name}</span>
+                            <span className="text-xs text-slate-400">{employee.role} / {getTrackLabel(employee.assignedTrack)}</span>
+                          </span>
+                          <span className="shrink-0 text-sm text-white">{formatCurrency(employee.salary / 4)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Pending Hires</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Payroll next turn +{formatCurrency(pendingHirePayroll)}</span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {store.pendingHires.length ? (
+                        store.pendingHires.map((hire) => (
+                          <div key={hire.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-medium text-white">{hire.name}</span>
+                              <span className="text-sm text-amber-200">Arrives next quarter</span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-400">{hire.role} / Unlocks {getTrackLabel(hire.primaryTrack)}</p>
+                            <p className="mt-2 text-xs text-slate-500">Close cost already committed: {formatCurrency(hire.signingBonus + hire.salary / 4)}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No signed hires are waiting in the queue.</p>
+                      )}
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500">Signed-hire close costs already committed this quarter: {formatCurrency(pendingHireCloseCost)}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Capital Commitments</p>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Construction and expansion load</span>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {store.projects.length ? (
+                      store.projects.map((project) => (
+                        <div key={project.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-white">{project.name}</span>
+                            <span className="text-sm text-white">{project.turnsRemaining}Q left</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-400">{project.region} / Upkeep {formatCurrency(project.upkeep)}</p>
+                          <p className="mt-2 text-xs text-slate-500">{describeFacilityOutcome(project)}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">No live build commitments right now.</p>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : null}
 
@@ -1373,10 +1890,34 @@ export function ConvergenceApp() {
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Hiring Pressure</p>
                   <p className="mt-3 text-sm leading-6 text-slate-300">
-                    New hires immediately increase payroll, can unlock dark tracks, and can be contested by rivals.
-                    Think of recruiting as infrastructure: it changes every future quarter, not just this one.
+                    Signed hires are locked in now, become assignable next quarter, and then start contributing to payroll and research throughput.
+                    Recruiting changes the next turn, not the current one.
                   </p>
                 </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Arrival Queue</p>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{store.pendingHires.length} signed</span>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {store.pendingHires.length ? (
+                      store.pendingHires.map((hire) => (
+                        <div key={hire.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-white">{hire.name}</span>
+                            <span className="text-xs uppercase tracking-[0.18em] text-amber-300">Arrives next quarter</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-400">{hire.role} / {getTrackLabel(hire.primaryTrack)}</p>
+                          <p className="mt-2 text-xs text-slate-500">Payroll when active: {formatCurrency(hire.salary / 4)} per quarter.</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">No one is currently signed and waiting to arrive.</p>
+                    )}
+                  </div>
+                </div>
+
                 {store.candidates.map((candidate) => (
                   <div key={candidate.id} className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -1399,8 +1940,9 @@ export function ConvergenceApp() {
                     <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
                       <span>Salary {formatCurrency(candidate.salary)}</span>
                       <span>Signing bonus {formatCurrency(candidate.signingBonus)}</span>
-                      <span>Unlocks {TRACK_DEFINITIONS.find((track) => track.id === candidate.primaryTrack)?.name}</span>
-                      <span>Quarterly payroll +{formatCurrency(candidate.salary / 4)}</span>
+                      <span>Unlocks {TRACK_DEFINITIONS.find((track) => track.id === candidate.primaryTrack)?.name} on arrival</span>
+                      <span>Quarterly payroll next turn +{formatCurrency(candidate.salary / 4)}</span>
+                      <span>Close cost today {formatCurrency(candidate.signingBonus + candidate.salary / 4)}</span>
                       <span>{candidate.contestedBy ? `Contested by ${store.rivals[candidate.contestedBy].name}` : "Uncontested"}</span>
                       <span>{candidate.location}</span>
                     </div>
@@ -1460,7 +2002,8 @@ export function ConvergenceApp() {
                             <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/6">
                               <div className="h-full rounded-full bg-gradient-to-r from-sky-300 to-cyan-400" style={{ width: `${Math.max(4, progressPercent)}%` }} />
                             </div>
-                            <p className="mt-2 text-xs leading-5 text-slate-400">{project.region} · +{project.computeDelta} PFLOPS · upkeep {formatCurrency(project.upkeep)}</p>
+                            <p className="mt-2 text-xs leading-5 text-slate-400">{project.region} / Upkeep {formatCurrency(project.upkeep)} / Build cost {formatCurrency(project.buildCost)}</p>
+                            <p className="mt-2 text-xs leading-5 text-slate-500">{describeFacilityOutcome(project)}</p>
                           </div>
                         );
                       })
@@ -1479,8 +2022,9 @@ export function ConvergenceApp() {
                       return (
                         <button key={option.id} type="button" onClick={() => store.startFacility(option.id)} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
                           <span className="block font-medium text-white">{option.name}</span>
-                          <span className="mt-1 block text-xs leading-5 text-slate-400">{option.region} · Cost {formatCurrency(option.buildCost)} · ETA {buildTime}Q</span>
-                          <span className="mt-2 block text-[11px] uppercase tracking-[0.18em] text-slate-500">+{option.computeDelta} PFLOPS · Trust {option.trustDelta >= 0 ? "+" : ""}{option.trustDelta} · Risk {option.riskDelta >= 0 ? "+" : ""}{option.riskDelta}</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-400">{option.region} / Cost {formatCurrency(option.buildCost)} / ETA {buildTime}Q / Upkeep {formatCurrency(option.upkeep)}</span>
+                          <span className="mt-2 block text-[11px] uppercase tracking-[0.18em] text-slate-500">+{option.computeDelta} PFLOPS / Trust {option.trustDelta >= 0 ? "+" : ""}{option.trustDelta} / Risk {option.riskDelta >= 0 ? "+" : ""}{option.riskDelta}</span>
+                          <span className="mt-2 block text-xs leading-5 text-slate-400">{describeFacilityOutcome(option)}</span>
                         </button>
                       );
                     })}
@@ -1557,14 +2101,28 @@ export function ConvergenceApp() {
         {store.activeDilemma ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/68 p-4 backdrop-blur-sm">
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }} className="w-full max-w-5xl rounded-[32px] border border-white/10 bg-[#0a1124]/95 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)]">
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl border border-amber-400/20 bg-amber-500/12 p-3 text-amber-200">
-                  <AlertTriangle className="h-6 w-6" />
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-2xl border border-amber-400/20 bg-amber-500/12 p-3 text-amber-200">
+                    <AlertTriangle className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-[0.24em] text-amber-200">{store.activeDilemma.source}</p>
+                    <h2 className="mt-2 text-3xl font-semibold text-white">{store.activeDilemma.title}</h2>
+                    <RichText text={store.activeDilemma.brief} className="mt-3" />
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-[0.24em] text-amber-200">{store.activeDilemma.source}</p>
-                  <h2 className="mt-2 text-3xl font-semibold text-white">{store.activeDilemma.title}</h2>
-                  <RichText text={store.activeDilemma.brief} className="mt-3" />
+                <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={() => void narrateDilemmaSummary()} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white">
+                    <AudioLines className="h-4 w-4" />
+                    Read Context
+                  </button>
+                  {isNarrating ? (
+                    <button type="button" onClick={stopNarration} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
+                      <Pause className="h-4 w-4" />
+                      Stop
+                    </button>
+                  ) : null}
                 </div>
               </div>
               {dilemmaFlavor ? (
@@ -1620,3 +2178,4 @@ export function ConvergenceApp() {
     </main>
   );
 }
+

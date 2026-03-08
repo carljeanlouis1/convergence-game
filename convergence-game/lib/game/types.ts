@@ -39,6 +39,7 @@ export type EndingId =
 export type PanelId =
   | "track"
   | "briefing"
+  | "finance"
   | "hiring"
   | "facilities"
   | "dilemmas"
@@ -358,6 +359,7 @@ export interface GameState {
   energyPolicy: EnergyPolicy;
   tracks: Record<TrackId, TrackState>;
   employees: Researcher[];
+  pendingHires: Researcher[];
   candidates: Candidate[];
   facilities: FacilityState[];
   projects: FacilityProject[];
