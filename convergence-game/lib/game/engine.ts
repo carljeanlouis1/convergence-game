@@ -15,14 +15,18 @@ import {
 } from "./data";
 import {
   Candidate,
+  DecisionLogEntry,
   DilemmaOption,
   EndingResult,
+  ExpenseBreakdown,
   FacilityProject,
   FacilityState,
   GameFlags,
+  GovernmentId,
   GameSnapshot,
   GameState,
   Researcher,
+  RevenueStream,
   RivalId,
   SaveSlotId,
   StartPresetId,
@@ -42,11 +46,14 @@ export const trackById = (trackId: TrackId) =>
   TRACK_DEFINITIONS.find((track) => track.id === trackId)!;
 
 export const formatCurrency = (value: number) => {
-  if (value >= 1000) {
-    return `$${(value / 1000).toFixed(1)}B`;
+  const absolute = Math.abs(value);
+  const prefix = value < 0 ? "-$" : "$";
+
+  if (absolute >= 1000) {
+    return `${prefix}${(absolute / 1000).toFixed(1)}B`;
   }
 
-  return `$${value.toFixed(value >= 100 ? 0 : 1)}M`;
+  return `${prefix}${absolute.toFixed(absolute >= 100 ? 0 : 1)}M`;
 };
 
 export const turnLabel = (turn: number) => {
@@ -112,6 +119,138 @@ const rollFromOptions = <T extends { chance: number }>(rng: () => number, option
 const computeTrackThreshold = (level: number) => 72 + level * 34;
 
 const cloneResearcher = (researcher: Researcher): Researcher => ({ ...researcher });
+
+const defaultExpenses = (): ExpenseBreakdown => ({
+  payroll: 0,
+  compute: 0,
+  facilities: 0,
+  research: 0,
+  expansion: 0,
+});
+
+const defaultOpenAISettings = (): GameState["openAISettings"] => ({
+  enabled: false,
+  apiKey: "",
+  voice: "nova",
+  autoPlay: false,
+});
+
+const supplierTrackModifiers: Record<string, Partial<Record<TrackId, number>>> = {
+  NVIDIA: {
+    foundation: 0.14,
+    robotics: 0.08,
+    biology: 0.05,
+  },
+  AMD: {
+    robotics: 0.05,
+    materials: 0.06,
+    simulation: 0.04,
+  },
+  "Google TPU": {
+    foundation: 0.1,
+    simulation: 0.16,
+    alignment: 0.06,
+    quantum: -0.05,
+    robotics: -0.04,
+  },
+  "Custom ASIC": {
+    foundation: 0.18,
+    quantum: 0.12,
+    simulation: 0.08,
+    alignment: -0.04,
+    robotics: -0.06,
+    biology: -0.04,
+  },
+};
+
+const energyTrackModifiers: Record<string, Partial<Record<TrackId, number>>> = {
+  grid: {},
+  solar: {
+    alignment: 0.05,
+    simulation: 0.04,
+    foundation: -0.04,
+  },
+  nuclear: {
+    foundation: 0.06,
+    quantum: 0.08,
+    robotics: 0.04,
+  },
+  geothermal: {
+    simulation: 0.08,
+    materials: 0.06,
+    foundation: 0.03,
+  },
+};
+
+const trackRevenueNames: Record<TrackId, { name: string; source: string; summary: string }> = {
+  foundation: {
+    name: "Model API Contracts",
+    source: "Commercial",
+    summary: "Inference subscriptions and enterprise reasoning pilots.",
+  },
+  alignment: {
+    name: "Safety Assurance Work",
+    source: "Trust",
+    summary: "Audits, evaluations, and assurance work that improves legitimacy.",
+  },
+  simulation: {
+    name: "Forecasting Platform",
+    source: "Commercial",
+    summary: "Prediction retainers sold into markets, logistics, and planning teams.",
+  },
+  robotics: {
+    name: "Automation Pilots",
+    source: "Industrial",
+    summary: "Paid deployments for warehouses, field ops, and manufacturing trials.",
+  },
+  biology: {
+    name: "Drug Discovery Partnerships",
+    source: "Biotech",
+    summary: "Discovery collaborations with pharma and hospital partners.",
+  },
+  materials: {
+    name: "Materials Licensing",
+    source: "Industrial",
+    summary: "Licensing revenue from compounds, manufacturing methods, and prototypes.",
+  },
+  quantum: {
+    name: "Quantum Security Retainers",
+    source: "Strategic",
+    summary: "Cryptography and simulation retainers for security-sensitive buyers.",
+  },
+  space: {
+    name: "Autonomy Flight Contracts",
+    source: "Aerospace",
+    summary: "Autonomous navigation and orbital systems pilots.",
+  },
+};
+
+const facilityBuildTimes: Record<string, number> = {
+  "dc-virginia": 2,
+  "dc-doha": 2,
+  "dc-helsinki": 3,
+  "dc-bengaluru": 2,
+};
+
+const initialRetainerAmounts: Record<StartPresetId, number> = {
+  founder: 1.1,
+  government: 2.1,
+  "open-source": 0.7,
+  corporate: 1.8,
+  underground: 0.6,
+  "second-chance": 1.5,
+};
+
+const trackUnlockHints: Record<TrackId, string> = {
+  foundation: "Already unlocked at game start.",
+  alignment: "Already unlocked at game start.",
+  simulation: "Already unlocked at game start.",
+  robotics: "Hire a roboticist or autonomy operator to unlock Robotics.",
+  biology: "Hire a computational biologist or biosecurity specialist to unlock Biology.",
+  materials: "Hire a materials scientist or data-center strategist to unlock Materials.",
+  quantum: "Hire a quantum specialist to unlock Quantum.",
+  space: "Hire an orbital systems or satellite autonomy lead to unlock Space.",
+};
 
 const createInitialTracks = (): Record<TrackId, TrackState> =>
   TRACK_DEFINITIONS.reduce(
@@ -189,7 +328,7 @@ export const createNewGame = (preset: StartPresetId = "founder"): GameState => {
     selectedTrack: "foundation",
     resources: {
       capital: presetData.modifier.capital,
-      revenue: 1.1,
+      revenue: initialRetainerAmounts[preset],
       burn: 3.4,
       runwayMonths: 16,
       computeCapacity: preset === "second-chance" ? 128 : 100,
@@ -198,6 +337,7 @@ export const createNewGame = (preset: StartPresetId = "founder"): GameState => {
       boardConfidence: presetData.modifier.board,
       reputation: 48,
       wealth: 4.2,
+      expenses: defaultExpenses(),
     },
     ceo: {
       name: "Alex Mercer",
@@ -256,8 +396,43 @@ export const createNewGame = (preset: StartPresetId = "founder"): GameState => {
     meta: loadMetaProgression(),
     slotSummaries: loadSaveSummaries(),
     ending: null,
+    revenueStreams: [],
+    decisionLog: [],
+    openAISettings: defaultOpenAISettings(),
   };
 
+  recalculateState(state);
+  return state;
+};
+
+export const normalizeGameState = (input: GameState): GameState => {
+  const state = structuredClone(input) as GameState;
+
+  state.resources = {
+    ...state.resources,
+    expenses: state.resources.expenses ?? defaultExpenses(),
+  };
+  state.aiSettings = state.aiSettings ?? {
+    enabled: false,
+    apiKey: "",
+    cache: {},
+  };
+  state.revenueStreams = state.revenueStreams ?? [];
+  state.decisionLog = state.decisionLog ?? [];
+  state.openAISettings = state.openAISettings ?? defaultOpenAISettings();
+  state.flags = {
+    ...baseFlags(state.preset),
+    ...state.flags,
+    lastWorldTags: state.flags?.lastWorldTags ?? [],
+  };
+  state.feed = state.feed ?? [];
+  state.facilities = state.facilities ?? [];
+  state.projects =
+    state.projects?.map((project) => ({
+      ...project,
+      totalTurns: project.totalTurns ?? facilityBuildTimes[project.id] ?? 2,
+    })) ?? [];
+  state.activeDilemmaSource = state.activeDilemmaSource ?? state.activeDilemma?.brief ?? null;
   recalculateState(state);
   return state;
 };
@@ -341,35 +516,111 @@ const trackSynergy = (trackId: TrackId, state: GameState) => {
   return state.tracks.robotics.level * 1.1 + state.tracks.materials.level * 1.2;
 };
 
-const generateTrackProgress = (
-  trackId: TrackId,
-  state: GameState,
-  track: TrackState,
-) => {
-  if (!track.unlocked) {
+const totalAllocatedCompute = (state: GameState) =>
+  (Object.keys(state.tracks) as TrackId[]).reduce((sum, trackId) => sum + state.tracks[trackId].compute, 0);
+
+const energyUtilizationMultiplier = (state: GameState) => {
+  const utilization = totalAllocatedCompute(state) / Math.max(state.resources.computeCapacity, 1);
+
+  switch (state.energyPolicy.id) {
+    case "solar":
+      return utilization > 0.72 ? 0.88 : 0.98;
+    case "nuclear":
+      return utilization > 0.82 ? 1.08 : 1.04;
+    case "geothermal":
+      return utilization > 0.8 ? 1.03 : 1.01;
+    default:
+      return utilization > 0.9 ? 0.96 : 1;
+  }
+};
+
+const trackResearchCost = (trackId: TrackId, track: TrackState, assignedCount: number) => {
+  if (!track.unlocked || (assignedCount === 0 && track.compute === 0)) {
     return 0;
   }
 
+  const wetLabPremium =
+    trackId === "biology" || trackId === "robotics" || trackId === "materials" || trackId === "quantum"
+      ? 0.18
+      : trackId === "space"
+        ? 0.12
+        : 0.06;
+
+  return 0.08 + track.level * 0.05 + assignedCount * 0.07 + (track.compute / 100) * 0.22 + wetLabPremium;
+};
+
+export const getFacilityBuildTime = (state: GameState, facilityId: string) => {
+  const baseTurns = facilityBuildTimes[facilityId] ?? 2;
+  const supplierDelay = state.supplier.vendor === "Custom ASIC" ? 1 : 0;
+  const energyDelay =
+    state.energyPolicy.id === "nuclear" ? 1 : state.energyPolicy.id === "solar" && facilityId !== "dc-helsinki" ? 1 : 0;
+
+  return baseTurns + supplierDelay + energyDelay;
+};
+
+export const getTrackForecast = (state: GameState, trackId: TrackId) => {
+  const track = state.tracks[trackId];
+  const target = computeTrackThreshold(track.level);
   const assigned = state.employees.filter((employee) => employee.assignedTrack === trackId);
+  const contributors = assigned
+    .map((employee) => ({
+      id: employee.id,
+      name: employee.name,
+      role: employee.role,
+      contribution: Number(researcherContribution(employee, trackId, state).toFixed(1)),
+      focus:
+        employee.primaryTrack === trackId ? "Lead" : employee.secondaryTrack === trackId ? "Support" : "Generalist",
+    }))
+    .sort((left, right) => right.contribution - left.contribution);
+  const staffCoverage =
+    assigned.length === 0 ? 0.32 : assigned.length === 1 ? 0.74 : assigned.length === 2 ? 0.92 : 1.04 + (assigned.length - 3) * 0.04;
+  const supplierBonus = 1 + (supplierTrackModifiers[state.supplier.vendor][trackId] ?? 0);
+  const energyBonus = 1 + (energyTrackModifiers[state.energyPolicy.id][trackId] ?? 0);
   const computeFactor =
-    (track.compute / 6.2) *
+    (track.compute / 7.4) *
     state.supplier.computeMultiplier *
-    (trackId === "foundation" ? 1.08 : 1);
-  const teamFactor = assigned.reduce(
-    (sum, employee) => sum + researcherContribution(employee, trackId, state),
-    0,
-  );
-  const synergy = trackSynergy(trackId, state);
+    supplierBonus *
+    energyBonus *
+    energyUtilizationMultiplier(state) *
+    (trackId === "foundation" ? 1.04 : 1);
+  const teamFactor =
+    contributors.reduce((sum, contributor) => sum + contributor.contribution, 0) * 0.34 * staffCoverage;
+  const synergy = trackSynergy(trackId, state) * 0.95;
   const governancePenalty =
     trackId === "foundation" || trackId === "quantum"
       ? Math.max(0, (state.resources.fear - state.resources.trust) * 0.08)
       : 0;
-  const burnoutPenalty = Math.max(0, 5 - assigned.length) * 0.6;
-
-  return Math.max(
+  const staffingPenalty = assigned.length === 0 ? 6 : assigned.length === 1 ? 2.6 : 0;
+  const progressPerTurn = Math.max(
     0,
-    computeFactor + teamFactor * 0.48 + synergy - governancePenalty - burnoutPenalty,
+    computeFactor + teamFactor + synergy - governancePenalty - staffingPenalty,
   );
+  const remaining = Math.max(0, target - track.progress);
+  const turnsToLevel =
+    !track.unlocked || track.level >= 5 || progressPerTurn <= 0 ? null : Math.ceil(remaining / progressPerTurn);
+
+  return {
+    trackId,
+    target,
+    currentProgress: Number(track.progress.toFixed(1)),
+    progressPercent: target > 0 ? Math.min(100, (track.progress / target) * 100) : 100,
+    progressPerTurn: Number(progressPerTurn.toFixed(1)),
+    turnsToLevel,
+    assignedCount: assigned.length,
+    contributors,
+    projectName: track.level >= 5 ? "Completed" : trackById(trackId).levels[track.level],
+    completedStage:
+      track.level <= 0 ? "No completed stage yet." : trackById(trackId).levels[Math.max(0, track.level - 1)],
+    unlockHint: trackUnlockHints[trackId],
+  };
+};
+
+const generateTrackProgress = (trackId: TrackId, state: GameState, track: TrackState) => {
+  if (!track.unlocked) {
+    return 0;
+  }
+
+  return getTrackForecast(state, trackId).progressPerTurn;
 };
 
 const applyResearch = (state: GameState) => {
@@ -537,6 +788,13 @@ const buildBriefing = (state: GameState, breakthroughs: string[], worldEvents: s
   })).sort((left, right) => right.level - left.level)[0];
   const net = state.resources.revenue - state.resources.burn;
   const rivals = Object.values(state.rivals).sort((left, right) => right.capability - left.capability);
+  const strongestForecast = getTrackForecast(state, strongestTrack.id);
+  const topExpense = Object.entries(state.resources.expenses).sort((left, right) => right[1] - left[1])[0];
+  const topRevenue = [...state.revenueStreams].sort((left, right) => right.amount - left.amount)[0];
+  const researchLine =
+    strongestForecast.turnsToLevel === null
+      ? `${strongestTrack.label} is online and waiting for more people or compute.`
+      : `${strongestTrack.label} is pushing toward ${strongestForecast.projectName} with an ETA of ${strongestForecast.turnsToLevel} quarter${strongestForecast.turnsToLevel === 1 ? "" : "s"}.`;
 
   return {
     headline:
@@ -546,10 +804,14 @@ const buildBriefing = (state: GameState, breakthroughs: string[], worldEvents: s
           ? "The lab is buying itself time."
           : "Momentum is real. Runway remains the sharper fact.",
     briefing:
-      `Chief of Staff memo: ${rivals[0].name} remains the benchmark threat. ` +
-      `Your strongest visible advantage is ${strongestTrack.label.toLowerCase()} at level ${strongestTrack.level}. ` +
-      `${net >= 0 ? "Revenue is beginning to offset burn." : "Commercial pressure is rising faster than revenue."} ` +
-      `${worldEvents[0] ? `Immediate concern: ${worldEvents[0].toLowerCase()}` : "No acute geopolitical shock this quarter."}`,
+      [
+        `${rivals[0].name} remains the benchmark threat while ${researchLine}`,
+        `Finance check: ${formatCurrency(state.resources.revenue)} in quarterly revenue versus ${formatCurrency(state.resources.burn)} in expenses. ` +
+          `${topRevenue ? `${topRevenue.name} is your largest stream.` : "You are still living mostly on seed capital."} ` +
+          `${topExpense ? `${topExpense[0]} is your biggest expense line.` : ""}`,
+        `${net >= 0 ? "Runway is stabilizing." : "Runway is still eroding faster than we like."} ` +
+          `${worldEvents[0] ? `Immediate concern: ${worldEvents[0]}.` : "No acute geopolitical shock this quarter."}`,
+      ].join("\n\n"),
   };
 };
 
@@ -651,6 +913,19 @@ const selectDilemma = (state: GameState) => {
 export const resolveDilemmaOption = (state: GameState, option: DilemmaOption) => {
   const rng = makeTurnRng(state.seed, state.turn, option.id);
   const outcome = rollFromOptions(rng, option.outcomes);
+  const impactParts: string[] = [];
+
+  if (outcome.effects.capital) impactParts.push(`${outcome.effects.capital > 0 ? "+" : ""}${formatCurrency(outcome.effects.capital)} capital`);
+  if (outcome.effects.trust) impactParts.push(`${outcome.effects.trust > 0 ? "+" : ""}${Math.round(outcome.effects.trust)} trust`);
+  if (outcome.effects.fear) impactParts.push(`${outcome.effects.fear > 0 ? "+" : ""}${Math.round(outcome.effects.fear)} fear`);
+  if (outcome.effects.board) impactParts.push(`${outcome.effects.board > 0 ? "+" : ""}${Math.round(outcome.effects.board)} board`);
+  if (outcome.effects.compute) impactParts.push(`${outcome.effects.compute > 0 ? "+" : ""}${Math.round(outcome.effects.compute)} PFLOPS`);
+  if (outcome.effects.governmentDependence)
+    impactParts.push(
+      `${outcome.effects.governmentDependence > 0 ? "+" : ""}${Math.round(outcome.effects.governmentDependence)} government dependence`,
+    );
+  if (outcome.effects.ethicsDebt)
+    impactParts.push(`${outcome.effects.ethicsDebt > 0 ? "+" : ""}${Math.round(outcome.effects.ethicsDebt)} ethics debt`);
 
   if (outcome.effects.capital) state.resources.capital += outcome.effects.capital;
   if (outcome.effects.trust) state.resources.trust += outcome.effects.trust;
@@ -673,6 +948,17 @@ export const resolveDilemmaOption = (state: GameState, option: DilemmaOption) =>
   state.usedDilemmas = state.activeDilemma
     ? [state.activeDilemma.id, ...state.usedDilemmas]
     : state.usedDilemmas;
+  if (state.activeDilemma) {
+    const entry: DecisionLogEntry = {
+      id: `decision-${state.turn}-${option.id}`,
+      turn: state.turn,
+      title: state.activeDilemma.title,
+      choice: option.label,
+      outcome: outcome.label,
+      impact: impactParts.length ? impactParts.join(", ") : "Narrative impact only.",
+    };
+    state.decisionLog = [entry, ...state.decisionLog].slice(0, 18);
+  }
   state.feed = [
     {
       id: `dilemma-${state.turn}-${option.id}`,
@@ -694,22 +980,186 @@ const revenueForTrack = (trackId: TrackId, level: number) => {
 
   switch (trackId) {
     case "foundation":
-      return level * 1.4;
+      return 1.1 + level * 1.05 + (level >= 3 ? 0.8 : 0);
     case "simulation":
-      return level * 1.7;
+      return 0.9 + level * 1.15 + (level >= 3 ? 0.6 : 0);
     case "biology":
-      return level * 1.1;
+      return 0.4 + level * 0.9 + (level >= 2 ? 0.7 : 0);
     case "robotics":
-      return level * 0.9;
+      return 0.3 + level * 0.82 + (level >= 3 ? 0.8 : 0);
     case "materials":
-      return level * 0.7;
+      return 0.25 + level * 0.7 + (level >= 3 ? 0.9 : 0);
     case "space":
-      return level * 0.6;
+      return 0.2 + level * 0.62 + (level >= 3 ? 1.1 : 0);
     case "quantum":
-      return level * 0.8;
+      return 0.35 + level * 0.8 + (level >= 3 ? 1.2 : 0);
     case "alignment":
-      return level * 0.2;
+      return 0.1 + level * 0.24;
   }
+};
+
+const convergenceRevenue: Record<string, { amount: number; source: string; summary: string }> = {
+  "predictive-market-stack": {
+    amount: 3.6,
+    source: "Platform",
+    summary: "Enterprise buyers pay for forecasts that feel unfairly good.",
+  },
+  "programmable-medicine": {
+    amount: 4.4,
+    source: "Biotech",
+    summary: "Clinical and pharma partners line up for programmable medicine access.",
+  },
+  "self-replicating-fab": {
+    amount: 3.9,
+    source: "Industrial",
+    summary: "Manufacturing partners pay to get ahead of the new production curve.",
+  },
+  "cryptographic-supremacy": {
+    amount: 3.1,
+    source: "Strategic",
+    summary: "Security-sensitive customers pay for lead time and insight.",
+  },
+  "autonomous-spaceyards": {
+    amount: 4.2,
+    source: "Aerospace",
+    summary: "Launch and orbital contractors buy into autonomous construction capability.",
+  },
+};
+
+const deriveRevenueStreams = (state: GameState): RevenueStream[] => {
+  const streams: RevenueStream[] = [
+    {
+      id: `retainer-${state.preset}`,
+      name: state.preset === "government" ? "Federal Anchor Contract" : "Existing Operating Retainer",
+      amount: initialRetainerAmounts[state.preset],
+      source: state.preset === "government" ? "Government" : "Bridge",
+      summary:
+        state.preset === "government"
+          ? "A starting government contract keeps the lab alive and watched."
+          : "Early retainers and inherited commitments keep the lights on.",
+    },
+  ];
+
+  (Object.keys(state.tracks) as TrackId[]).forEach((trackId) => {
+    const level = state.tracks[trackId].level;
+    if (level <= 0) {
+      return;
+    }
+
+    const metadata = trackRevenueNames[trackId];
+    streams.push({
+      id: `track-${trackId}`,
+      name: metadata.name,
+      amount: Number(revenueForTrack(trackId, level).toFixed(2)),
+      source: metadata.source,
+      summary: `${metadata.summary} Current tier: ${trackById(trackId).levels[level - 1]}.`,
+    });
+  });
+
+  state.convergences.forEach((convergence) => {
+    const revenue = convergenceRevenue[convergence.id];
+    if (!revenue) {
+      return;
+    }
+
+    streams.push({
+      id: `convergence-${convergence.id}`,
+      name: convergence.name,
+      amount: revenue.amount,
+      source: revenue.source,
+      summary: revenue.summary,
+    });
+  });
+
+  if (state.flags.governmentDependence > 0) {
+    streams.push({
+      id: "dependence-contracts",
+      name: "Directed Government Work",
+      amount: Number((state.flags.governmentDependence * 0.55).toFixed(2)),
+      source: "Government",
+      summary: "State-aligned work extends runway and tightens outside control.",
+    });
+  }
+
+  return streams.sort((left, right) => right.amount - left.amount);
+};
+
+const deriveExpenses = (state: GameState, computeCapacity: number): ExpenseBreakdown => {
+  const payroll = salaryBurn(state.employees);
+  const facilities = facilityBurn(state.facilities);
+  const expansion = projectBurn(state.projects);
+  const compute = computeUpkeep(
+    computeCapacity,
+    state.supplier.upkeepMultiplier,
+    state.energyPolicy.upkeepMultiplier,
+  );
+  const research = (Object.keys(state.tracks) as TrackId[]).reduce((sum, trackId) => {
+    const track = state.tracks[trackId];
+    const assignedCount = state.employees.filter((employee) => employee.assignedTrack === trackId).length;
+    return sum + trackResearchCost(trackId, track, assignedCount);
+  }, 0);
+
+  return {
+    payroll: Number(payroll.toFixed(2)),
+    facilities: Number(facilities.toFixed(2)),
+    expansion: Number(expansion.toFixed(2)),
+    compute: Number(compute.toFixed(2)),
+    research: Number(research.toFixed(2)),
+  };
+};
+
+export const describeGovernmentRelation = (relation: number) => {
+  if (relation >= 75) return "Strategic partner";
+  if (relation >= 60) return "Constructive";
+  if (relation >= 45) return "Transactional";
+  if (relation >= 30) return "Wary";
+  return "Hostile";
+};
+
+const updateGovernments = (state: GameState) => {
+  const trackLevels = state.tracks;
+  const supplierHeat = state.supplier.riskDelta;
+  const cleanEnergyBonus = state.energyPolicy.id === "solar" || state.energyPolicy.id === "geothermal" ? 1.2 : 0;
+  const facilityRegions = new Set(state.facilities.map((facility) => facility.region));
+
+  const drifts: Record<GovernmentId, number> = {
+    us:
+      0.4 +
+      trackLevels.foundation.level * 0.35 +
+      trackLevels.quantum.level * 0.28 +
+      (facilityRegions.has("Virginia") ? 1.2 : 0) -
+      state.flags.openness * 0.2,
+    eu:
+      0.2 +
+      trackLevels.alignment.level * 0.5 +
+      cleanEnergyBonus +
+      state.resources.trust * 0.015 -
+      state.resources.fear * 0.012,
+    china:
+      0.15 +
+      trackLevels.materials.level * 0.32 +
+      (state.supplier.vendor === "Custom ASIC" ? 0.4 : 0) -
+      state.resources.trust * 0.01,
+    india:
+      0.18 +
+      trackLevels.simulation.level * 0.24 +
+      (facilityRegions.has("Bengaluru") ? 1.4 : 0) +
+      state.flags.openness * 0.18,
+    gulf:
+      0.12 +
+      trackLevels.foundation.level * 0.2 +
+      (facilityRegions.has("Doha") ? 1.8 : 0) +
+      (state.energyPolicy.id === "nuclear" ? 0.35 : 0),
+  };
+
+  (Object.keys(state.governments) as GovernmentId[]).forEach((governmentId) => {
+    const government = state.governments[governmentId];
+    const fearPenalty = state.resources.fear * 0.035;
+    const trustLift = state.resources.trust * 0.025;
+    const dependenceEffect = governmentId === "us" ? state.flags.governmentDependence * 0.45 : 0;
+    const delta = drifts[governmentId] + trustLift - fearPenalty + dependenceEffect - supplierHeat * 0.12;
+    government.relation = clamp(GOVERNMENT_START[governmentId].relation + delta, 5, 95);
+  });
 };
 
 export const recalculateState = (state: GameState) => {
@@ -717,44 +1167,21 @@ export const recalculateState = (state: GameState) => {
 
   const facilityCapacity = computeCapacityFromFacilities(state.facilities);
   const computeCapacity = facilityCapacity || state.resources.computeCapacity;
-  const revenue = (Object.keys(state.tracks) as TrackId[]).reduce(
-    (sum, trackId) => sum + revenueForTrack(trackId, state.tracks[trackId].level),
-    0,
-  );
-  const burn =
-    salaryBurn(state.employees) +
-    projectBurn(state.projects) +
-    facilityBurn(state.facilities) +
-    computeUpkeep(
-      computeCapacity,
-      state.supplier.upkeepMultiplier,
-      state.energyPolicy.upkeepMultiplier,
-    );
+  const revenueStreams = deriveRevenueStreams(state);
+  const revenue = revenueStreams.reduce((sum, stream) => sum + stream.amount, 0);
+  const expenses = deriveExpenses(state, computeCapacity);
+  const burn = Object.values(expenses).reduce((sum, value) => sum + value, 0);
   const monthlyNetBurn = Math.max((burn - revenue) / 3, 0.08);
 
   state.resources.computeCapacity = computeCapacity;
+  state.resources.expenses = expenses;
   state.resources.revenue = Number(revenue.toFixed(2));
   state.resources.burn = Number(burn.toFixed(2));
   state.resources.runwayMonths = Number((state.resources.capital / monthlyNetBurn).toFixed(1));
-  state.resources.trust = clamp(
-    state.resources.trust +
-      state.energyPolicy.trustDelta * 0.05 +
-      computeTrustFromFacilities(state.facilities) * 0.03,
-    0,
-    100,
-  );
-  state.resources.fear = clamp(
-    state.resources.fear +
-      Math.max(0, state.tracks.foundation.level - state.tracks.alignment.level) * 0.2 +
-      computeRiskFromFacilities(state.facilities) * 0.04,
-    0,
-    100,
-  );
+  state.revenueStreams = revenueStreams;
+  updateGovernments(state);
 
-  const totalAllocated = (Object.keys(state.tracks) as TrackId[]).reduce(
-    (sum, trackId) => sum + state.tracks[trackId].compute,
-    0,
-  );
+  const totalAllocated = totalAllocatedCompute(state);
 
   if (totalAllocated > computeCapacity) {
     const ratio = computeCapacity / totalAllocated;
@@ -908,6 +1335,23 @@ export const advanceTurn = (current: GameState) => {
   updateRivals(state, worldEvents);
   const worldNews = buildWorldNews(state);
   worldEvents.push(...worldNews.map((item) => item.title));
+  state.resources.trust = clamp(
+    state.resources.trust +
+      state.energyPolicy.trustDelta * 0.18 +
+      computeTrustFromFacilities(state.facilities) * 0.12 -
+      Math.max(0, state.flags.ethicsDebt) * 0.1,
+    0,
+    100,
+  );
+  state.resources.fear = clamp(
+    state.resources.fear +
+      Math.max(0, state.tracks.foundation.level - state.tracks.alignment.level) * 0.28 +
+      computeRiskFromFacilities(state.facilities) * 0.14 +
+      (worldNews.some((item) => item.severity === "critical") ? 1.2 : 0),
+    0,
+    100,
+  );
+  recalculateState(state);
 
   const { headline, briefing } = buildBriefing(state, breakthroughs, worldEvents);
   const nextTurn = state.turn + 1;
@@ -1025,12 +1469,14 @@ export const buildFacility = (state: GameState, facilityId: string) => {
   }
 
   state.resources.capital -= option.buildCost;
+  const totalTurns = getFacilityBuildTime(state, option.id);
   state.projects = [
     {
       id: option.id,
       name: option.name,
       region: option.region,
-      turnsRemaining: 2,
+      turnsRemaining: totalTurns,
+      totalTurns,
       buildCost: option.buildCost,
       upkeep: option.upkeep,
       computeDelta: option.computeDelta,
@@ -1044,7 +1490,7 @@ export const buildFacility = (state: GameState, facilityId: string) => {
       id: `facility-${state.turn}-${facilityId}`,
       turn: state.turn,
       title: `${option.name} authorized`,
-      body: `Construction begins in ${option.region}. Delivery expected in two quarters.`,
+      body: `Construction begins in ${option.region}. Delivery expected in ${totalTurns} quarter${totalTurns === 1 ? "" : "s"}.`,
       severity: "info" as const,
       kind: "system" as const,
     },
@@ -1082,6 +1528,21 @@ export const setPanel = (state: GameState, panel: GameState["panel"]) => {
 
 export const setAISettings = (state: GameState, enabled: boolean, apiKey: string) => {
   state.aiSettings = { ...state.aiSettings, enabled, apiKey };
+};
+
+export const setOpenAISettings = (
+  state: GameState,
+  enabled: boolean,
+  apiKey: string,
+  autoPlay: boolean,
+) => {
+  state.openAISettings = {
+    ...state.openAISettings,
+    enabled,
+    apiKey,
+    autoPlay,
+    voice: "nova",
+  };
 };
 
 export const setAICacheEntry = (state: GameState, key: string, value: string) => {

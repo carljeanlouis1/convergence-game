@@ -11,12 +11,14 @@ import {
   loadAutosave,
   loadFromSlot,
   loadSaveSummaries,
+  normalizeGameState,
   resolveDilemmaOption,
   saveAutosave,
   saveToSlot,
   selectTrack,
   setAICacheEntry,
   setAISettings,
+  setOpenAISettings,
   setEnergyPolicy,
   setPanel,
   setSupplier,
@@ -44,6 +46,7 @@ interface ConvergenceStore extends GameState {
   openPanel: (panel: GameState["panel"]) => void;
   clearResolution: () => void;
   updateAIConfig: (enabled: boolean, apiKey: string) => void;
+  updateOpenAIConfig: (enabled: boolean, apiKey: string, autoPlay: boolean) => void;
   cacheNarrative: (key: string, value: string) => void;
 }
 
@@ -68,6 +71,7 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
     openPanel,
     clearResolution,
     updateAIConfig,
+    updateOpenAIConfig,
     cacheNarrative,
     ...game
   } = state;
@@ -91,6 +95,7 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
   void openPanel;
   void clearResolution;
   void updateAIConfig;
+  void updateOpenAIConfig;
   void cacheNarrative;
 
   return structuredClone(game);
@@ -110,7 +115,8 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
     const slotSummaries = loadSaveSummaries();
 
     if (autosave?.state) {
-      set({ ...autosave.state, slotSummaries, hydrated: true, mode: "menu" });
+      const next = normalizeGameState(autosave.state);
+      set({ ...next, slotSummaries, hydrated: true, mode: "menu" });
       return;
     }
 
@@ -134,8 +140,10 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
       return;
     }
 
+    const next = normalizeGameState(snapshot.state);
+
     set({
-      ...snapshot.state,
+      ...next,
       slotSummaries: loadSaveSummaries(),
       hydrated: true,
     });
@@ -146,9 +154,10 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
       return;
     }
 
-    persistIfPlaying(snapshot.state);
+    const next = normalizeGameState(snapshot.state);
+    persistIfPlaying(next);
     set({
-      ...snapshot.state,
+      ...next,
       slotSummaries: loadSaveSummaries(),
       hydrated: true,
     });
@@ -236,6 +245,12 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
   updateAIConfig: (enabled, apiKey) => {
     const state = cloneGameState(get());
     setAISettings(state, enabled, apiKey);
+    persistIfPlaying(state);
+    set({ ...state });
+  },
+  updateOpenAIConfig: (enabled, apiKey, autoPlay) => {
+    const state = cloneGameState(get());
+    setOpenAISettings(state, enabled, apiKey, autoPlay);
     persistIfPlaying(state);
     set({ ...state });
   },

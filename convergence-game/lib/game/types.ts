@@ -102,6 +102,7 @@ export interface FacilityProject {
   name: string;
   region: string;
   turnsRemaining: number;
+  totalTurns: number;
   buildCost: number;
   upkeep: number;
   computeDelta: number;
@@ -272,6 +273,22 @@ export interface GameFlags {
   lastWorldTags: string[];
 }
 
+export interface ExpenseBreakdown {
+  payroll: number;
+  compute: number;
+  facilities: number;
+  research: number;
+  expansion: number;
+}
+
+export interface RevenueStream {
+  id: string;
+  name: string;
+  amount: number;
+  source: string;
+  summary: string;
+}
+
 export interface ResourcesState {
   capital: number;
   revenue: number;
@@ -283,6 +300,7 @@ export interface ResourcesState {
   boardConfidence: number;
   reputation: number;
   wealth: number;
+  expenses: ExpenseBreakdown;
 }
 
 export interface CEOState {
@@ -295,6 +313,22 @@ export interface AISettings {
   enabled: boolean;
   apiKey: string;
   cache: Record<string, string>;
+}
+
+export interface OpenAISettings {
+  enabled: boolean;
+  apiKey: string;
+  voice: "nova";
+  autoPlay: boolean;
+}
+
+export interface DecisionLogEntry {
+  id: string;
+  turn: number;
+  title: string;
+  choice: string;
+  outcome: string;
+  impact: string;
 }
 
 export interface SaveSummary {
@@ -341,6 +375,9 @@ export interface GameState {
   meta: MetaProgression;
   slotSummaries: SaveSummary[];
   ending: EndingResult | null;
+  revenueStreams: RevenueStream[];
+  decisionLog: DecisionLogEntry[];
+  openAISettings: OpenAISettings;
 }
 
 export interface GameSnapshot {

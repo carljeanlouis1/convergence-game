@@ -2,6 +2,8 @@ import { GameState, NarrativeSystemId } from "./types";
 
 const GEMINI_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const OPENAI_TTS_ENDPOINT = "https://api.openai.com/v1/audio/speech";
+const OPENAI_TTS_MODEL = "gpt-4o-mini-tts";
 
 const SYSTEM_PROMPTS: Record<NarrativeSystemId, string> = {
   "world-news":
@@ -178,6 +180,92 @@ export const validateGeminiKey = async (apiKey: string) => {
     return {
       ok: false,
       message: "Unable to reach Gemini. Check the key and network connection.",
+    };
+  }
+};
+
+const parseOpenAIError = async (response: Response) => {
+  try {
+    const json = (await response.json()) as {
+      error?: {
+        message?: string;
+      };
+    };
+
+    return json.error?.message ?? "OpenAI rejected the request.";
+  } catch {
+    return "OpenAI rejected the request.";
+  }
+};
+
+export const synthesizeOpenAITts = async ({
+  apiKey,
+  text,
+  instructions,
+}: {
+  apiKey: string;
+  text: string;
+  instructions?: string;
+}) => {
+  const response = await fetch(OPENAI_TTS_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey.trim()}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_TTS_MODEL,
+      voice: "nova",
+      input: text,
+      instructions,
+      response_format: "mp3",
+    }),
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false as const,
+      message: await parseOpenAIError(response),
+      blob: null,
+    };
+  }
+
+  const blob = await response.blob();
+  if (!blob.size) {
+    return {
+      ok: false as const,
+      message: "OpenAI returned an empty audio file.",
+      blob: null,
+    };
+  }
+
+  return {
+    ok: true as const,
+    message: "OpenAI TTS generated audio successfully.",
+    blob,
+  };
+};
+
+export const validateOpenAITtsKey = async (apiKey: string) => {
+  if (!apiKey.trim()) {
+    return {
+      ok: false,
+      message: "Enter an OpenAI API key first.",
+      blob: null as Blob | null,
+    };
+  }
+
+  try {
+    return await synthesizeOpenAITts({
+      apiKey,
+      text: "Convergence voice systems online.",
+      instructions: "Read this like a calm mission-control system check.",
+    });
+  } catch {
+    return {
+      ok: false,
+      message: "Unable to reach OpenAI. Check the key and network connection.",
+      blob: null as Blob | null,
     };
   }
 };
