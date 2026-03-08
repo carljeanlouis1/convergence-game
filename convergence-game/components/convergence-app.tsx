@@ -57,6 +57,7 @@ import {
   formatCurrency,
   getFacilityBuildTime,
   getTrackForecast,
+  getTrackRevenueBreakdown,
   tutorialNotes,
 } from "@/lib/game/engine";
 import { useConvergenceStore } from "@/lib/game/store";
@@ -365,6 +366,19 @@ function describeFacilityOutcome(project: {
 
 function clampMetric(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function stageStatusClasses(status: "completed" | "active" | "locked" | "future") {
+  switch (status) {
+    case "completed":
+      return "border-emerald-400/30 bg-emerald-500/10 text-emerald-200";
+    case "active":
+      return "border-sky-400/35 bg-sky-500/10 text-sky-100";
+    case "locked":
+      return "border-amber-400/30 bg-amber-500/10 text-amber-100";
+    default:
+      return "border-white/10 bg-white/5 text-slate-400";
+  }
 }
 
 function describePlayerTrajectory(state: GameState) {
@@ -734,9 +748,12 @@ export function ConvergenceApp() {
   const totalAllocated = Object.values(store.tracks).reduce((sum, track) => sum + track.compute, 0);
   const freeCompute = store.resources.computeCapacity - totalAllocated;
   const buildOptions = availableBuildOptions(store);
-  const convergencePreview = CONVERGENCES.filter((convergence) =>
-    Object.keys(convergence.requirements).includes(store.selectedTrack),
-  );
+  const convergencePreview = CONVERGENCES
+    .filter((convergence) => Object.keys(convergence.requirements).includes(store.selectedTrack))
+    .sort(
+      (left, right) =>
+        (left.requirements[store.selectedTrack] ?? 0) - (right.requirements[store.selectedTrack] ?? 0),
+    );
   const topRivals = Object.values(store.rivals).sort((left, right) => right.capability - left.capability);
   const playerCapability = clampMetric(
     store.tracks.foundation.level * 12 +
@@ -788,6 +805,69 @@ export function ConvergenceApp() {
   const expenseEntries = Object.entries(store.resources.expenses).sort((left, right) => right[1] - left[1]);
   const quarterlyNet = Number((store.resources.revenue - store.resources.burn).toFixed(2));
   const trackRevenueStream = store.revenueStreams.find((stream) => stream.id === `track-${store.selectedTrack}`);
+  const trackRevenueBreakdown = getTrackRevenueBreakdown(store.selectedTrack);
+  const unlockedRevenueStages = trackRevenueBreakdown.filter((stage) => stage.level <= selectedTrack.level);
+  const totalUnlockedStageRevenue = unlockedRevenueStages.reduce((sum, stage) => sum + stage.stageRevenue, 0);
+  const selectedTrackRoadmap = trackRevenueBreakdown.map((stage) => {
+    const isCompleted = selectedTrack.level >= stage.level;
+    const isActive =
+      selectedTrack.unlocked &&
+      selectedTrack.level < trackDefinition.levels.length &&
+      selectedTrack.level + 1 === stage.level;
+    const status: "completed" | "active" | "locked" | "future" =
+      !selectedTrack.unlocked && stage.level === 1
+        ? "locked"
+        : isCompleted
+          ? "completed"
+          : isActive
+            ? "active"
+            : "future";
+    const stageConvergences = convergencePreview
+      .filter((convergence) => (convergence.requirements[store.selectedTrack] ?? 0) === stage.level)
+      .map((convergence) => {
+        const partnerRequirements = Object.entries(convergence.requirements).filter(
+          ([trackId]) => trackId !== store.selectedTrack,
+        ) as Array<[string, number]>;
+        const partnerSummary = partnerRequirements.length
+          ? partnerRequirements
+              .map(([trackId, level]) => {
+                const partnerLabel =
+                  TRACK_DEFINITIONS.find((track) => track.id === trackId)?.shortName ?? trackId;
+
+                return `${partnerLabel} ${level}`;
+              })
+              .join(" + ")
+          : "No partner requirement";
+        const partnerReadiness = partnerRequirements.map(([trackId, level]) => ({
+          id: trackId as TrackId,
+          label: TRACK_DEFINITIONS.find((track) => track.id === trackId)?.shortName ?? trackId,
+          currentLevel: store.tracks[trackId as TrackId].level,
+          requiredLevel: level,
+        }));
+        const partnersReady = partnerReadiness.every(
+          (requirement) => requirement.currentLevel >= requirement.requiredLevel,
+        );
+        const triggered = store.convergences.some((entry) => entry.id === convergence.id);
+
+        return {
+          ...convergence,
+          partnerSummary,
+          partnerReadiness,
+          partnersReady,
+          triggered,
+        };
+      });
+
+    return {
+      ...stage,
+      status,
+      isCompleted,
+      isActive,
+      progressPercent: isActive ? selectedForecast.progressPercent : isCompleted ? 100 : 0,
+      turnsToLevel: isActive ? selectedForecast.turnsToLevel : null,
+      stageConvergences,
+    };
+  });
   const pendingHirePayroll = store.pendingHires.reduce((sum, hire) => sum + hire.salary / 4, 0);
   const pendingHireCloseCost = store.pendingHires.reduce(
     (sum, hire) => sum + hire.salary / 4 + hire.signingBonus,
@@ -1488,7 +1568,7 @@ export function ConvergenceApp() {
               </div>
               {store.panel === "track" ? (
                 <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-300">
-                  {selectedTrack.unlocked ? `${selectedForecast.projectName} · L${selectedTrack.level}` : "Locked track"}
+                  {selectedTrack.unlocked ? `${selectedForecast.projectName} / L${selectedTrack.level}` : "Locked track"}
                 </div>
               ) : null}
             </div>
@@ -1519,7 +1599,13 @@ export function ConvergenceApp() {
                     </div>
                     <div className="mt-3 flex items-center justify-between text-sm text-slate-300"><span>Quarterly progress</span><span className="font-medium text-white">+{selectedForecast.progressPerTurn}</span></div>
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Assigned scientists</span><span className="text-white">{selectedForecast.assignedCount}</span></div>
-                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Revenue unlocked</span><span className="text-emerald-200">{trackRevenueStream ? formatCurrency(trackRevenueStream.amount) : "None yet"}</span></div>
+                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Live track revenue</span><span className="text-emerald-200">{trackRevenueStream ? formatCurrency(trackRevenueStream.amount) : "None yet"}</span></div>
+                    {selectedTrack.level < trackDefinition.levels.length ? (
+                      <div className="mt-2 flex items-center justify-between text-sm text-slate-300">
+                        <span>Next stage lift</span>
+                        <span className="text-sky-200">+{formatCurrency(trackRevenueBreakdown[selectedTrack.level].stageRevenue)}</span>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
@@ -1535,6 +1621,69 @@ export function ConvergenceApp() {
                     <p className="mt-4 text-sm leading-6 text-slate-400">
                       Supplier choice and energy policy modify how efficiently this compute turns into progress.
                     </p>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Revenue Ladder</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Each completed stage adds durable quarterly revenue to this track.
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-emerald-200">
+                      {trackRevenueStream ? formatCurrency(trackRevenueStream.amount) : "$0"}
+                      <span className="ml-1 text-[11px] uppercase tracking-[0.18em] text-slate-500">per quarter</span>
+                    </span>
+                  </div>
+
+                  <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/6">
+                    {unlockedRevenueStages.length ? (
+                      <div className="flex h-full w-full">
+                        {unlockedRevenueStages.map((stage, index) => (
+                          <div
+                            key={stage.level}
+                            className={index === unlockedRevenueStages.length - 1 ? "rounded-r-full" : ""}
+                            style={{
+                              width: `${Math.max(12, (stage.stageRevenue / Math.max(totalUnlockedStageRevenue, 0.01)) * 100)}%`,
+                              background: trackDefinition.accent,
+                              opacity: 0.5 + index / Math.max(unlockedRevenueStages.length, 1) / 2,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="h-full w-full rounded-full bg-white/5" />
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid gap-2">
+                    {trackRevenueBreakdown.map((stage) => {
+                      const unlocked = stage.level <= selectedTrack.level;
+
+                      return (
+                        <div
+                          key={stage.level}
+                          className={`rounded-2xl border px-3 py-3 ${
+                            unlocked ? "border-emerald-400/20 bg-emerald-500/8" : "border-white/8 bg-slate-950/65"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-white">
+                              L{stage.level} {stage.stageName}
+                            </span>
+                            <span className={unlocked ? "text-sm text-emerald-200" : "text-sm text-slate-500"}>
+                              {unlocked ? `+${formatCurrency(stage.stageRevenue)}` : `Future +${formatCurrency(stage.stageRevenue)}`}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-400">
+                            <span>Cumulative at this level {formatCurrency(stage.cumulativeRevenue)}</span>
+                            <span>{unlocked ? "Live" : "Locked"}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1615,24 +1764,138 @@ export function ConvergenceApp() {
                 </div>
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Convergence Paths</p>
-                  <div className="mt-3 space-y-3">
-                    {convergencePreview.map((convergence) => {
-                      const requirements = Object.entries(convergence.requirements).map(([trackId, level]) => `${TRACK_DEFINITIONS.find((track) => track.id === trackId)?.shortName} ${level}`).join(" + ");
-                      const ready = Object.entries(convergence.requirements).every(([trackId, level]) => store.tracks[trackId as TrackId].level >= (level ?? 0));
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Research Arc</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Completed stages stay visible, future stages show their economic lift, and convergence events sit on the exact level that unlocks them.
+                      </p>
+                    </div>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      {selectedTrack.level}/{trackDefinition.levels.length} completed
+                    </span>
+                  </div>
 
-                      return (
-                        <div key={convergence.id} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-medium text-white">{convergence.name}</p>
-                            <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${ready ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200" : "border-white/10 bg-white/5 text-slate-400"}`}>
-                              {ready ? "Ready" : requirements}
-                            </span>
+                  <div className="mt-4 space-y-3">
+                    {selectedTrackRoadmap.map((stage) => (
+                      <div
+                        key={stage.level}
+                        className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4"
+                        style={{ boxShadow: `inset 3px 0 0 ${trackDefinition.accent}` }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Level {stage.level}</p>
+                            <h3 className="mt-1 text-base font-medium text-white">{stage.stageName}</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">
+                              {stage.summary}{" "}
+                              {stage.isCompleted
+                                ? "This stage is already contributing."
+                                : stage.isActive
+                                  ? "This is the active research target."
+                                  : "This waits further down the roadmap."}
+                            </p>
                           </div>
-                          <p className="mt-1 text-xs leading-5 text-slate-400">{convergence.description}</p>
+                          <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${stageStatusClasses(stage.status)}`}>
+                            {stage.status === "completed"
+                              ? "Operational"
+                              : stage.status === "active"
+                                ? "In Progress"
+                                : stage.status === "locked"
+                                  ? "Unlock Track"
+                                  : "Future"}
+                          </span>
                         </div>
-                      );
-                    })}
+
+                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/6">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${stage.progressPercent}%`,
+                              background: trackDefinition.accent,
+                              opacity: stage.isCompleted ? 0.95 : stage.isActive ? 0.85 : 0.3,
+                            }}
+                          />
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Stage Lift</p>
+                            <p className="mt-2 text-sm font-medium text-emerald-200">+{formatCurrency(stage.stageRevenue)}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cumulative</p>
+                            <p className="mt-2 text-sm font-medium text-white">{formatCurrency(stage.cumulativeRevenue)}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">State</p>
+                            <p className="mt-2 text-sm font-medium text-white">
+                              {stage.isCompleted
+                                ? "Already deployed"
+                                : stage.isActive
+                                  ? `ETA ${formatTurns(stage.turnsToLevel)}`
+                                  : selectedTrack.unlocked
+                                    ? "Future target"
+                                    : "Needs unlock hire"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {stage.stageConvergences.length ? (
+                          <div className="mt-4 space-y-2">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Convergence Hooks</p>
+                            {stage.stageConvergences.map((convergence) => (
+                              <div key={convergence.id} className="rounded-2xl border border-white/8 bg-[#091224] px-3 py-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-white">{convergence.name}</p>
+                                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                                      Pair with {convergence.partnerSummary}.
+                                    </p>
+                                  </div>
+                                  <span
+                                    className={`shrink-0 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                                      convergence.triggered
+                                        ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                                        : convergence.partnersReady
+                                          ? "border-sky-400/35 bg-sky-500/10 text-sky-100"
+                                          : "border-white/10 bg-white/5 text-slate-400"
+                                    }`}
+                                  >
+                                    {convergence.triggered
+                                      ? "Triggered"
+                                      : convergence.partnersReady
+                                        ? "Partner Ready"
+                                        : "Needs Partners"}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-xs leading-5 text-slate-400">{convergence.description}</p>
+                                {convergence.partnerReadiness.length ? (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {convergence.partnerReadiness.map((requirement) => (
+                                      <span
+                                        key={`${convergence.id}-${requirement.id}`}
+                                        className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                                          requirement.currentLevel >= requirement.requiredLevel
+                                            ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-200"
+                                            : "border-white/10 bg-white/5 text-slate-400"
+                                        }`}
+                                      >
+                                        {requirement.label} {requirement.currentLevel}/{requirement.requiredLevel}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-4 rounded-2xl border border-dashed border-white/8 bg-white/3 px-3 py-3 text-xs leading-5 text-slate-500">
+                            No dedicated convergence fires exactly at this stage, but it still amplifies later combinations.
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

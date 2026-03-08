@@ -1094,6 +1094,28 @@ const revenueForTrack = (trackId: TrackId, level: number) => {
   }
 };
 
+export const getTrackRevenueAtLevel = (trackId: TrackId, level: number) =>
+  Number(revenueForTrack(trackId, level).toFixed(2));
+
+export const getTrackRevenueBreakdown = (trackId: TrackId) => {
+  const metadata = trackRevenueNames[trackId];
+
+  return trackById(trackId).levels.map((stageName, index) => {
+    const level = index + 1;
+    const cumulativeRevenue = getTrackRevenueAtLevel(trackId, level);
+    const priorRevenue = level > 1 ? getTrackRevenueAtLevel(trackId, level - 1) : 0;
+
+    return {
+      level,
+      stageName,
+      source: metadata.source,
+      summary: metadata.summary,
+      stageRevenue: Number((cumulativeRevenue - priorRevenue).toFixed(2)),
+      cumulativeRevenue,
+    };
+  });
+};
+
 const convergenceRevenue: Record<string, { amount: number; source: string; summary: string }> = {
   "predictive-market-stack": {
     amount: 3.6,
