@@ -14,6 +14,7 @@ import {
   normalizeGameState,
   resolveDilemmaOption,
   saveAutosave,
+  snapshotStateForCloud,
   saveToSlot,
   selectTrack,
   setAICacheEntry,
@@ -24,7 +25,7 @@ import {
   setSupplier,
   updateTrackCompute,
 } from "./engine";
-import { DilemmaOption, GameState, SaveSlotId, StartPresetId, TrackId } from "./types";
+import { DilemmaOption, GameSnapshot, GameState, SaveSlotId, StartPresetId, TrackId } from "./types";
 
 interface ConvergenceStore extends GameState {
   hydrated: boolean;
@@ -32,6 +33,8 @@ interface ConvergenceStore extends GameState {
   newGame: (preset: StartPresetId) => void;
   continueAutosave: () => void;
   loadSlot: (slot: SaveSlotId) => void;
+  loadSnapshot: (snapshot: GameSnapshot) => void;
+  exportCloudSnapshot: () => GameSnapshot;
   saveSlot: (slot: SaveSlotId) => void;
   saveAndQuit: () => void;
   nextTurn: () => void;
@@ -57,6 +60,8 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
     newGame,
     continueAutosave,
     loadSlot,
+    loadSnapshot,
+    exportCloudSnapshot,
     saveSlot,
     saveAndQuit,
     nextTurn,
@@ -81,6 +86,8 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
   void newGame;
   void continueAutosave;
   void loadSlot;
+  void loadSnapshot;
+  void exportCloudSnapshot;
   void saveSlot;
   void saveAndQuit;
   void nextTurn;
@@ -161,6 +168,23 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
       slotSummaries: loadSaveSummaries(),
       hydrated: true,
     });
+  },
+  loadSnapshot: (snapshot) => {
+    if (!snapshot?.state) {
+      return;
+    }
+
+    const next = normalizeGameState(snapshot.state);
+    persistIfPlaying(next);
+    set({
+      ...next,
+      slotSummaries: loadSaveSummaries(),
+      hydrated: true,
+    });
+  },
+  exportCloudSnapshot: () => {
+    const state = cloneGameState(get());
+    return snapshotStateForCloud(state);
   },
   saveSlot: (slot) => {
     const state = get();

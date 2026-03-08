@@ -1672,6 +1672,24 @@ export const snapshotState = (state: GameState): GameSnapshot => ({
   state,
 });
 
+export const snapshotStateForCloud = (state: GameState): GameSnapshot => {
+  const sanitized = structuredClone(state);
+  sanitized.aiSettings = {
+    ...sanitized.aiSettings,
+    enabled: false,
+    apiKey: "",
+    cache: {},
+  };
+  sanitized.openAISettings = {
+    ...sanitized.openAISettings,
+    enabled: false,
+    apiKey: "",
+  };
+  sanitized.slotSummaries = [];
+
+  return snapshotState(sanitized);
+};
+
 const storageAvailable = () => typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 
 export const saveAutosave = (state: GameState) => {

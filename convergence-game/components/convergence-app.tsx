@@ -19,10 +19,14 @@ import {
   Building2,
   ChevronDown,
   ChevronRight,
+  Cloud,
+  CloudDownload,
+  CloudUpload,
   Cpu,
   FlaskConical,
   Globe2,
   Handshake,
+  KeyRound,
   Lock,
   Orbit,
   Pause,
@@ -45,6 +49,15 @@ import {
   validateOpenAITtsKey,
 } from "@/lib/game/ai";
 import {
+  clearStoredCloudCredentials,
+  deriveCloudCredentials,
+  listCloudSaves,
+  loadCloudSave,
+  loadStoredCloudCredentials,
+  saveCloudSnapshot,
+  saveStoredCloudCredentials,
+} from "@/lib/game/cloud";
+import {
   CONVERGENCES,
   ENERGY_POLICIES,
   START_PRESETS,
@@ -61,7 +74,16 @@ import {
   tutorialNotes,
 } from "@/lib/game/engine";
 import { useConvergenceStore } from "@/lib/game/store";
-import { GameState, RivalId, SaveSlotId, StartPresetId, TrackId } from "@/lib/game/types";
+import {
+  CloudCredentials,
+  CloudSaveSlotId,
+  CloudSaveSummary,
+  GameState,
+  RivalId,
+  SaveSlotId,
+  StartPresetId,
+  TrackId,
+} from "@/lib/game/types";
 import { PixiBackground } from "./pixi-background";
 
 const TRACK_ICONS: Record<TrackId, typeof BrainCircuit> = {
@@ -379,6 +401,10 @@ function stageStatusClasses(status: "completed" | "active" | "locked" | "future"
     default:
       return "border-white/10 bg-white/5 text-slate-400";
   }
+}
+
+function cloudSlotLabel(slot: CloudSaveSlotId) {
+  return slot === "autosave" ? "Cloud Continue" : `Cloud Slot ${slot}`;
 }
 
 function describePlayerTrajectory(state: GameState) {
@@ -716,6 +742,18 @@ export function ConvergenceApp() {
   const autoNarratedTurnRef = useRef<number | null>(null);
   const hasAutosave =
     typeof window !== "undefined" && Boolean(window.localStorage.getItem("convergence-autosave"));
+  const [cloudCredentials, setCloudCredentials] = useState<CloudCredentials | null>(null);
+  const [cloudCommanderIdDraft, setCloudCommanderIdDraft] = useState("");
+  const [cloudPassphraseDraft, setCloudPassphraseDraft] = useState("");
+  const [cloudSummaries, setCloudSummaries] = useState<CloudSaveSummary[]>([]);
+  const [cloudStatus, setCloudStatus] = useState<{
+    tone: "idle" | "checking" | "success" | "error";
+    message: string;
+  }>({
+    tone: "idle",
+    message: "Cloud saves are disconnected.",
+  });
+  const [cloudBusyKey, setCloudBusyKey] = useState<string | null>(null);
 
   const geminiStatus =
     geminiStatusOverride ??
@@ -731,6 +769,7 @@ export function ConvergenceApp() {
           message: "OpenAI voice is active and ready to narrate turn summaries.",
         }
       : { tone: "idle" as const, message: "OpenAI voice is disabled." });
+  const cloudAutosaveSummary = cloudSummaries.find((entry) => entry.slot === "autosave");
 
   const selectedTrack = store.tracks[store.selectedTrack];
   const trackDefinition = TRACK_DEFINITIONS.find((track) => track.id === store.selectedTrack)!;
@@ -900,6 +939,160 @@ export function ConvergenceApp() {
         .join(" ")
     : "";
 
+  const refreshCloudSummaries = async (credentialsToUse: CloudCredentials | null = cloudCredentials) => {
+    if (!credentialsToUse) {
+      setCloudSummaries([]);
+      return false;
+    }
+
+    const result = await listCloudSaves(credentialsToUse);
+    if (!result.ok) {
+      setCloudStatus({
+        tone: "error",
+        message: result.message,
+      });
+      return false;
+    }
+
+    setCloudSummaries(result.summaries);
+    setCloudStatus({
+      tone: "success",
+      message: result.summaries.length
+        ? `Cloud saves connected for ${credentialsToUse.commanderId}.`
+        : `Cloud saves ready for ${credentialsToUse.commanderId}.`,
+    });
+    return true;
+  };
+
+  const connectCloudSaves = async () => {
+    setCloudBusyKey("connect");
+    setCloudStatus({
+      tone: "checking",
+      message: "Connecting to Cloudflare save storage...",
+    });
+
+    try {
+      const credentials = await deriveCloudCredentials(cloudCommanderIdDraft, cloudPassphraseDraft);
+      const result = await listCloudSaves(credentials);
+
+      if (!result.ok) {
+        setCloudStatus({
+          tone: "error",
+          message: result.message,
+        });
+        return;
+      }
+
+      saveStoredCloudCredentials(credentials);
+      setCloudCredentials(credentials);
+      setCloudCommanderIdDraft(credentials.commanderId);
+      setCloudPassphraseDraft("");
+      setCloudSummaries(result.summaries);
+      setCloudStatus({
+        tone: "success",
+        message: result.summaries.length
+          ? `Connected. ${result.summaries.length} cloud save${result.summaries.length === 1 ? "" : "s"} found.`
+          : "Connected. Your cloud save space is ready.",
+      });
+    } catch (error) {
+      setCloudStatus({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Unable to connect cloud saves.",
+      });
+    } finally {
+      setCloudBusyKey(null);
+    }
+  };
+
+  const disconnectCloudSaves = () => {
+    clearStoredCloudCredentials();
+    setCloudCredentials(null);
+    setCloudSummaries([]);
+    setCloudPassphraseDraft("");
+    setCloudStatus({
+      tone: "idle",
+      message: "Cloud saves are disconnected.",
+    });
+  };
+
+  const pushCloudSave = async (slot: CloudSaveSlotId) => {
+    if (!cloudCredentials) {
+      setCloudStatus({
+        tone: "error",
+        message: "Connect cloud saves first.",
+      });
+      return false;
+    }
+
+    setCloudBusyKey(`save-${slot}`);
+    const result = await saveCloudSnapshot(cloudCredentials, slot, store.exportCloudSnapshot());
+
+    if (!result.ok) {
+      setCloudStatus({
+        tone: "error",
+        message: result.message,
+      });
+      setCloudBusyKey(null);
+      return false;
+    }
+
+    await refreshCloudSummaries(cloudCredentials);
+    setCloudStatus({
+      tone: "success",
+      message: `${cloudSlotLabel(slot)} updated in Cloudflare storage. Cross-browser sync can take a few seconds.`,
+    });
+    setCloudBusyKey(null);
+    return true;
+  };
+
+  const pullCloudSave = async (slot: CloudSaveSlotId) => {
+    if (!cloudCredentials) {
+      setCloudStatus({
+        tone: "error",
+        message: "Connect cloud saves first.",
+      });
+      return;
+    }
+
+    setCloudBusyKey(`load-${slot}`);
+    const result = await loadCloudSave(cloudCredentials, slot);
+
+    if (!result.ok) {
+      setCloudStatus({
+        tone: "error",
+        message: result.message,
+      });
+      setCloudBusyKey(null);
+      return;
+    }
+
+    if (!result.record) {
+      setCloudStatus({
+        tone: "error",
+        message: "Cloud save data was missing.",
+      });
+      setCloudBusyKey(null);
+      return;
+    }
+
+    playSynthTone(soundEnabled, "click");
+    store.loadSnapshot(result.record.snapshot);
+    await refreshCloudSummaries(cloudCredentials);
+    setCloudStatus({
+      tone: "success",
+      message: `${cloudSlotLabel(slot)} loaded from the cloud.`,
+    });
+    setCloudBusyKey(null);
+  };
+
+  const handleSaveAndQuit = async () => {
+    if (cloudCredentials) {
+      await pushCloudSave("autosave");
+    }
+
+    store.saveAndQuit();
+  };
+
   const stopNarration = () => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -1067,6 +1260,39 @@ export function ConvergenceApp() {
   }, [initialize]);
 
   useEffect(() => {
+    const storedCredentials = loadStoredCloudCredentials();
+    if (!storedCredentials) {
+      return;
+    }
+
+    setCloudCredentials(storedCredentials);
+    setCloudCommanderIdDraft(storedCredentials.commanderId);
+    setCloudStatus({
+      tone: "checking",
+      message: "Reconnecting cloud saves...",
+    });
+
+    void (async () => {
+      const result = await listCloudSaves(storedCredentials);
+      if (!result.ok) {
+        setCloudStatus({
+          tone: "error",
+          message: result.message,
+        });
+        return;
+      }
+
+      setCloudSummaries(result.summaries);
+      setCloudStatus({
+        tone: "success",
+        message: result.summaries.length
+          ? `Cloud saves connected for ${storedCredentials.commanderId}.`
+          : `Cloud saves ready for ${storedCredentials.commanderId}.`,
+      });
+    })();
+  }, []);
+
+  useEffect(() => {
     void loadNarrativesEffect();
   }, [
     store.turn,
@@ -1226,25 +1452,80 @@ export function ConvergenceApp() {
                   <Play className="h-4 w-4" />
                   Continue
                 </button>
+                <button
+                  type="button"
+                  disabled={!cloudCredentials || !cloudAutosaveSummary || cloudBusyKey !== null}
+                  onClick={() => void pullCloudSave("autosave")}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-400/35 bg-violet-500/12 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-slate-500"
+                >
+                  <CloudDownload className="h-4 w-4" />
+                  Continue Cloud Save
+                </button>
+                <div className={`rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(cloudStatus.tone)}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Cloud Save</span>
+                    <span className="text-[11px] uppercase tracking-[0.18em]">
+                      {cloudCredentials ? cloudCredentials.commanderId : "offline"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5">{cloudStatus.message}</p>
+                  {cloudAutosaveSummary ? (
+                    <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      Autosave {cloudAutosaveSummary.subtitle}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
+                  <div className="grid gap-3">
+                    <input value={cloudCommanderIdDraft} onChange={(event) => setCloudCommanderIdDraft(event.target.value)} placeholder="Commander ID" className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
+                    <input value={cloudPassphraseDraft} onChange={(event) => setCloudPassphraseDraft(event.target.value)} placeholder="Cloud passphrase" type="password" className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <button type="button" onClick={() => void connectCloudSaves()} disabled={cloudBusyKey === "connect"} className="rounded-2xl border border-violet-400/35 bg-violet-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
+                        {cloudBusyKey === "connect" ? "Connecting..." : "Connect Cloud"}
+                      </button>
+                      <button type="button" onClick={() => void refreshCloudSummaries()} disabled={!cloudCredentials || cloudBusyKey !== null} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-60">
+                        Refresh Cloud
+                      </button>
+                    </div>
+                  </div>
+                </div>
                 {slots.map((slot) => {
                   const summary = store.slotSummaries.find((entry) => entry.slot === slot);
+                  const cloudSummary = cloudSummaries.find((entry) => entry.slot === slot);
                   return (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => store.loadSlot(slot)}
-                      className="flex w-full items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-left transition hover:bg-white/8"
-                    >
-                      <span>
-                        <span className="block text-xs uppercase tracking-[0.2em] text-slate-500">
-                          Slot {slot}
+                    <div key={slot} className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <span>
+                          <span className="block text-xs uppercase tracking-[0.2em] text-slate-500">
+                            Slot {slot}
+                          </span>
+                          <span className="mt-1 block text-sm text-slate-200">
+                            {summary ? summary.subtitle : "Local empty"}
+                          </span>
+                          <span className="mt-1 block text-xs text-slate-500">
+                            {cloudSummary ? `Cloud: ${cloudSummary.subtitle}` : "No cloud slot"}
+                          </span>
                         </span>
-                        <span className="mt-1 block text-sm text-slate-200">
-                          {summary ? summary.subtitle : "Empty"}
-                        </span>
-                      </span>
-                      <Save className="h-4 w-4 text-slate-500" />
-                    </button>
+                        <Save className="h-4 w-4 text-slate-500" />
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => store.loadSlot(slot)}
+                          className="rounded-xl border border-white/10 bg-slate-950/65 px-3 py-2 text-sm text-white"
+                        >
+                          Load Local
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!cloudCredentials || !cloudSummary || cloudBusyKey !== null}
+                          onClick={() => void pullCloudSave(slot)}
+                          className="rounded-xl border border-violet-400/25 bg-violet-500/10 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-slate-500"
+                        >
+                          Load Cloud
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -1312,7 +1593,7 @@ export function ConvergenceApp() {
                 type="button"
                 onClick={() => {
                   playSynthTone(soundEnabled, "click");
-                  store.saveAndQuit();
+                  void handleSaveAndQuit();
                 }}
                 className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/8"
               >
@@ -2345,13 +2626,93 @@ export function ConvergenceApp() {
                 </div>
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Manual Saves</p>
-                  <div className="mt-3 grid gap-2">
-                    {slots.map((slot) => (
-                      <button key={slot} type="button" onClick={() => store.saveSlot(slot)} className="rounded-2xl border border-white/8 bg-slate-950/65 px-4 py-3 text-left text-sm text-white">
-                        Save to Slot {slot}
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Cloud Saves</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        Uses Cloudflare KV so the same commander ID and passphrase can load saves from another browser.
+                      </p>
+                    </div>
+                    <Cloud className="h-4 w-4 text-violet-200" />
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    <label className="grid gap-2">
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Commander ID</span>
+                      <input value={cloudCommanderIdDraft} onChange={(event) => setCloudCommanderIdDraft(event.target.value)} placeholder="alex-mercer" className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
+                    </label>
+                    <label className="grid gap-2">
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cloud Passphrase</span>
+                      <input value={cloudPassphraseDraft} onChange={(event) => setCloudPassphraseDraft(event.target.value)} placeholder="Use the same passphrase on every browser" type="password" className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
+                    </label>
+                    <div className={`rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(cloudStatus.tone)}`}>{cloudStatus.message}</div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => void connectCloudSaves()} disabled={cloudBusyKey === "connect"} className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/35 bg-violet-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
+                        <KeyRound className="h-4 w-4" />
+                        {cloudBusyKey === "connect" ? "Connecting..." : "Connect Cloud Saves"}
                       </button>
-                    ))}
+                      <button type="button" onClick={() => void refreshCloudSummaries()} disabled={!cloudCredentials || cloudBusyKey !== null} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-60">
+                        Refresh Cloud Slots
+                      </button>
+                      <button type="button" onClick={disconnectCloudSaves} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                        Disconnect
+                      </button>
+                    </div>
+                    <p className="text-xs leading-5 text-slate-500">
+                      API keys stay local only. Cloud saves upload game state, not your Gemini or OpenAI secrets. New saves can take a few seconds to appear on another browser.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Save Slots</p>
+                  <div className="mt-3 space-y-3">
+                    <div className="rounded-2xl border border-violet-400/18 bg-violet-500/10 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-white">Cloud Continue Slot</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {cloudAutosaveSummary ? cloudAutosaveSummary.subtitle : "No cloud autosave yet."}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => void pushCloudSave("autosave")} disabled={!cloudCredentials || cloudBusyKey !== null} className="rounded-xl border border-violet-400/25 bg-violet-500/10 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
+                            <CloudUpload className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={() => void pullCloudSave("autosave")} disabled={!cloudCredentials || !cloudAutosaveSummary || cloudBusyKey !== null} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
+                            <CloudDownload className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {slots.map((slot) => {
+                      const localSummary = store.slotSummaries.find((entry) => entry.slot === slot);
+                      const cloudSummary = cloudSummaries.find((entry) => entry.slot === slot);
+
+                      return (
+                        <div key={slot} className="rounded-2xl border border-white/8 bg-slate-950/65 px-4 py-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-white">Slot {slot}</p>
+                              <p className="mt-1 text-xs text-slate-400">
+                                {localSummary ? `Local: ${localSummary.subtitle}` : "Local: empty"}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {cloudSummary ? `Cloud: ${cloudSummary.subtitle}` : "Cloud: empty"}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <button type="button" onClick={() => store.saveSlot(slot)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white">
+                                Save Local
+                              </button>
+                              <button type="button" onClick={() => void pushCloudSave(slot)} disabled={!cloudCredentials || cloudBusyKey !== null} className="rounded-xl border border-violet-400/25 bg-violet-500/10 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
+                                Save Cloud
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -2429,7 +2790,7 @@ export function ConvergenceApp() {
               <p className="mt-4 text-lg text-slate-200">{store.ending.summary}</p>
               <p className="mt-4 text-sm leading-7 text-slate-300">{store.ending.epilogue}</p>
               <div className="mt-6 flex flex-wrap gap-3">
-                <button type="button" onClick={() => store.saveAndQuit()} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-white">Return to Menu</button>
+                <button type="button" onClick={() => void handleSaveAndQuit()} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-white">Return to Menu</button>
                 <button type="button" onClick={() => store.newGame("founder")} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-slate-200">Start Another Run</button>
               </div>
             </motion.div>

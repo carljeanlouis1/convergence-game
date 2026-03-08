@@ -17,6 +17,7 @@ export type RivalId =
 export type GovernmentId = "us" | "eu" | "china" | "india" | "gulf";
 
 export type SaveSlotId = 1 | 2 | 3;
+export type CloudSaveSlotId = SaveSlotId | "autosave";
 
 export type StartPresetId =
   | "founder"
@@ -339,6 +340,18 @@ export interface SaveSummary {
   updatedAt: string;
 }
 
+export interface CloudSaveSummary {
+  slot: CloudSaveSlotId;
+  title: string;
+  subtitle: string;
+  updatedAt: string;
+}
+
+export interface CloudCredentials {
+  commanderId: string;
+  authToken: string;
+}
+
 export interface MetaProgression {
   unlockedStarts: StartPresetId[];
   completedEndings: EndingId[];
@@ -385,4 +398,9 @@ export interface GameState {
 export interface GameSnapshot {
   savedAt: string;
   state: GameState;
+}
+
+export interface CloudSaveRecord {
+  summary: CloudSaveSummary;
+  snapshot: GameSnapshot;
 }
