@@ -716,6 +716,15 @@ export function ConvergenceApp() {
   const initialize = store.initialize;
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [saveQuitOpen, setSaveQuitOpen] = useState(false);
+  const [saveQuitBusy, setSaveQuitBusy] = useState(false);
+  const [saveQuitStatus, setSaveQuitStatus] = useState<{
+    tone: "idle" | "checking" | "success" | "error";
+    message: string;
+  }>({
+    tone: "idle",
+    message: "Choose where to store this run before returning to the menu.",
+  });
   const [intelCollapsed, setIntelCollapsed] = useState(false);
   const [worldStateOpen, setWorldStateOpen] = useState(true);
   const [governmentsOpen, setGovernmentsOpen] = useState(true);
@@ -770,6 +779,7 @@ export function ConvergenceApp() {
         }
       : { tone: "idle" as const, message: "OpenAI voice is disabled." });
   const cloudAutosaveSummary = cloudSummaries.find((entry) => entry.slot === "autosave");
+  const saveControlsLocked = saveQuitBusy || cloudBusyKey !== null;
 
   const selectedTrack = store.tracks[store.selectedTrack];
   const trackDefinition = TRACK_DEFINITIONS.find((track) => track.id === store.selectedTrack)!;
@@ -1085,12 +1095,79 @@ export function ConvergenceApp() {
     setCloudBusyKey(null);
   };
 
+  const finalizeSaveAndQuit = () => {
+    setSaveQuitBusy(false);
+    setSaveQuitOpen(false);
+    setSaveQuitStatus({
+      tone: "idle",
+      message: "Choose where to store this run before returning to the menu.",
+    });
+    store.saveAndQuit();
+  };
+
+  const openSaveAndQuitDialog = () => {
+    setSaveQuitStatus({
+      tone: "idle",
+      message: cloudCredentials
+        ? "Pick a local slot, a cloud slot, or use the autosave-only exit."
+        : "Pick a local slot or use the autosave-only exit.",
+    });
+    setSaveQuitOpen(true);
+  };
+
   const handleSaveAndQuit = async () => {
+    setSaveQuitBusy(true);
+    setSaveQuitStatus({
+      tone: "checking",
+      message: cloudCredentials
+        ? "Saving local autosave and syncing cloud continue slot..."
+        : "Saving local autosave and returning to menu...",
+    });
+
     if (cloudCredentials) {
       await pushCloudSave("autosave");
     }
 
-    store.saveAndQuit();
+    finalizeSaveAndQuit();
+  };
+
+  const saveLocalSlotAndQuit = async (slot: SaveSlotId) => {
+    setSaveQuitBusy(true);
+    setSaveQuitStatus({
+      tone: "checking",
+      message: `Saving this run to local slot ${slot}...`,
+    });
+    store.saveSlot(slot);
+    await handleSaveAndQuit();
+  };
+
+  const saveCloudSlotAndQuit = async (slot: SaveSlotId) => {
+    setSaveQuitBusy(true);
+    setSaveQuitStatus({
+      tone: "checking",
+      message: `Uploading this run to cloud slot ${slot}...`,
+    });
+
+    if (!cloudCredentials) {
+      setSaveQuitBusy(false);
+      setSaveQuitStatus({
+        tone: "error",
+        message: "Connect cloud saves first.",
+      });
+      return;
+    }
+
+    const saved = await pushCloudSave(slot);
+    if (!saved) {
+      setSaveQuitBusy(false);
+      setSaveQuitStatus({
+        tone: "error",
+        message: `Cloud slot ${slot} could not be updated. Fix that first or use a local slot.`,
+      });
+      return;
+    }
+
+    finalizeSaveAndQuit();
   };
 
   const stopNarration = () => {
@@ -1511,6 +1588,21 @@ export function ConvergenceApp() {
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         <button
                           type="button"
+                          onClick={() => store.saveSlot(slot)}
+                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+                        >
+                          Save Local
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!cloudCredentials || cloudBusyKey !== null}
+                          onClick={() => void pushCloudSave(slot)}
+                          className="rounded-xl border border-violet-400/25 bg-violet-500/10 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-slate-500"
+                        >
+                          Save Cloud
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => store.loadSlot(slot)}
                           className="rounded-xl border border-white/10 bg-slate-950/65 px-3 py-2 text-sm text-white"
                         >
@@ -1593,7 +1685,7 @@ export function ConvergenceApp() {
                 type="button"
                 onClick={() => {
                   playSynthTone(soundEnabled, "click");
-                  void handleSaveAndQuit();
+                  openSaveAndQuitDialog();
                 }}
                 className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/8"
               >
@@ -2775,6 +2867,108 @@ export function ConvergenceApp() {
                     </div>
                   </button>
                 ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {saveQuitOpen ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/76 p-4 backdrop-blur-sm">
+            <motion.div initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }} className="w-full max-w-4xl rounded-[32px] border border-white/10 bg-[#081021]/96 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-sky-200">Save And Quit</p>
+                  <h2 className="mt-2 text-3xl font-semibold text-white">Store this run before returning to menu</h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                    Local autosave always updates when you quit. You can also pin the current run to a local slot or a cloud slot here.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={saveControlsLocked}
+                  onClick={() => setSaveQuitOpen(false)}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(saveQuitStatus.tone)}`}>
+                {saveQuitStatus.message}
+              </div>
+
+              <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="space-y-3">
+                  {slots.map((slot) => {
+                    const localSummary = store.slotSummaries.find((entry) => entry.slot === slot);
+                    const cloudSummary = cloudSummaries.find((entry) => entry.slot === slot);
+
+                    return (
+                      <div key={`save-quit-slot-${slot}`} className="rounded-[24px] border border-white/8 bg-slate-950/70 px-4 py-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-white">Slot {slot}</p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {localSummary ? `Local: ${localSummary.subtitle}` : "Local: empty"}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {cloudSummary ? `Cloud: ${cloudSummary.subtitle}` : "Cloud: empty"}
+                            </p>
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              disabled={saveControlsLocked}
+                              onClick={() => void saveLocalSlotAndQuit(slot)}
+                              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Save Local + Quit
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!cloudCredentials || saveControlsLocked}
+                              onClick={() => void saveCloudSlotAndQuit(slot)}
+                              className="rounded-xl border border-violet-400/25 bg-violet-500/10 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-slate-500"
+                            >
+                              Save Cloud + Quit
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="rounded-[24px] border border-sky-400/18 bg-sky-500/10 px-4 py-4">
+                    <p className="text-sm font-medium text-white">Continue Slot</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-300">
+                      This is the fastest exit. It refreshes the local autosave and, if connected, the cloud continue slot.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={saveControlsLocked}
+                      onClick={() => void handleSaveAndQuit()}
+                      className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-sky-400/35 bg-sky-500/15 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Autosave + Quit
+                    </button>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 px-4 py-4">
+                    <p className="text-sm font-medium text-white">Cloud status</p>
+                    <p className="mt-2 text-xs leading-5 text-slate-400">
+                      {cloudCredentials
+                        ? `Connected as ${cloudCredentials.commanderId}. Cloud sync can take a few seconds to appear on another browser.`
+                        : "Cloud saves are not connected in this browser yet."}
+                    </p>
+                    <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      {cloudAutosaveSummary ? `Cloud continue: ${cloudAutosaveSummary.subtitle}` : "No cloud continue save yet"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </motion.div>
