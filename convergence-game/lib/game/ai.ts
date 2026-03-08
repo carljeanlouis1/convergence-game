@@ -119,3 +119,65 @@ export const fetchGeminiNarrative = async (
 
   return { cacheKey, text };
 };
+
+export const validateGeminiKey = async (apiKey: string) => {
+  if (!apiKey.trim()) {
+    return {
+      ok: false,
+      message: "Enter a Gemini API key first.",
+    };
+  }
+
+  try {
+    const response = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey.trim())}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: "Return only the word OK.",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      let message = "Gemini rejected the key.";
+
+      try {
+        const json = (await response.json()) as {
+          error?: {
+            message?: string;
+          };
+        };
+        message = json.error?.message ?? message;
+      } catch {
+        // Keep the default message when the response body is not parseable.
+      }
+
+      return {
+        ok: false,
+        message,
+      };
+    }
+
+    const json = (await response.json()) as unknown;
+    const text = extractText(json);
+
+    return {
+      ok: Boolean(text),
+      message: text ? "Gemini connection verified." : "Gemini responded without text.",
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Unable to reach Gemini. Check the key and network connection.",
+    };
+  }
+};

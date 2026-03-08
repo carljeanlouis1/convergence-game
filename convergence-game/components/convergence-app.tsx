@@ -21,7 +21,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { fetchGeminiNarrative } from "@/lib/game/ai";
+import { fetchGeminiNarrative, validateGeminiKey } from "@/lib/game/ai";
 import { CONVERGENCES, ENERGY_POLICIES, START_PRESETS, SUPPLIER_CONTRACTS, TRACK_DEFINITIONS } from "@/lib/game/data";
 import { availableBuildOptions, formatCurrency, tutorialNotes } from "@/lib/game/engine";
 import { useConvergenceStore } from "@/lib/game/store";
@@ -294,11 +294,26 @@ export function ConvergenceApp() {
   const [apiKeyDraft, setApiKeyDraft] = useState(
     typeof window === "undefined" ? "" : store.aiSettings.apiKey,
   );
+  const [geminiStatusOverride, setGeminiStatusOverride] = useState<{
+    tone: "idle" | "checking" | "success" | "error";
+    message: string;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
   const deferredFeed = useDeferredValue(store.feed);
   const hasAutosave =
     typeof window !== "undefined" &&
     Boolean(window.localStorage.getItem("convergence-autosave"));
+  const geminiStatus =
+    geminiStatusOverride ??
+    (store.aiSettings.enabled && store.aiSettings.apiKey
+      ? {
+          tone: "success" as const,
+          message: "Gemini narrative is active.",
+        }
+      : {
+          tone: "idle" as const,
+          message: "Gemini narrative is disabled.",
+        });
 
   const selectedTrack = store.tracks[store.selectedTrack];
   const trackDefinition = TRACK_DEFINITIONS.find((track) => track.id === store.selectedTrack)!;
@@ -376,6 +391,38 @@ export function ConvergenceApp() {
       playSynthTone(soundEnabled, "warning");
     }
   }, [store.resolution, store.activeDilemma, soundEnabled]);
+
+  const activateGemini = async () => {
+    const trimmedKey = apiKeyDraft.trim();
+    setGeminiStatusOverride({
+      tone: "checking",
+      message: "Checking Gemini connection...",
+    });
+
+    const result = await validateGeminiKey(trimmedKey);
+
+    if (!result.ok) {
+      setGeminiStatusOverride({
+        tone: "error",
+        message: result.message,
+      });
+      return;
+    }
+
+    store.updateAIConfig(true, trimmedKey);
+    setGeminiStatusOverride({
+      tone: "success",
+      message: result.message,
+    });
+  };
+
+  const disableGemini = () => {
+    store.updateAIConfig(false, apiKeyDraft.trim());
+    setGeminiStatusOverride({
+      tone: "idle",
+      message: "Gemini narrative is disabled.",
+    });
+  };
 
   if (!store.hydrated) {
     return (
@@ -781,16 +828,39 @@ export function ConvergenceApp() {
                   <label className="text-xs uppercase tracking-[0.22em] text-slate-400">Gemini API Key</label>
                   <input
                     value={apiKeyDraft}
-                    onChange={(event) => setApiKeyDraft(event.target.value)}
+                    onChange={(event) => {
+                      setApiKeyDraft(event.target.value);
+                      setGeminiStatusOverride(null);
+                    }}
                     placeholder="AIza..."
                     className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
                   />
                   <p className="mt-3 text-xs leading-5 text-slate-500">
                     Stored locally only. The simulation stays fully playable without it; AI is narrative flavor.
                   </p>
+                  <div
+                    className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                      geminiStatus.tone === "success"
+                        ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                        : geminiStatus.tone === "error"
+                          ? "border-rose-400/30 bg-rose-500/10 text-rose-200"
+                          : geminiStatus.tone === "checking"
+                            ? "border-amber-400/30 bg-amber-500/10 text-amber-100"
+                            : "border-white/10 bg-slate-950/55 text-slate-300"
+                    }`}
+                  >
+                    {geminiStatus.message}
+                  </div>
                   <div className="mt-4 flex gap-2">
-                    <button type="button" onClick={() => store.updateAIConfig(true, apiKeyDraft.trim())} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-white">Enable AI Narrative</button>
-                    <button type="button" onClick={() => store.updateAIConfig(false, apiKeyDraft.trim())} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">Disable</button>
+                    <button
+                      type="button"
+                      onClick={() => void activateGemini()}
+                      disabled={geminiStatus.tone === "checking"}
+                      className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {geminiStatus.tone === "checking" ? "Checking..." : "Activate Gemini"}
+                    </button>
+                    <button type="button" onClick={disableGemini} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">Disable</button>
                   </div>
                 </div>
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">

@@ -167,7 +167,7 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
     });
   },
   nextTurn: () => {
-    const state = get();
+    const state = cloneGameState(get());
     if (state.activeDilemma) {
       return;
     }
