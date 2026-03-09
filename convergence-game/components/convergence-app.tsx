@@ -60,6 +60,7 @@ import {
   saveStoredCloudCredentials,
 } from "@/lib/game/cloud";
 import {
+  COMMERCIALIZATION_CONVERGENCES,
   CONVERGENCES,
   ENERGY_POLICIES,
   START_PRESETS,
@@ -160,11 +161,11 @@ const tutorialSlides = [
   },
   {
     title: "Commercialize Deliberately",
-    summary: "A breakthrough is capability. A business line is a separate decision.",
+    summary: "A breakthrough is capability. A business line is a separate branching decision tree.",
     points: [
-      "Each track unlocks different commercialization lanes like enterprise APIs, sovereign contracts, forecasting desks, pharma pipelines, or orbital operations.",
-      "Programs cost upfront capital, take time to launch, and reserve compute after they go live.",
-      "Some product choices combine across tracks to create market convergences with their own revenue and political consequences.",
+      "Each track now has a commercialization graph with multiple entry plays, scale paths, and frontier plays instead of a single straight revenue ladder.",
+      "Programs cost upfront capital, take time to launch, reserve compute after they go live, and can require specific staff coverage such as product, policy, orbital, or quantum roles.",
+      "Some product choices combine across tracks to create market convergences with their own revenue, fear, trust, and geopolitical consequences.",
     ],
   },
   {
@@ -182,7 +183,7 @@ const tutorialSlides = [
     points: [
       "Beneficial ASI now means reaching Foundation L6: Artificial Superintelligence with strong alignment, trust, and enough public legitimacy to keep control.",
       "Other endings include catastrophic misalignment, regulatory capture, irrelevance, corporate dystopia, transcendence, simulation revelation, and open future.",
-      "Finance now also tracks founder control and funding rounds, because raising money can save the lab while changing who really steers it.",
+      "Finance now also tracks founder control and funding rounds, because raising money can save the lab while changing who really steers it. Different endings unlock new starting conditions back on the main menu.",
     ],
   },
   {
@@ -472,6 +473,240 @@ function stageStatusClasses(status: "completed" | "active" | "locked" | "future"
   }
 }
 
+function presetIdentityLabel(presetId: StartPresetId) {
+  switch (presetId) {
+    case "founder":
+      return "Founder-CEO";
+    case "government":
+      return "Lab Director";
+    case "open-source":
+      return "Founding Steward";
+    case "corporate":
+      return "Division CEO";
+    case "underground":
+      return "Founder-Operator";
+    case "second-chance":
+      return "Recovery CEO";
+    default:
+      return "CEO";
+  }
+}
+
+function formatRoleKeyword(keyword: string) {
+  const lowered = keyword.toLowerCase();
+
+  if (lowered.includes("biolog")) return "Biology coverage";
+  if (lowered.includes("policy")) return "Policy coverage";
+  if (lowered.includes("product")) return "Product coverage";
+  if (lowered.includes("platform")) return "Platform coverage";
+  if (lowered.includes("quantum")) return "Quantum coverage";
+  if (lowered.includes("security")) return "Security coverage";
+  if (lowered.includes("robot")) return "Robotics coverage";
+  if (lowered.includes("orbit")) return "Orbital coverage";
+  if (lowered.includes("satellite")) return "Satellite coverage";
+  if (lowered.includes("autonomy")) return "Autonomy coverage";
+  if (lowered.includes("trust")) return "Trust & safety coverage";
+  if (lowered.includes("field")) return "Field-ops coverage";
+  if (lowered.includes("climate")) return "Climate coverage";
+  if (lowered.includes("econom")) return "Economics coverage";
+  if (lowered.includes("energy")) return "Energy coverage";
+  if (lowered.includes("align")) return "Alignment coverage";
+  if (lowered.includes("material")) return "Materials coverage";
+
+  return `${keyword} coverage`;
+}
+
+function commercializationNodeStatus(option: ReturnType<typeof getCommercializationOptions>[number]) {
+  if (option.isLive) return "live";
+  if (option.isLaunching) return "launching";
+  if (option.available) return "ready";
+  return "blocked";
+}
+
+function commercializationNodeClasses(
+  status: "live" | "launching" | "ready" | "blocked",
+  selected: boolean,
+) {
+  const tone =
+    status === "live"
+      ? "border-emerald-400/35 bg-emerald-500/12"
+      : status === "launching"
+        ? "border-amber-400/35 bg-amber-500/12"
+        : status === "ready"
+          ? "border-sky-400/35 bg-sky-500/10"
+          : "border-white/10 bg-slate-950/82";
+
+  return `${tone} ${selected ? "ring-1 ring-sky-300/60 shadow-[0_0_0_1px_rgba(125,211,252,0.2)]" : ""}`;
+}
+
+function commercializationStatusLabel(status: "live" | "launching" | "ready" | "blocked") {
+  switch (status) {
+    case "live":
+      return "Live";
+    case "launching":
+      return "Launching";
+    case "ready":
+      return "Ready";
+    default:
+      return "Locked";
+  }
+}
+
+function commercializationTierLabel(tier: 1 | 2 | 3) {
+  if (tier === 1) return "Entry Market";
+  if (tier === 2) return "Scale Path";
+  return "Frontier Play";
+}
+
+function commercializationRowXPositions(count: number) {
+  switch (count) {
+    case 1:
+      return [50];
+    case 2:
+      return [32, 68];
+    case 3:
+      return [18, 50, 82];
+    case 4:
+      return [12, 38, 62, 88];
+    default:
+      return Array.from({ length: count }, (_, index) => 12 + (76 / Math.max(count - 1, 1)) * index);
+  }
+}
+
+function CommercializationGraph({
+  options,
+  selectedId,
+  onSelect,
+}: {
+  options: Array<ReturnType<typeof getCommercializationOptions>[number]>;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const tiers: Array<1 | 2 | 3> = [1, 2, 3];
+  const tierY: Record<1 | 2 | 3, number> = {
+    1: 18,
+    2: 50,
+    3: 82,
+  };
+  const positions = new Map<string, { x: number; y: number }>();
+
+  tiers.forEach((tier) => {
+    const row = options.filter((option) => option.tier === tier);
+    const xs = commercializationRowXPositions(row.length);
+    row.forEach((option, index) => {
+      positions.set(option.id, { x: xs[index] ?? 50, y: tierY[tier] });
+    });
+  });
+
+  return (
+    <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Commercialization Graph</p>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            Commercialization is a branching market map. Pick one lane, then unlock the scale and frontier plays that logically follow from it.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+          <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-emerald-200">Live</span>
+          <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-amber-100">Launching</span>
+          <span className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-sky-100">Ready</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-400">Locked</span>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-auto rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(8,14,28,0.94),rgba(6,10,22,0.98))]">
+        <div className="border-b border-white/6 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-500 lg:hidden">
+          Scroll to inspect the full commercialization graph.
+        </div>
+        <div className="relative h-[520px] min-w-[860px]">
+          <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {options.flatMap((option) =>
+              (option.prerequisitePrograms ?? []).map((prerequisiteId) => {
+                const from = positions.get(prerequisiteId);
+                const to = positions.get(option.id);
+                if (!from || !to) return null;
+
+                return (
+                  <line
+                    key={`${prerequisiteId}-${option.id}`}
+                    x1={from.x}
+                    y1={from.y + 6}
+                    x2={to.x}
+                    y2={to.y - 6}
+                    stroke={option.available || option.isLive || option.isLaunching ? "rgba(125,211,252,0.42)" : "rgba(120,140,180,0.18)"}
+                    strokeDasharray={option.isLive || option.isLaunching ? "0" : "4 4"}
+                    strokeWidth={option.isLive || option.isLaunching ? 1.2 : 0.8}
+                  />
+                );
+              }),
+            )}
+          </svg>
+
+          {tiers.map((tier) => (
+            <div
+              key={tier}
+              className="absolute left-4 text-[11px] uppercase tracking-[0.24em] text-slate-500"
+              style={{ top: `${tierY[tier] - 11}%` }}
+            >
+              {commercializationTierLabel(tier)}
+            </div>
+          ))}
+
+          {options.map((option) => {
+            const position = positions.get(option.id) ?? { x: 50, y: 50 };
+            const status = commercializationNodeStatus(option);
+            const selected = option.id === selectedId;
+
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => onSelect(option.id)}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[24px] border p-4 text-left shadow-[0_18px_60px_rgba(2,10,28,0.4)] transition hover:scale-[1.01] ${commercializationNodeClasses(status, selected)}`}
+                style={{
+                  left: `${position.x}%`,
+                  top: `${position.y}%`,
+                  width: 220,
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      {formatLaneLabel(option.lane)}
+                    </p>
+                    <h3 className="mt-2 text-sm font-semibold leading-6 text-white">{option.name}</h3>
+                  </div>
+                  <span
+                    className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                      status === "live"
+                        ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-200"
+                        : status === "launching"
+                          ? "border-amber-400/25 bg-amber-500/10 text-amber-100"
+                          : status === "ready"
+                            ? "border-sky-400/25 bg-sky-500/10 text-sky-100"
+                            : "border-white/10 bg-white/5 text-slate-400"
+                    }`}
+                  >
+                    {commercializationStatusLabel(status)}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-400">{option.source}</p>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+                  <span>Upfront {formatCurrency(option.upfrontCost)}</span>
+                  <span>Net {formatCurrency(option.netRevenue)}</span>
+                  <span>{option.computeDemand} PFLOPS</span>
+                  <span>{option.setupTurns}Q setup</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function cloudSlotLabel(slot: CloudSaveSlotId) {
   return slot === "autosave" ? "Cloud Continue" : `Cloud Slot ${slot}`;
 }
@@ -545,12 +780,20 @@ function MenuCard({
         ) : null}
       </div>
       <p className="min-h-14 text-sm leading-6 text-slate-300">{preset.summary}</p>
+      <p className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">
+        Executive seat: {presetIdentityLabel(presetId)}
+      </p>
       <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-400">
         <span>Capital {formatCurrency(preset.modifier.capital)}</span>
         <span>Trust {preset.modifier.trust}</span>
         <span>Fear {preset.modifier.fear}</span>
         <span>Board {preset.modifier.board}</span>
       </div>
+      {!unlocked ? (
+        <p className="mt-4 text-xs leading-5 text-slate-500">
+          Finish runs to unlock advanced starts. Different endings open different organizations.
+        </p>
+      ) : null}
       <button
         type="button"
         disabled={!unlocked}
@@ -850,6 +1093,7 @@ export function ConvergenceApp() {
     message: "Cloud saves are disconnected.",
   });
   const [cloudBusyKey, setCloudBusyKey] = useState<string | null>(null);
+  const [selectedCommercializationId, setSelectedCommercializationId] = useState<string | null>(null);
 
   const geminiStatus =
     geminiStatusOverride ??
@@ -964,7 +1208,10 @@ export function ConvergenceApp() {
   const expenseEntries = Object.entries(store.resources.expenses).sort((left, right) => right[1] - left[1]);
   const researchExpenseBreakdown = getResearchExpenseBreakdown(store);
   const commercializationExpenseBreakdown = getCommercializationExpenseBreakdown(store);
-  const commercializationOptions = getCommercializationOptions(store, store.selectedTrack);
+  const allCommercializationOptions = getCommercializationOptions(store);
+  const commercializationOptions = allCommercializationOptions.filter(
+    (option) => option.trackId === store.selectedTrack,
+  );
   const activeCommercialPrograms = getActiveCommercializationPrograms(store, store.selectedTrack);
   const activeCommercialConvergences = getActiveCommercializationConvergences(store);
   const fundingOffers = getFundingOffers(store);
@@ -980,6 +1227,10 @@ export function ConvergenceApp() {
   const selectedTrackCommercialExpense = commercializationExpenseBreakdown
     .filter((entry) => entry.trackId === store.selectedTrack)
     .reduce((sum, entry) => sum + entry.amount, 0);
+  const commercializationOptionSignature = commercializationOptions
+    .map((option) => `${option.id}:${option.available ? 1 : 0}:${option.isLive ? 1 : 0}:${option.isLaunching ? 1 : 0}`)
+    .join("|");
+  const firstCommercializationOptionId = commercializationOptions[0]?.id ?? null;
   const trackRevenueBreakdown = getTrackRevenueBreakdown(store.selectedTrack);
   const unlockedRevenueStages = trackRevenueBreakdown.filter((stage) => stage.level <= selectedTrack.level);
   const totalUnlockedStageRevenue = unlockedRevenueStages.reduce((sum, stage) => sum + stage.stageRevenue, 0);
@@ -1049,6 +1300,61 @@ export function ConvergenceApp() {
     (sum, hire) => sum + hire.salary / 4 + hire.signingBonus,
     0,
   );
+  const commercializationLookup = Object.fromEntries(
+    allCommercializationOptions.map((option) => [option.id, option]),
+  ) as Record<string, (typeof allCommercializationOptions)[number]>;
+  const selectedCommercializationOption =
+    commercializationOptions.find((option) => option.id === selectedCommercializationId) ??
+    commercializationOptions[0] ??
+    null;
+  const selectedCommercializationProgram =
+    activeCommercialPrograms.find((program) => program.definitionId === selectedCommercializationOption?.id) ?? null;
+  const selectedCommercializationConvergencePreview = selectedCommercializationOption
+    ? COMMERCIALIZATION_CONVERGENCES.filter((convergence) =>
+        convergence.requiredPrograms.includes(selectedCommercializationOption.id),
+      ).map((convergence) => {
+        const readiness = convergence.requiredPrograms.map((programId) => {
+          const program = store.commercializationPrograms.find((entry) => entry.definitionId === programId);
+          const option = commercializationLookup[programId];
+
+          return {
+            id: programId,
+            name: option?.name ?? programId,
+            live: program?.status === "live",
+          };
+        });
+
+        return {
+          ...convergence,
+          readiness,
+          live: activeCommercialConvergences.some((entry) => entry.id === convergence.id),
+        };
+      })
+    : [];
+  const selectedCommercializationImpactSummary = selectedCommercializationOption
+    ? [
+        selectedCommercializationOption.effects.trust
+          ? `${selectedCommercializationOption.effects.trust > 0 ? "+" : ""}${selectedCommercializationOption.effects.trust} trust`
+          : null,
+        selectedCommercializationOption.effects.fear
+          ? `${selectedCommercializationOption.effects.fear > 0 ? "+" : ""}${selectedCommercializationOption.effects.fear} fear`
+          : null,
+        selectedCommercializationOption.effects.board
+          ? `${selectedCommercializationOption.effects.board > 0 ? "+" : ""}${selectedCommercializationOption.effects.board} board`
+          : null,
+        selectedCommercializationOption.effects.reputation
+          ? `${selectedCommercializationOption.effects.reputation > 0 ? "+" : ""}${selectedCommercializationOption.effects.reputation} reputation`
+          : null,
+        selectedCommercializationOption.effects.governmentDependence
+          ? `${selectedCommercializationOption.effects.governmentDependence > 0 ? "+" : ""}${selectedCommercializationOption.effects.governmentDependence} government dependence`
+          : null,
+        selectedCommercializationOption.effects.ethicsDebt
+          ? `${selectedCommercializationOption.effects.ethicsDebt > 0 ? "+" : ""}${selectedCommercializationOption.effects.ethicsDebt} ethics debt`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" / ")
+    : "";
   const payrollEntries = [...store.employees].sort((left, right) => right.salary - left.salary);
   const layoutClass = intelCollapsed
     ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)] 2xl:grid-cols-[88px_minmax(0,1fr)_minmax(330px,380px)]"
@@ -1075,6 +1381,25 @@ export function ConvergenceApp() {
         .filter(Boolean)
         .join(" ")
     : "";
+
+  useEffect(() => {
+    if (!firstCommercializationOptionId) {
+      setSelectedCommercializationId(null);
+      return;
+    }
+
+    const optionIdSet = new Set(
+      commercializationOptionSignature
+        .split("|")
+        .filter(Boolean)
+        .map((entry) => entry.split(":")[0]),
+    );
+    setSelectedCommercializationId((current) =>
+      current && optionIdSet.has(current)
+        ? current
+        : firstCommercializationOptionId,
+    );
+  }, [store.selectedTrack, commercializationOptionSignature, firstCommercializationOptionId]);
 
   const refreshCloudSummaries = async (credentialsToUse: CloudCredentials | null = cloudCredentials) => {
     if (!credentialsToUse) {
@@ -1883,8 +2208,10 @@ export function ConvergenceApp() {
                   {store.year} Q{store.quarterIndex + 1} Turn {store.turn}
                 </h1>
                 <p className="mt-1 text-sm text-slate-400">
-                  CEO {store.ceo.name}
-                  {store.ceo.fired ? " · Interim era" : " · Founder control"}
+                  {store.ceo.title} {store.ceo.name}
+                  {store.ceo.fired
+                    ? " - Interim era"
+                    : ` - Control ${Math.round(store.flags.founderControl)}%`}
                 </p>
               </div>
             </div>
@@ -2457,68 +2784,261 @@ export function ConvergenceApp() {
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Commercialization Paths</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Choose how this capability hits the market. These lanes compete with each other on compute, optics, and timing.
-                      </p>
-                    </div>
-                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      {activeCommercialPrograms.length} active
-                    </span>
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    {commercializationOptions.map((option) => (
-                      <div key={option.id} className={`rounded-[22px] border p-4 ${option.available ? "border-sky-400/25 bg-sky-500/8" : "border-white/8 bg-slate-950/65"}`}>
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-base font-medium text-white">{option.name}</h3>
-                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400">
-                                {formatLaneLabel(option.lane)}
-                              </span>
-                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400">
-                                L{option.minLevel}+
-                              </span>
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-slate-400">{option.summary}</p>
-                          </div>
-                          <button
-                            type="button"
-                            disabled={!option.available}
-                            onClick={() => store.launchCommercialization(option.id)}
-                            className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-slate-500"
-                          >
-                            {option.available ? "Launch" : "Locked"}
-                          </button>
-                        </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Upfront</p>
-                            <p className="mt-2 text-sm font-medium text-white">{formatCurrency(option.upfrontCost)}</p>
-                          </div>
-                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Quarterly Net</p>
-                            <p className="mt-2 text-sm font-medium text-emerald-200">{formatCurrency(option.netRevenue)}</p>
-                          </div>
-                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Compute Demand</p>
-                            <p className="mt-2 text-sm font-medium text-white">{option.computeDemand} PFLOPS</p>
-                          </div>
-                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Launch Time</p>
-                            <p className="mt-2 text-sm font-medium text-white">{option.setupTurns}Q</p>
-                          </div>
-                        </div>
-                        <p className="mt-3 text-xs leading-5 text-slate-500">
-                          {option.blockedReason
-                            ? option.blockedReason
-                            : `Launch effects include ${option.effects.trust ? `${option.effects.trust > 0 ? "+" : ""}${option.effects.trust} trust` : "stable trust"}${option.effects.fear ? `, ${option.effects.fear > 0 ? "+" : ""}${option.effects.fear} fear` : ""}${option.effects.board ? `, ${option.effects.board > 0 ? "+" : ""}${option.effects.board} board` : ""}.`}
+                <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)]">
+                  <CommercializationGraph
+                    options={commercializationOptions}
+                    selectedId={selectedCommercializationOption?.id ?? null}
+                    onSelect={setSelectedCommercializationId}
+                  />
+
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Selected Market Path</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Review the economics, role gates, and downstream convergences before you commit.
                         </p>
                       </div>
-                    ))}
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        {activeCommercialPrograms.length} active on this track
+                      </span>
+                    </div>
+
+                    {selectedCommercializationOption ? (
+                      <div className="mt-4 space-y-4">
+                        <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                                    {commercializationTierLabel(selectedCommercializationOption.tier)}
+                                  </span>
+                                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                                    {formatLaneLabel(selectedCommercializationOption.lane)}
+                                  </span>
+                                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                                    {selectedCommercializationOption.source}
+                                  </span>
+                                </div>
+                                <h3 className="mt-3 text-xl font-semibold text-white">
+                                  {selectedCommercializationOption.name}
+                                </h3>
+                                <p className="mt-2 text-sm leading-6 text-slate-400">
+                                  {selectedCommercializationOption.summary}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={!selectedCommercializationOption.available}
+                                onClick={() => store.launchCommercialization(selectedCommercializationOption.id)}
+                                className="inline-flex min-w-[154px] items-center justify-center rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-slate-500"
+                              >
+                                {selectedCommercializationOption.isLive
+                                  ? "Already Live"
+                                  : selectedCommercializationOption.isLaunching
+                                    ? "Launching"
+                                    : selectedCommercializationOption.available
+                                      ? "Launch Program"
+                                      : "Locked"}
+                              </button>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                              <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Upfront Cost</p>
+                                <p className="mt-2 text-sm font-medium text-white">
+                                  {formatCurrency(selectedCommercializationOption.upfrontCost)}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Quarterly Revenue</p>
+                                <p className="mt-2 text-sm font-medium text-emerald-200">
+                                  {formatCurrency(selectedCommercializationOption.quarterlyRevenue)}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Quarterly Expense</p>
+                                <p className="mt-2 text-sm font-medium text-rose-100">
+                                  {formatCurrency(selectedCommercializationOption.quarterlyExpense)}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Quarterly Net</p>
+                                <p className="mt-2 text-sm font-medium text-emerald-200">
+                                  {formatCurrency(selectedCommercializationOption.netRevenue)}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Compute Reserve</p>
+                                <p className="mt-2 text-sm font-medium text-white">
+                                  {selectedCommercializationOption.computeDemand} PFLOPS
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Launch Time</p>
+                                <p className="mt-2 text-sm font-medium text-white">
+                                  {selectedCommercializationOption.setupTurns}Q
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3">
+                              <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Prerequisites</p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {selectedCommercializationOption.prerequisitePrograms?.length ? (
+                                    selectedCommercializationOption.prerequisitePrograms.map((programId) => {
+                                      const program = store.commercializationPrograms.find(
+                                        (entry) => entry.definitionId === programId,
+                                      );
+                                      const prerequisite = commercializationLookup[programId];
+                                      const live = program?.status === "live";
+
+                                      return (
+                                        <span
+                                          key={programId}
+                                          className={`rounded-full border px-3 py-1 text-xs ${
+                                            live
+                                              ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                                              : "border-white/10 bg-white/5 text-slate-400"
+                                          }`}
+                                        >
+                                          {prerequisite?.name ?? programId}
+                                          {live ? " - live" : ""}
+                                        </span>
+                                      );
+                                    })
+                                  ) : (
+                                    <span className="text-sm text-slate-500">No upstream commercialization program required.</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Gates</p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                                    {trackDefinition.shortName} L{selectedCommercializationOption.minLevel}+
+                                  </span>
+                                  {(selectedCommercializationOption.requiredRoleKeywords ?? []).map((keyword) => (
+                                    <span
+                                      key={keyword}
+                                      className={`rounded-full border px-3 py-1 text-xs ${
+                                        selectedCommercializationOption.missingRoleKeywords.includes(keyword)
+                                          ? "border-amber-400/20 bg-amber-500/10 text-amber-100"
+                                          : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                                      }`}
+                                    >
+                                      {formatRoleKeyword(keyword)}
+                                    </span>
+                                  ))}
+                                  {Object.entries(selectedCommercializationOption.requiredTracks ?? {}).map(
+                                    ([requiredTrackId, requiredLevel]) => {
+                                      const ready =
+                                        store.tracks[requiredTrackId as TrackId].level >= (requiredLevel ?? 0);
+                                      return (
+                                        <span
+                                          key={`${selectedCommercializationOption.id}-${requiredTrackId}`}
+                                          className={`rounded-full border px-3 py-1 text-xs ${
+                                            ready
+                                              ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                                              : "border-amber-400/20 bg-amber-500/10 text-amber-100"
+                                          }`}
+                                        >
+                                          {getTrackLabel(requiredTrackId as TrackId)} L{requiredLevel}
+                                        </span>
+                                      );
+                                    },
+                                  )}
+                                </div>
+                              </div>
+
+                              <div
+                                className={`rounded-2xl border px-3 py-3 text-sm leading-6 ${
+                                  selectedCommercializationOption.blockedReason
+                                    ? "border-amber-400/20 bg-amber-500/10 text-amber-100"
+                                    : "border-sky-400/20 bg-sky-500/10 text-sky-100"
+                                }`}
+                              >
+                                {selectedCommercializationOption.blockedReason
+                                  ? selectedCommercializationOption.blockedReason
+                                  : selectedCommercializationImpactSummary || "No immediate trust, fear, or board swing beyond the economics."}
+                              </div>
+
+                              {selectedCommercializationProgram ? (
+                                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-100">
+                                  {selectedCommercializationProgram.status === "live"
+                                    ? `${selectedCommercializationProgram.name} is already live and reserving ${selectedCommercializationProgram.computeDemand} PFLOPS each quarter.`
+                                    : `${selectedCommercializationProgram.name} is in flight with ${selectedCommercializationProgram.turnsRemaining}Q remaining before revenue turns on.`}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Potential Market Convergences</p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                These are the business-layer synergies this path can contribute to if the paired programs go live.
+                              </p>
+                            </div>
+                            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                              {selectedCommercializationConvergencePreview.length} linked
+                            </span>
+                          </div>
+                          <div className="mt-4 space-y-3">
+                            {selectedCommercializationConvergencePreview.length ? (
+                              selectedCommercializationConvergencePreview.map((convergence) => (
+                                <div
+                                  key={convergence.id}
+                                  className={`rounded-2xl border px-3 py-3 ${
+                                    convergence.live
+                                      ? "border-emerald-400/20 bg-emerald-500/8"
+                                      : "border-white/8 bg-white/4"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm font-medium text-white">{convergence.name}</span>
+                                    <span className="text-sm text-emerald-200">
+                                      {formatCurrency(convergence.revenue)}
+                                    </span>
+                                  </div>
+                                  <p className="mt-2 text-xs leading-5 text-slate-400">
+                                    {convergence.description}
+                                  </p>
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {convergence.readiness.map((requirement) => (
+                                      <span
+                                        key={`${convergence.id}-${requirement.id}`}
+                                        className={`rounded-full border px-3 py-1 text-[11px] ${
+                                          requirement.live
+                                            ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                                            : "border-white/10 bg-white/5 text-slate-400"
+                                        }`}
+                                      >
+                                        {requirement.name}
+                                        {requirement.live ? " - live" : " - pending"}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-sm text-slate-500">
+                                This node does not currently anchor a cross-track market convergence.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm text-slate-500">
+                        No commercialization paths are authored for this track yet.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -3734,6 +4254,19 @@ export function ConvergenceApp() {
               <h2 className="mt-3 text-4xl font-semibold text-white">{store.ending.title}</h2>
               <p className="mt-4 text-lg text-slate-200">{store.ending.summary}</p>
               <p className="mt-4 text-sm leading-7 text-slate-300">{store.ending.epilogue}</p>
+              <div className="mt-5 rounded-[24px] border border-white/8 bg-white/4 px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Unlocked Starts</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {store.ending.unlocks.map((presetId) => (
+                    <span
+                      key={presetId}
+                      className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200"
+                    >
+                      {START_PRESETS[presetId].name}
+                    </span>
+                  ))}
+                </div>
+              </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <button type="button" onClick={() => void handleSaveAndQuit()} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-white">Return to Menu</button>
                 <button type="button" onClick={() => store.newGame("founder")} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-slate-200">Start Another Run</button>

@@ -2,6 +2,7 @@ import {
   BUILD_OPTIONS,
   COMMERCIALIZATION_CONVERGENCES,
   COMMERCIALIZATION_DEFINITIONS,
+  COMMERCIALIZATION_GRAPH_RULES,
   CONVERGENCES,
   DILEMMAS,
   ENERGY_POLICIES,
@@ -348,6 +349,25 @@ const defaultMeta = () => ({
   completedEndings: [],
 });
 
+const ceoTitleForPreset = (preset: StartPresetId) => {
+  switch (preset) {
+    case "founder":
+      return "Founder-CEO";
+    case "government":
+      return "Lab Director";
+    case "open-source":
+      return "Founding Steward";
+    case "corporate":
+      return "Division CEO";
+    case "underground":
+      return "Founder-Operator";
+    case "second-chance":
+      return "Recovery CEO";
+    default:
+      return "CEO";
+  }
+};
+
 const baseFlags = (preset: StartPresetId): GameFlags => ({
   governmentDependence: START_PRESETS[preset].modifier.governmentDependence,
   ethicsDebt: 0,
@@ -471,7 +491,7 @@ export const createNewGame = (preset: StartPresetId = "founder"): GameState => {
     },
     ceo: {
       name: "Alex Mercer",
-      title: "Founder-CEO",
+      title: ceoTitleForPreset(preset),
       fired: false,
     },
     supplier: SUPPLIER_CONTRACTS[1],
@@ -694,6 +714,28 @@ const totalAllocatedCompute = (state: GameState) =>
 
 const getCommercializationDefinitionById = (definitionId: string) =>
   COMMERCIALIZATION_DEFINITIONS.find((definition) => definition.id === definitionId) ?? null;
+
+const getCommercializationDefinition = (definitionId: string) => {
+  const definition = getCommercializationDefinitionById(definitionId);
+  if (!definition) return null;
+
+  const graphRule = COMMERCIALIZATION_GRAPH_RULES[definitionId];
+
+  return {
+    ...definition,
+    tier: definition.tier ?? graphRule?.tier ?? (Math.min(Math.ceil(definition.minLevel / 2), 3) as 1 | 2 | 3),
+    prerequisitePrograms: definition.prerequisitePrograms ?? graphRule?.prerequisitePrograms ?? [],
+    requiredRoleKeywords: definition.requiredRoleKeywords ?? graphRule?.requiredRoleKeywords ?? [],
+  };
+};
+
+const hasRoleCoverage = (state: GameState, keyword: string) => {
+  const loweredKeyword = keyword.toLowerCase();
+  return state.employees.some((employee) => employee.role.toLowerCase().includes(loweredKeyword));
+};
+
+const missingCommercializationRoles = (state: GameState, keywords: string[]) =>
+  keywords.filter((keyword) => !hasRoleCoverage(state, keyword));
 
 const getReservedCommercialCompute = (state: GameState) =>
   state.commercializationPrograms.reduce(
@@ -1320,7 +1362,7 @@ const advanceCommercialPrograms = (state: GameState, worldEvents: string[]) => {
 };
 
 export const launchCommercializationProgram = (state: GameState, definitionId: string) => {
-  const definition = getCommercializationDefinitionById(definitionId);
+  const definition = getCommercializationDefinition(definitionId);
   if (!definition) return;
 
   const option = getCommercializationOptions(state, definition.trackId).find(
@@ -1461,20 +1503,27 @@ export const getActiveCommercializationPrograms = (state: GameState, trackId?: T
 
 export const getCommercializationOptions = (state: GameState, trackId?: TrackId) =>
   COMMERCIALIZATION_DEFINITIONS.filter((definition) => (!trackId || definition.trackId === trackId))
-    .map((definition) => {
+    .map((rawDefinition) => {
+      const definition = getCommercializationDefinition(rawDefinition.id)!;
       const currentTrack = state.tracks[definition.trackId];
       const existingProgram = state.commercializationPrograms.find(
         (program) => program.definitionId === definition.id,
       );
-      const laneOccupied = state.commercializationPrograms.find(
-        (program) => program.trackId === definition.trackId && program.lane === definition.lane,
-      );
+      const prerequisitePrograms = definition.prerequisitePrograms ?? [];
+      const inactivePrerequisites = prerequisitePrograms
+        .filter((prerequisiteId) =>
+          !state.commercializationPrograms.some(
+            (program) => program.definitionId === prerequisiteId && program.status === "live",
+          ),
+        )
+        .map((prerequisiteId) => getCommercializationDefinition(prerequisiteId)?.name ?? prerequisiteId);
       const missingRequirements = Object.entries(definition.requiredTracks ?? {})
         .filter(([requiredTrackId, requiredLevel]) => {
           const track = state.tracks[requiredTrackId as TrackId];
           return track.level < (requiredLevel ?? 0);
         })
         .map(([requiredTrackId, requiredLevel]) => `${trackById(requiredTrackId as TrackId).name} L${requiredLevel}`);
+      const missingRoles = missingCommercializationRoles(state, definition.requiredRoleKeywords ?? []);
 
       let blockedReason: string | null = null;
       if (!currentTrack.unlocked) {
@@ -1483,10 +1532,12 @@ export const getCommercializationOptions = (state: GameState, trackId?: TrackId)
         blockedReason = `${trackById(definition.trackId).name} must reach L${definition.minLevel}.`;
       } else if (!programMatchesRequirements(state, definition)) {
         blockedReason = `Also requires ${missingRequirements.join(", ")}.`;
+      } else if (inactivePrerequisites.length) {
+        blockedReason = `Requires live predecessor program${inactivePrerequisites.length > 1 ? "s" : ""}: ${inactivePrerequisites.join(", ")}.`;
+      } else if (missingRoles.length) {
+        blockedReason = `Needs staff coverage for ${missingRoles.join(", ")}.`;
       } else if (existingProgram) {
         blockedReason = existingProgram.status === "live" ? "Already live." : "Currently launching.";
-      } else if (laneOccupied) {
-        blockedReason = `${laneOccupied.name} already occupies the ${definition.lane} lane.`;
       } else if (state.resources.capital < definition.upfrontCost) {
         blockedReason = `Need ${formatCurrency(definition.upfrontCost)} capital to launch.`;
       }
@@ -1496,9 +1547,15 @@ export const getCommercializationOptions = (state: GameState, trackId?: TrackId)
         blockedReason,
         available: !blockedReason,
         netRevenue: Number((definition.quarterlyRevenue - definition.quarterlyExpense).toFixed(2)),
+        missingPrerequisitePrograms: inactivePrerequisites,
+        missingTrackRequirements: missingRequirements,
+        missingRoleKeywords: missingRoles,
+        existingStatus: existingProgram?.status ?? null,
+        isLive: existingProgram?.status === "live",
+        isLaunching: existingProgram?.status === "launching",
       };
     })
-    .sort((left, right) => right.minLevel - left.minLevel || right.quarterlyRevenue - left.quarterlyRevenue);
+    .sort((left, right) => left.tier - right.tier || right.minLevel - left.minLevel || right.quarterlyRevenue - left.quarterlyRevenue);
 
 export const getActiveCommercializationConvergences = (state: GameState) => {
   const liveProgramIds = new Set(

@@ -105,12 +105,15 @@ export interface CommercializationDefinition {
   summary: string;
   source: string;
   minLevel: number;
+  tier?: 1 | 2 | 3;
   upfrontCost: number;
   setupTurns: number;
   quarterlyRevenue: number;
   quarterlyExpense: number;
   computeDemand: number;
   requiredTracks?: Partial<Record<TrackId, number>>;
+  prerequisitePrograms?: string[];
+  requiredRoleKeywords?: string[];
   effects: {
     trust?: number;
     fear?: number;
