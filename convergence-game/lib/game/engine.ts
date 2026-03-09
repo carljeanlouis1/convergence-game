@@ -1,5 +1,7 @@
 import {
   BUILD_OPTIONS,
+  COMMERCIALIZATION_CONVERGENCES,
+  COMMERCIALIZATION_DEFINITIONS,
   CONVERGENCES,
   DILEMMAS,
   ENERGY_POLICIES,
@@ -15,12 +17,16 @@ import {
 } from "./data";
 import {
   Candidate,
+  CommercializationDefinition,
+  CommercializationProgram,
   DecisionLogEntry,
   DilemmaOption,
   EndingResult,
   ExpenseBreakdown,
   FacilityProject,
   FacilityState,
+  FundingOffer,
+  FundingRoundId,
   GameFlags,
   GovernmentId,
   GameSnapshot,
@@ -140,6 +146,7 @@ const defaultExpenses = (): ExpenseBreakdown => ({
   compute: 0,
   facilities: 0,
   research: 0,
+  commercialization: 0,
   expansion: 0,
 });
 
@@ -309,6 +316,15 @@ const trackUnlockHints: Record<TrackId, string> = {
   space: "Hire an orbital systems or satellite autonomy lead to unlock Space.",
 };
 
+const fundingRoundOrder: FundingRoundId[] = ["seed", "series-a", "series-b", "series-c", "series-d"];
+const fundingRoundLabel: Record<FundingRoundId, string> = {
+  seed: "Seed",
+  "series-a": "Series A",
+  "series-b": "Series B",
+  "series-c": "Series C",
+  "series-d": "Series D",
+};
+
 const createInitialTracks = (): Record<TrackId, TrackState> =>
   TRACK_DEFINITIONS.reduce(
     (accumulator, definition) => {
@@ -338,6 +354,20 @@ const baseFlags = (preset: StartPresetId): GameFlags => ({
   safetyCulture: 0,
   openness: START_PRESETS[preset].modifier.openness,
   crisisCount: 0,
+  founderControl:
+    preset === "government"
+      ? 62
+      : preset === "corporate"
+        ? 58
+        : preset === "open-source"
+          ? 78
+          : preset === "underground"
+            ? 84
+            : preset === "second-chance"
+              ? 68
+              : 76,
+  fundingRound: "seed",
+  lastFundingTurn: -99,
   lastWorldTags: [],
 });
 
@@ -468,6 +498,7 @@ export const createNewGame = (preset: StartPresetId = "founder"): GameState => {
       },
     ],
     convergences: [],
+    commercializationPrograms: [],
     usedDilemmas: [],
     activeDilemma: null,
     activeDilemmaSource: null,
@@ -521,6 +552,7 @@ export const normalizeGameState = (input: GameState): GameState => {
   state.pendingHires = state.pendingHires ?? [];
   state.revenueStreams = state.revenueStreams ?? [];
   state.decisionLog = state.decisionLog ?? [];
+  state.commercializationPrograms = state.commercializationPrograms ?? [];
   state.openAISettings = state.openAISettings ?? defaultOpenAISettings();
   state.flags = {
     ...baseFlags(state.preset),
@@ -660,6 +692,37 @@ const trackSynergy = (trackId: TrackId, state: GameState) => {
 const totalAllocatedCompute = (state: GameState) =>
   (Object.keys(state.tracks) as TrackId[]).reduce((sum, trackId) => sum + state.tracks[trackId].compute, 0);
 
+const getCommercializationDefinitionById = (definitionId: string) =>
+  COMMERCIALIZATION_DEFINITIONS.find((definition) => definition.id === definitionId) ?? null;
+
+const getReservedCommercialCompute = (state: GameState) =>
+  state.commercializationPrograms.reduce(
+    (sum, program) =>
+      sum +
+      (program.status === "live"
+        ? program.computeDemand
+        : Math.max(2, Math.ceil(program.computeDemand * 0.5))),
+    0,
+  );
+
+const getAvailableResearchCompute = (state: GameState, rawCapacity: number) =>
+  Math.max(rawCapacity - getReservedCommercialCompute(state), 0);
+
+const nextFundingRound = (round: FundingRoundId): FundingRoundId =>
+  fundingRoundOrder[Math.min(fundingRoundOrder.indexOf(round) + 1, fundingRoundOrder.length - 1)] ??
+  fundingRoundOrder[fundingRoundOrder.length - 1];
+
+const stagePassiveRevenue = (trackId: TrackId, level: number) => {
+  if (level <= 0) return 0;
+
+  return Number(
+    trackById(trackId)
+      .levels.slice(0, level)
+      .reduce((sum, stage) => sum + stage.revenueLift, 0)
+      .toFixed(2),
+  );
+};
+
 const energyUtilizationMultiplier = (state: GameState) => {
   const utilization = totalAllocatedCompute(state) / Math.max(state.resources.computeCapacity, 1);
 
@@ -684,19 +747,19 @@ const trackResearchCost = (trackId: TrackId, track: TrackState, assignedCount: n
 
   const wetLabPremium =
     trackId === "biology" || trackId === "robotics" || trackId === "materials" || trackId === "quantum"
-      ? 0.18
+      ? 0.1
       : trackId === "space"
-        ? 0.12
-        : 0.06;
+        ? 0.08
+        : 0.04;
   const stagePressure = activeStage
-    ? activeStage.recommendedCompute / 280 + activeStage.researchCost / 1400
-    : 0.06;
+    ? activeStage.recommendedCompute / 560 + activeStage.researchCost / 2600
+    : 0.03;
 
   return (
-    0.08 +
-    track.level * 0.05 +
-    assignedCount * 0.07 +
-    (track.compute / 100) * 0.22 +
+    0.03 +
+    track.level * 0.028 +
+    assignedCount * 0.035 +
+    (track.compute / 100) * 0.09 +
     wetLabPremium +
     stagePressure
   );
@@ -1203,19 +1266,163 @@ export const resolveDilemmaOption = (state: GameState, option: DilemmaOption) =>
   recalculateState(state);
 };
 
-const revenueForTrack = (trackId: TrackId, level: number) => {
-  if (level <= 0) return 0;
-
-  return Number(
-    trackById(trackId)
-      .levels.slice(0, level)
-      .reduce((sum, stage) => sum + stage.revenueLift, 0)
-      .toFixed(2),
+const applyQuarterlyBoardPressure = (state: GameState) => {
+  const net = state.resources.revenue - state.resources.burn;
+  const controlPressure = state.flags.founderControl < 55 ? (55 - state.flags.founderControl) * 0.08 : 0;
+  const runwayPressure = state.resources.runwayMonths < 8 ? (8 - state.resources.runwayMonths) * 0.55 : 0;
+  const fearPressure = state.resources.fear > 65 ? (state.resources.fear - 65) * 0.03 : 0;
+  const netRelief = net >= 0 ? 0.45 : -Math.min(Math.abs(net) * 0.18, 2.8);
+  state.resources.boardConfidence = clamp(
+    state.resources.boardConfidence - controlPressure - runwayPressure - fearPressure + netRelief,
+    0,
+    100,
   );
 };
 
+const advanceCommercialPrograms = (state: GameState, worldEvents: string[]) => {
+  const nextPrograms: CommercializationProgram[] = [];
+
+  state.commercializationPrograms.forEach((program) => {
+    if (program.status === "live") {
+      nextPrograms.push(program);
+      return;
+    }
+
+    const turnsRemaining = program.turnsRemaining - 1;
+    if (turnsRemaining <= 0) {
+      nextPrograms.push({
+        ...program,
+        status: "live",
+        turnsRemaining: 0,
+      });
+      worldEvents.push(`${program.name} goes live`);
+      state.feed = [
+        {
+          id: `commercial-live-${state.turn}-${program.id}`,
+          turn: state.turn,
+          title: `${program.name} goes live`,
+          body: `${program.name} is now an active business line, adding recurring revenue and reserving compute each quarter.`,
+          severity: "info" as const,
+          kind: "system" as const,
+        },
+        ...state.feed,
+      ].slice(0, 30);
+      return;
+    }
+
+    nextPrograms.push({
+      ...program,
+      turnsRemaining,
+    });
+  });
+
+  state.commercializationPrograms = nextPrograms;
+};
+
+export const launchCommercializationProgram = (state: GameState, definitionId: string) => {
+  const definition = getCommercializationDefinitionById(definitionId);
+  if (!definition) return;
+
+  const option = getCommercializationOptions(state, definition.trackId).find(
+    (entry) => entry.id === definitionId,
+  );
+  if (!option || option.blockedReason) return;
+
+  state.resources.capital -= definition.upfrontCost;
+  state.resources.trust = clamp(state.resources.trust + (definition.effects.trust ?? 0), 0, 100);
+  state.resources.fear = clamp(state.resources.fear + (definition.effects.fear ?? 0), 0, 100);
+  state.resources.boardConfidence = clamp(
+    state.resources.boardConfidence + (definition.effects.board ?? 0),
+    0,
+    100,
+  );
+  state.resources.reputation = clamp(
+    state.resources.reputation + (definition.effects.reputation ?? 0),
+    0,
+    100,
+  );
+  state.flags.governmentDependence += definition.effects.governmentDependence ?? 0;
+  state.flags.safetyCulture += definition.effects.safetyCulture ?? 0;
+  state.flags.ethicsDebt += definition.effects.ethicsDebt ?? 0;
+
+  state.commercializationPrograms = [
+    {
+      id: `${definition.id}-${state.turn}`,
+      definitionId: definition.id,
+      trackId: definition.trackId,
+      lane: definition.lane,
+      name: definition.name,
+      source: definition.source,
+      summary: definition.summary,
+      status: definition.setupTurns > 0 ? "launching" : "live",
+      turnsRemaining: definition.setupTurns,
+      quarterlyRevenue: definition.quarterlyRevenue,
+      quarterlyExpense: definition.quarterlyExpense,
+      computeDemand: definition.computeDemand,
+      startedTurn: state.turn,
+    },
+    ...state.commercializationPrograms,
+  ];
+  state.feed = [
+    {
+      id: `commercial-launch-${state.turn}-${definition.id}`,
+      turn: state.turn,
+      title: `${definition.name} authorized`,
+      body: `${definition.summary} Launch cost ${formatCurrency(definition.upfrontCost)}. Delivery in ${definition.setupTurns} quarter${definition.setupTurns === 1 ? "" : "s"}.`,
+      severity: "info" as const,
+      kind: "system" as const,
+    },
+    ...state.feed,
+  ].slice(0, 30);
+  recalculateState(state);
+};
+
+export const acceptFundingOffer = (state: GameState, offerId: string) => {
+  const offer = getFundingOffers(state).find((entry) => entry.id === offerId);
+  if (!offer) return;
+
+  state.resources.capital += offer.capital;
+  state.resources.trust = clamp(state.resources.trust + offer.trustDelta, 0, 100);
+  state.resources.fear = clamp(state.resources.fear + offer.fearDelta, 0, 100);
+  state.resources.boardConfidence = clamp(state.resources.boardConfidence + offer.boardDelta, 0, 100);
+  state.flags.governmentDependence += offer.governmentDependenceDelta;
+  state.flags.founderControl = clamp(state.flags.founderControl - offer.founderControlLoss, 0, 100);
+  state.flags.fundingRound = offer.round;
+  state.flags.lastFundingTurn = state.turn;
+
+  if (offer.computeGrant) {
+    state.facilities = [
+      {
+        id: `capital-${offer.id}-${state.turn}`,
+        name: `${offer.name} Hosted Capacity`,
+        region: "Partner Cloud",
+        online: true,
+        buildCost: 0,
+        upkeep: 0.06 * Math.max(1, offer.computeGrant / 12),
+        computeDelta: offer.computeGrant,
+        trustDelta: offer.id === "mission-trust" ? 1 : 0,
+        riskDelta: offer.id === "national-security" ? 1 : 0,
+      },
+      ...state.facilities,
+    ];
+  }
+
+  state.feed = [
+    {
+      id: `funding-${state.turn}-${offer.id}`,
+      turn: state.turn,
+      title: `${offer.name} closed`,
+      body: `${offer.summary} ${formatCurrency(offer.capital)} added to the treasury. Founder control now ${Math.round(state.flags.founderControl)}.`,
+      severity: "warning" as const,
+      kind: "system" as const,
+    },
+    ...state.feed,
+  ].slice(0, 30);
+  recalculateState(state);
+};
+
 export const getTrackRevenueAtLevel = (trackId: TrackId, level: number) =>
-  Number(revenueForTrack(trackId, level).toFixed(2));
+  Number(stagePassiveRevenue(trackId, level).toFixed(2));
 
 export const getTrackRevenueBreakdown = (trackId: TrackId) => {
   const metadata = trackRevenueNames[trackId];
@@ -1240,6 +1447,198 @@ export const getTrackRevenueBreakdown = (trackId: TrackId) => {
       requiredSpecialists: stage.requiredSpecialists ?? [],
     };
   });
+};
+
+const programMatchesRequirements = (state: GameState, definition: CommercializationDefinition) =>
+  Object.entries(definition.requiredTracks ?? {}).every(
+    ([trackId, level]) => state.tracks[trackId as TrackId].level >= (level ?? 0),
+  );
+
+export const getActiveCommercializationPrograms = (state: GameState, trackId?: TrackId) =>
+  state.commercializationPrograms
+    .filter((program) => (!trackId || program.trackId === trackId))
+    .sort((left, right) => right.quarterlyRevenue - left.quarterlyRevenue);
+
+export const getCommercializationOptions = (state: GameState, trackId?: TrackId) =>
+  COMMERCIALIZATION_DEFINITIONS.filter((definition) => (!trackId || definition.trackId === trackId))
+    .map((definition) => {
+      const currentTrack = state.tracks[definition.trackId];
+      const existingProgram = state.commercializationPrograms.find(
+        (program) => program.definitionId === definition.id,
+      );
+      const laneOccupied = state.commercializationPrograms.find(
+        (program) => program.trackId === definition.trackId && program.lane === definition.lane,
+      );
+      const missingRequirements = Object.entries(definition.requiredTracks ?? {})
+        .filter(([requiredTrackId, requiredLevel]) => {
+          const track = state.tracks[requiredTrackId as TrackId];
+          return track.level < (requiredLevel ?? 0);
+        })
+        .map(([requiredTrackId, requiredLevel]) => `${trackById(requiredTrackId as TrackId).name} L${requiredLevel}`);
+
+      let blockedReason: string | null = null;
+      if (!currentTrack.unlocked) {
+        blockedReason = trackUnlockHints[definition.trackId];
+      } else if (currentTrack.level < definition.minLevel) {
+        blockedReason = `${trackById(definition.trackId).name} must reach L${definition.minLevel}.`;
+      } else if (!programMatchesRequirements(state, definition)) {
+        blockedReason = `Also requires ${missingRequirements.join(", ")}.`;
+      } else if (existingProgram) {
+        blockedReason = existingProgram.status === "live" ? "Already live." : "Currently launching.";
+      } else if (laneOccupied) {
+        blockedReason = `${laneOccupied.name} already occupies the ${definition.lane} lane.`;
+      } else if (state.resources.capital < definition.upfrontCost) {
+        blockedReason = `Need ${formatCurrency(definition.upfrontCost)} capital to launch.`;
+      }
+
+      return {
+        ...definition,
+        blockedReason,
+        available: !blockedReason,
+        netRevenue: Number((definition.quarterlyRevenue - definition.quarterlyExpense).toFixed(2)),
+      };
+    })
+    .sort((left, right) => right.minLevel - left.minLevel || right.quarterlyRevenue - left.quarterlyRevenue);
+
+export const getActiveCommercializationConvergences = (state: GameState) => {
+  const liveProgramIds = new Set(
+    state.commercializationPrograms
+      .filter((program) => program.status === "live")
+      .map((program) => program.definitionId),
+  );
+
+  return COMMERCIALIZATION_CONVERGENCES.filter((definition) =>
+    definition.requiredPrograms.every((requiredProgramId) => liveProgramIds.has(requiredProgramId)),
+  );
+};
+
+export const getResearchExpenseBreakdown = (state: GameState) =>
+  (Object.keys(state.tracks) as TrackId[])
+    .map((trackId) => {
+      const track = state.tracks[trackId];
+      const assignedCount = state.employees.filter((employee) => employee.assignedTrack === trackId).length;
+      return {
+        trackId,
+        name: trackById(trackId).name,
+        amount: Number(trackResearchCost(trackId, track, assignedCount).toFixed(2)),
+        assignedCount,
+        compute: track.compute,
+        projectName: getTrackForecast(state, trackId).projectName,
+      };
+    })
+    .filter((entry) => entry.amount > 0)
+    .sort((left, right) => right.amount - left.amount);
+
+export const getCommercializationExpenseBreakdown = (state: GameState) =>
+  state.commercializationPrograms
+    .map((program) => ({
+      id: program.id,
+      name: program.name,
+      trackId: program.trackId,
+      amount: Number(
+        (
+          program.status === "live"
+            ? program.quarterlyExpense
+            : Math.max(0.12, program.quarterlyExpense * 0.45)
+        ).toFixed(2),
+      ),
+      computeDemand:
+        program.status === "live"
+          ? program.computeDemand
+          : Math.max(2, Math.ceil(program.computeDemand * 0.5)),
+      status: program.status,
+      source: program.source,
+    }))
+    .sort((left, right) => right.amount - left.amount);
+
+export const getFundingOffers = (state: GameState): FundingOffer[] => {
+  const turnsSinceRaise = state.turn - state.flags.lastFundingTurn;
+  const raiseWindowOpen =
+    state.resources.runwayMonths <= 9 ||
+    (state.turn >= 8 && turnsSinceRaise >= 8) ||
+    (state.turn >= 12 && state.turn % 8 === 0);
+
+  if (!raiseWindowOpen || turnsSinceRaise < 4) {
+    return [];
+  }
+
+  const round = nextFundingRound(state.flags.fundingRound);
+  const roundIndex = fundingRoundOrder.indexOf(round) + 1;
+  const capability =
+    state.tracks.foundation.level +
+    state.tracks.simulation.level +
+    state.tracks.alignment.level +
+    state.tracks.robotics.level +
+    state.tracks.biology.level +
+    state.tracks.materials.level +
+    state.tracks.quantum.level +
+    state.tracks.space.level;
+  const capitalBase = 6 + roundIndex * 3.8 + capability * 0.32 + state.resources.revenue * 0.45;
+
+  return [
+    {
+      id: "frontier-vc",
+      name: `Frontier VC Syndicate ${fundingRoundLabel[round]}`,
+      summary: "Maximum cash, faster growth expectations, more board leverage.",
+      capital: Number((capitalBase * 1.18).toFixed(1)),
+      founderControlLoss: 8 + roundIndex,
+      boardDelta: 4,
+      trustDelta: -1,
+      fearDelta: 0,
+      governmentDependenceDelta: 0,
+      round,
+      cooldown: 8,
+    },
+    {
+      id: "mission-trust",
+      name: `${fundingRoundLabel[round]} Mission Trust Fund`,
+      summary: "Lower dilution and stronger legitimacy, but a smaller check.",
+      capital: Number((capitalBase * 0.78).toFixed(1)),
+      founderControlLoss: 5 + roundIndex,
+      boardDelta: 1,
+      trustDelta: 4,
+      fearDelta: -1,
+      governmentDependenceDelta: 0,
+      round,
+      cooldown: 8,
+    },
+    {
+      id: "compute-partner",
+      name: `${fundingRoundLabel[round]} Strategic Compute Partner`,
+      summary: "Cash plus hosted capacity, with pressure to commercialize more aggressively.",
+      capital: Number((capitalBase * 0.96).toFixed(1)),
+      founderControlLoss: 7 + roundIndex,
+      boardDelta: 3,
+      trustDelta: -1,
+      fearDelta: 1,
+      governmentDependenceDelta: 1,
+      computeGrant: 12 + roundIndex * 6,
+      round,
+      cooldown: 8,
+    },
+    {
+      id: "national-security",
+      name: `${fundingRoundLabel[round]} National Security Program`,
+      summary: "Large strategic check with strings, scrutiny, and tighter state entanglement.",
+      capital: Number((capitalBase * 1.08).toFixed(1)),
+      founderControlLoss: 6 + roundIndex,
+      boardDelta: 2,
+      trustDelta: -2,
+      fearDelta: 2,
+      governmentDependenceDelta: 3,
+      round,
+      cooldown: 8,
+    },
+  ];
+};
+
+export const getCommercializationReservedCompute = (state: GameState) =>
+  getReservedCommercialCompute(state);
+
+export const getResearchComputeCapacity = (state: GameState) => {
+  const facilityCapacity = computeCapacityFromFacilities(state.facilities);
+  const rawCapacity = facilityCapacity || state.resources.computeCapacity;
+  return getAvailableResearchCompute(state, rawCapacity);
 };
 
 const convergenceRevenue: Record<string, { amount: number; source: string; summary: string }> = {
@@ -1302,13 +1701,29 @@ const deriveRevenueStreams = (state: GameState): RevenueStream[] => {
 
     const metadata = trackRevenueNames[trackId];
     streams.push({
-      id: `track-${trackId}`,
-      name: metadata.name,
-      amount: Number(revenueForTrack(trackId, level).toFixed(2)),
+      id: `track-passive-${trackId}`,
+      name: `${metadata.name} Baseline`,
+      amount: Number(stagePassiveRevenue(trackId, level).toFixed(2)),
       source: metadata.source,
-      summary: `${metadata.summary} Current tier: ${trackById(trackId).levels[level - 1].name}.`,
+      summary: `${metadata.summary} Passive retainers and pilot work unlocked through ${trackById(trackId).levels[level - 1].name}.`,
+      trackId,
     });
   });
+
+  state.commercializationPrograms
+    .filter((program) => program.status === "live")
+    .forEach((program) => {
+      streams.push({
+        id: `program-${program.id}`,
+        name: program.name,
+        amount: program.quarterlyRevenue,
+        source: program.source,
+        summary: `${program.summary} Live commercialization program.`,
+        trackId: program.trackId,
+        programId: program.id,
+        lane: program.lane,
+      });
+    });
 
   state.convergences.forEach((convergence) => {
     const revenue = convergenceRevenue[convergence.id];
@@ -1322,6 +1737,16 @@ const deriveRevenueStreams = (state: GameState): RevenueStream[] => {
       amount: revenue.amount,
       source: revenue.source,
       summary: revenue.summary,
+    });
+  });
+
+  getActiveCommercializationConvergences(state).forEach((convergence) => {
+    streams.push({
+      id: `market-${convergence.id}`,
+      name: convergence.name,
+      amount: convergence.revenue,
+      source: "Market Convergence",
+      summary: convergence.description,
     });
   });
 
@@ -1347,11 +1772,10 @@ const deriveExpenses = (state: GameState, computeCapacity: number): ExpenseBreak
     state.supplier.upkeepMultiplier,
     state.energyPolicy.upkeepMultiplier,
   );
-  const research = (Object.keys(state.tracks) as TrackId[]).reduce((sum, trackId) => {
-    const track = state.tracks[trackId];
-    const assignedCount = state.employees.filter((employee) => employee.assignedTrack === trackId).length;
-    return sum + trackResearchCost(trackId, track, assignedCount);
-  }, 0);
+  const research = getResearchExpenseBreakdown(state).reduce((sum, entry) => sum + entry.amount, 0);
+  const commercialization =
+    getCommercializationExpenseBreakdown(state).reduce((sum, entry) => sum + entry.amount, 0) +
+    getActiveCommercializationConvergences(state).reduce((sum, entry) => sum + entry.expense, 0);
 
   return {
     payroll: Number(payroll.toFixed(2)),
@@ -1359,6 +1783,7 @@ const deriveExpenses = (state: GameState, computeCapacity: number): ExpenseBreak
     expansion: Number(expansion.toFixed(2)),
     compute: Number(compute.toFixed(2)),
     research: Number(research.toFixed(2)),
+    commercialization: Number(commercialization.toFixed(2)),
   };
 };
 
@@ -1422,6 +1847,7 @@ export const recalculateState = (state: GameState) => {
 
   const facilityCapacity = computeCapacityFromFacilities(state.facilities);
   const computeCapacity = facilityCapacity || state.resources.computeCapacity;
+  const researchCapacity = getAvailableResearchCompute(state, computeCapacity);
   const revenueStreams = deriveRevenueStreams(state);
   const revenue = revenueStreams.reduce((sum, stream) => sum + stream.amount, 0);
   const expenses = deriveExpenses(state, computeCapacity);
@@ -1438,8 +1864,8 @@ export const recalculateState = (state: GameState) => {
 
   const totalAllocated = totalAllocatedCompute(state);
 
-  if (totalAllocated > computeCapacity) {
-    const ratio = computeCapacity / totalAllocated;
+  if (totalAllocated > researchCapacity && totalAllocated > 0) {
+    const ratio = researchCapacity / totalAllocated;
     (Object.keys(state.tracks) as TrackId[]).forEach((trackId) => {
       state.tracks[trackId].compute = Math.floor(state.tracks[trackId].compute * ratio);
     });
@@ -1585,6 +2011,7 @@ export const advanceTurn = (current: GameState) => {
 
   state.resources.capital += state.resources.revenue - state.resources.burn;
   reconcileProjects(state, worldEvents);
+  advanceCommercialPrograms(state, worldEvents);
   const breakthroughs = applyResearch(state);
   const triggeredConvergences = triggerConvergences(state);
   updateRivals(state, worldEvents);
@@ -1606,6 +2033,8 @@ export const advanceTurn = (current: GameState) => {
     0,
     100,
   );
+  recalculateState(state);
+  applyQuarterlyBoardPressure(state);
   recalculateState(state);
 
   const { headline, briefing } = buildBriefing(state, breakthroughs, worldEvents);
@@ -1674,7 +2103,7 @@ export const updateTrackCompute = (state: GameState, trackId: TrackId, delta: nu
     (sum, id) => sum + state.tracks[id].compute,
     0,
   );
-  const freeCompute = state.resources.computeCapacity - totalAllocated;
+  const freeCompute = Math.max(getResearchComputeCapacity(state) - totalAllocated, 0);
   const next = state.tracks[trackId];
   const change = delta > 0 ? Math.min(delta, freeCompute) : Math.max(delta, -next.compute);
 

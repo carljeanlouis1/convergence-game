@@ -53,6 +53,16 @@ export type NarrativeSystemId =
   | "dilemma-writer"
   | "chief-of-staff";
 
+export type CommercializationLane =
+  | "commercial"
+  | "public-sector"
+  | "strategic"
+  | "frontier";
+
+export type CommercializationStatus = "launching" | "live";
+
+export type FundingRoundId = "seed" | "series-a" | "series-b" | "series-c" | "series-d";
+
 export interface TrackDefinition {
   id: TrackId;
   name: string;
@@ -85,6 +95,79 @@ export interface TrackState {
   progress: number;
   compute: number;
   unlocked: boolean;
+}
+
+export interface CommercializationDefinition {
+  id: string;
+  trackId: TrackId;
+  lane: CommercializationLane;
+  name: string;
+  summary: string;
+  source: string;
+  minLevel: number;
+  upfrontCost: number;
+  setupTurns: number;
+  quarterlyRevenue: number;
+  quarterlyExpense: number;
+  computeDemand: number;
+  requiredTracks?: Partial<Record<TrackId, number>>;
+  effects: {
+    trust?: number;
+    fear?: number;
+    board?: number;
+    governmentDependence?: number;
+    safetyCulture?: number;
+    ethicsDebt?: number;
+    reputation?: number;
+  };
+}
+
+export interface CommercializationProgram {
+  id: string;
+  definitionId: string;
+  trackId: TrackId;
+  lane: CommercializationLane;
+  name: string;
+  source: string;
+  summary: string;
+  status: CommercializationStatus;
+  turnsRemaining: number;
+  quarterlyRevenue: number;
+  quarterlyExpense: number;
+  computeDemand: number;
+  startedTurn: number;
+}
+
+export interface CommercializationConvergenceDefinition {
+  id: string;
+  name: string;
+  description: string;
+  requiredPrograms: string[];
+  revenue: number;
+  expense: number;
+  computeDemand?: number;
+  effects?: {
+    trust?: number;
+    fear?: number;
+    board?: number;
+    governmentDependence?: number;
+    reputation?: number;
+  };
+}
+
+export interface FundingOffer {
+  id: string;
+  name: string;
+  summary: string;
+  capital: number;
+  founderControlLoss: number;
+  boardDelta: number;
+  trustDelta: number;
+  fearDelta: number;
+  governmentDependenceDelta: number;
+  computeGrant?: number;
+  round: FundingRoundId;
+  cooldown: number;
 }
 
 export interface Researcher {
@@ -285,6 +368,9 @@ export interface GameFlags {
   safetyCulture: number;
   openness: number;
   crisisCount: number;
+  founderControl: number;
+  fundingRound: FundingRoundId;
+  lastFundingTurn: number;
   lastWorldTags: string[];
 }
 
@@ -293,6 +379,7 @@ export interface ExpenseBreakdown {
   compute: number;
   facilities: number;
   research: number;
+  commercialization: number;
   expansion: number;
 }
 
@@ -302,6 +389,9 @@ export interface RevenueStream {
   amount: number;
   source: string;
   summary: string;
+  trackId?: TrackId;
+  programId?: string;
+  lane?: CommercializationLane;
 }
 
 export interface ResourcesState {
@@ -393,6 +483,7 @@ export interface GameState {
   rivals: Record<RivalId, RivalState>;
   feed: NewsItem[];
   convergences: TriggeredConvergence[];
+  commercializationPrograms: CommercializationProgram[];
   usedDilemmas: string[];
   activeDilemma: DilemmaDefinition | null;
   activeDilemmaSource: string | null;

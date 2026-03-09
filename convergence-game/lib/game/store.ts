@@ -2,12 +2,14 @@
 
 import { create } from "zustand";
 import {
+  acceptFundingOffer,
   advanceTurn,
   assignResearcher,
   buildFacility,
   createNewGame,
   dismissResolution,
   hireCandidate,
+  launchCommercializationProgram,
   loadAutosave,
   loadFromSlot,
   loadSaveSummaries,
@@ -42,6 +44,8 @@ interface ConvergenceStore extends GameState {
   adjustCompute: (trackId: TrackId, delta: number) => void;
   assignPerson: (researcherId: string, trackId: TrackId | null) => void;
   hire: (candidateId: string) => void;
+  launchCommercialization: (definitionId: string) => void;
+  takeFunding: (offerId: string) => void;
   startFacility: (facilityId: string) => void;
   chooseSupplier: (vendor: string) => void;
   chooseEnergy: (energyId: string) => void;
@@ -69,6 +73,8 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
     adjustCompute,
     assignPerson,
     hire,
+    launchCommercialization,
+    takeFunding,
     startFacility,
     chooseSupplier,
     chooseEnergy,
@@ -95,6 +101,8 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
   void adjustCompute;
   void assignPerson;
   void hire;
+  void launchCommercialization;
+  void takeFunding;
   void startFacility;
   void chooseSupplier;
   void chooseEnergy;
@@ -230,6 +238,18 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
   hire: (candidateId) => {
     const state = cloneGameState(get());
     hireCandidate(state, candidateId);
+    persistIfPlaying(state);
+    set({ ...state });
+  },
+  launchCommercialization: (definitionId) => {
+    const state = cloneGameState(get());
+    launchCommercializationProgram(state, definitionId);
+    persistIfPlaying(state);
+    set({ ...state });
+  },
+  takeFunding: (offerId) => {
+    const state = cloneGameState(get());
+    acceptFundingOffer(state, offerId);
     persistIfPlaying(state);
     set({ ...state });
   },

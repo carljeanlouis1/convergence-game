@@ -72,6 +72,14 @@ import {
   describeGovernmentRelation,
   formatCurrency,
   getFacilityBuildTime,
+  getActiveCommercializationConvergences,
+  getActiveCommercializationPrograms,
+  getCommercializationExpenseBreakdown,
+  getCommercializationOptions,
+  getCommercializationReservedCompute,
+  getFundingOffers,
+  getResearchComputeCapacity,
+  getResearchExpenseBreakdown,
   getTrackForecast,
   getTrackRevenueBreakdown,
   tutorialNotes,
@@ -145,9 +153,18 @@ const tutorialSlides = [
     title: "Money and Burn",
     summary: "Hiring does not just cost a signing bonus. It permanently changes payroll and your quarterly burn.",
     points: [
-      "Revenue streams come from discovered products, partnerships, and convergence events.",
-      "Expenses are broken into payroll, compute, facilities, research overhead, and expansion projects.",
+      "Research levels now create passive baseline revenue, but the bigger money comes from track-specific commercialization programs you choose to launch.",
+      "Expenses are broken into payroll, compute, facilities, research overhead, commercialization opex, and expansion projects.",
       "A beautiful lab that cannot pay for its clusters still dies.",
+    ],
+  },
+  {
+    title: "Commercialize Deliberately",
+    summary: "A breakthrough is capability. A business line is a separate decision.",
+    points: [
+      "Each track unlocks different commercialization lanes like enterprise APIs, sovereign contracts, forecasting desks, pharma pipelines, or orbital operations.",
+      "Programs cost upfront capital, take time to launch, and reserve compute after they go live.",
+      "Some product choices combine across tracks to create market convergences with their own revenue and political consequences.",
     ],
   },
   {
@@ -165,7 +182,7 @@ const tutorialSlides = [
     points: [
       "Beneficial ASI now means reaching Foundation L6: Artificial Superintelligence with strong alignment, trust, and enough public legitimacy to keep control.",
       "Other endings include catastrophic misalignment, regulatory capture, irrelevance, corporate dystopia, transcendence, simulation revelation, and open future.",
-      "The race board compares labs on capability, trust, reliability, safety, and overall momentum so you can see who is closest to imposing their version of the future.",
+      "Finance now also tracks founder control and funding rounds, because raising money can save the lab while changing who really steers it.",
     ],
   },
   {
@@ -219,6 +236,21 @@ function statusPanelClasses(tone: "idle" | "checking" | "success" | "error") {
 function formatTurns(turns: number | null) {
   if (turns === null) return "Awaiting staff";
   return `${turns}Q`;
+}
+
+function formatExpenseLabel(label: string) {
+  if (label === "commercialization") return "Commercialization";
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function formatLaneLabel(label: string) {
+  return label === "public-sector"
+    ? "Public Sector"
+    : label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function formatFundingRoundLabel(round: string) {
+  return round === "seed" ? "Seed" : round.replace("series-", "Series ").toUpperCase();
 }
 
 function renderInlineFormatting(text: string) {
@@ -663,10 +695,10 @@ function TrackMap({
         <div className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-sky-200">
           {Math.round(
             (Object.values(state.tracks).reduce((sum, track) => sum + track.compute, 0) /
-              Math.max(state.resources.computeCapacity, 1)) *
+              Math.max(getResearchComputeCapacity(state), 1)) *
               100,
           )}
-          % compute committed
+          % research compute committed
         </div>
       </div>
       <div className="overflow-hidden rounded-[28px] border border-white/6 bg-[linear-gradient(180deg,rgba(12,18,38,0.88),rgba(8,12,24,0.92))]">
@@ -798,6 +830,7 @@ export function ConvergenceApp() {
   const [sceneArtScope, setSceneArtScope] = useState<"briefing" | "dilemma" | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isNarrating, setIsNarrating] = useState(false);
+  const [isNarrationLoading, setIsNarrationLoading] = useState(false);
   const deferredFeed = useDeferredValue(store.feed);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -860,7 +893,9 @@ export function ConvergenceApp() {
       !canResearcherSupportTrack(employee, store.selectedTrack),
   );
   const totalAllocated = Object.values(store.tracks).reduce((sum, track) => sum + track.compute, 0);
-  const freeCompute = store.resources.computeCapacity - totalAllocated;
+  const researchCapacity = getResearchComputeCapacity(store);
+  const reservedCommercialCompute = getCommercializationReservedCompute(store);
+  const freeCompute = Math.max(researchCapacity - totalAllocated, 0);
   const buildOptions = availableBuildOptions(store);
   const convergencePreview = CONVERGENCES
     .filter((convergence) => Object.keys(convergence.requirements).includes(store.selectedTrack))
@@ -927,8 +962,24 @@ export function ConvergenceApp() {
   ].sort((left, right) => right.raceScore - left.raceScore);
   const topRivalMove = topRivals[0]?.recentMove ?? "Rival status";
   const expenseEntries = Object.entries(store.resources.expenses).sort((left, right) => right[1] - left[1]);
+  const researchExpenseBreakdown = getResearchExpenseBreakdown(store);
+  const commercializationExpenseBreakdown = getCommercializationExpenseBreakdown(store);
+  const commercializationOptions = getCommercializationOptions(store, store.selectedTrack);
+  const activeCommercialPrograms = getActiveCommercializationPrograms(store, store.selectedTrack);
+  const activeCommercialConvergences = getActiveCommercializationConvergences(store);
+  const fundingOffers = getFundingOffers(store);
   const quarterlyNet = Number((store.resources.revenue - store.resources.burn).toFixed(2));
-  const trackRevenueStream = store.revenueStreams.find((stream) => stream.id === `track-${store.selectedTrack}`);
+  const trackRevenueStream = store.revenueStreams.find(
+    (stream) => stream.id === `track-passive-${store.selectedTrack}`,
+  );
+  const trackCommercialRevenueStreams = store.revenueStreams.filter(
+    (stream) => stream.trackId === store.selectedTrack && Boolean(stream.programId),
+  );
+  const selectedTrackResearchExpense =
+    researchExpenseBreakdown.find((entry) => entry.trackId === store.selectedTrack)?.amount ?? 0;
+  const selectedTrackCommercialExpense = commercializationExpenseBreakdown
+    .filter((entry) => entry.trackId === store.selectedTrack)
+    .reduce((sum, entry) => sum + entry.amount, 0);
   const trackRevenueBreakdown = getTrackRevenueBreakdown(store.selectedTrack);
   const unlockedRevenueStages = trackRevenueBreakdown.filter((stage) => stage.level <= selectedTrack.level);
   const totalUnlockedStageRevenue = unlockedRevenueStages.reduce((sum, stage) => sum + stage.stageRevenue, 0);
@@ -1260,6 +1311,7 @@ export function ConvergenceApp() {
     }
 
     setIsNarrating(false);
+    setIsNarrationLoading(false);
   };
 
   const playBlob = async (blob: Blob) => {
@@ -1278,6 +1330,7 @@ export function ConvergenceApp() {
       });
       stopNarration();
     };
+    setIsNarrationLoading(false);
     setIsNarrating(true);
 
     try {
@@ -1324,6 +1377,7 @@ export function ConvergenceApp() {
       tone: "checking",
       message: loadingMessage,
     });
+    setIsNarrationLoading(true);
 
     const result = await synthesizeOpenAITts({
       apiKey: store.openAISettings.apiKey,
@@ -1332,6 +1386,7 @@ export function ConvergenceApp() {
     });
 
     if (!result.ok || !result.blob) {
+      setIsNarrationLoading(false);
       setOpenAiStatusOverride({
         tone: "error",
         message: result.message,
@@ -2095,29 +2150,118 @@ export function ConvergenceApp() {
               ) : null}
             </AnimatePresence>
 
-            <TrackMap state={store} onOpenTrack={store.openTrack} />
+            {store.panel === "track" ? <TrackMap state={store} onOpenTrack={store.openTrack} /> : null}
 
-            <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Event Feed</p>
-                  <p className="mt-2 text-sm text-slate-400">Quarter-by-quarter news, breakthroughs, and scandals. Scroll horizontally.</p>
-                </div>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest {deferredFeed.length}</span>
-              </div>
-              <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-                {deferredFeed.map((item) => (
-                  <div key={item.id} className="min-w-[280px] rounded-[22px] border border-white/8 bg-white/4 p-4">
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
-                      <span className={`h-2 w-2 rounded-full ${item.severity === "critical" ? "bg-rose-400" : item.severity === "warning" ? "bg-amber-400" : "bg-sky-400"}`} />
-                      {item.kind}
-                    </div>
-                    <p className="mt-3 text-sm font-medium text-white">{item.title}</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">{item.body}</p>
+            {store.panel === "briefing" ? (
+              <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Event Feed</p>
+                    <p className="mt-2 text-sm text-slate-400">
+                      Quarter-by-quarter news, breakthroughs, and scandals.
+                    </p>
                   </div>
-                ))}
+                  <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                    Latest {deferredFeed.length}
+                  </span>
+                </div>
+                <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+                  {deferredFeed.map((item) => (
+                    <div key={item.id} className="min-w-[280px] rounded-[22px] border border-white/8 bg-white/4 p-4">
+                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
+                        <span className={`h-2 w-2 rounded-full ${item.severity === "critical" ? "bg-rose-400" : item.severity === "warning" ? "bg-amber-400" : "bg-sky-400"}`} />
+                        {item.kind}
+                      </div>
+                      <p className="mt-3 text-sm font-medium text-white">{item.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">{item.body}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
+
+            {store.panel !== "track" && store.panel !== "briefing" ? (
+              <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Operations Snapshot</p>
+                    <h3 className="mt-2 text-xl font-semibold text-white">
+                      {store.panel === "finance"
+                        ? "Capital markets and operating load"
+                        : store.panel === "hiring"
+                          ? "Coverage, arrivals, and payroll pressure"
+                          : store.panel === "facilities"
+                            ? "Compute posture and infrastructure load"
+                            : "Narrative and systems controls"}
+                    </h3>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                      {store.panel === "finance"
+                        ? "Use this view to judge whether runway should go into research, commercialization, or a fresh raise."
+                        : store.panel === "hiring"
+                          ? "Specialists arrive next turn, so hiring is a forecast decision instead of an instant fix."
+                          : store.panel === "facilities"
+                            ? "Suppliers, energy, and build projects set the ceiling for what the lab can support."
+                            : "AI flavor systems stay optional. The deterministic simulation underneath keeps running either way."}
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Founder Control</p>
+                      <p className="mt-2 text-lg font-medium text-white">{Math.round(store.flags.founderControl)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Reserved Compute</p>
+                      <p className="mt-2 text-lg font-medium text-white">{reservedCommercialCompute} PFLOPS</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                  <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Live Programs</p>
+                    <div className="mt-3 space-y-2">
+                      {store.commercializationPrograms.length ? (
+                        store.commercializationPrograms.slice(0, 4).map((program) => (
+                          <div key={program.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                            <p className="text-sm font-medium text-white">{program.name}</p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {program.status === "live" ? "Live" : `Launching · ${program.turnsRemaining}Q`}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No commercialization lines are active yet.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Funding Window</p>
+                    <div className="mt-3 space-y-2">
+                      {fundingOffers.length ? (
+                        fundingOffers.slice(0, 2).map((offer) => (
+                          <div key={offer.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                            <p className="text-sm font-medium text-white">{offer.name}</p>
+                            <p className="mt-1 text-xs text-slate-400">{offer.summary}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No fresh funding window right now.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest Feed</p>
+                    <div className="mt-3 space-y-2">
+                      {deferredFeed.slice(0, 3).map((item) => (
+                        <div key={item.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                          <p className="text-sm font-medium text-white">{item.title}</p>
+                          <p className="mt-1 text-xs text-slate-400">{item.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <aside className="min-w-0 space-y-4 rounded-[28px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur xl:col-span-2 2xl:col-span-1">
@@ -2178,10 +2322,11 @@ export function ConvergenceApp() {
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Assigned scientists</span><span className="text-white">{selectedForecast.assignedCount}</span></div>
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Recommended compute</span><span className="text-white">{selectedForecast.recommendedCompute} PFLOPS</span></div>
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Compute readiness</span><span className="text-white">{Math.round((selectedForecast.computeReadiness ?? 1) * 100)}%</span></div>
-                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Live track revenue</span><span className="text-emerald-200">{trackRevenueStream ? formatCurrency(trackRevenueStream.amount) : "None yet"}</span></div>
+                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Passive baseline</span><span className="text-emerald-200">{trackRevenueStream ? formatCurrency(trackRevenueStream.amount) : "None yet"}</span></div>
+                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Live commercial revenue</span><span className="text-emerald-200">{trackCommercialRevenueStreams.length ? formatCurrency(trackCommercialRevenueStreams.reduce((sum, stream) => sum + stream.amount, 0)) : "$0"}</span></div>
                     {selectedTrack.level < trackDefinition.levels.length ? (
                       <div className="mt-2 flex items-center justify-between text-sm text-slate-300">
-                        <span>Next stage lift</span>
+                        <span>Next passive lift</span>
                         <span className="text-sky-200">+{formatCurrency(trackRevenueBreakdown[selectedTrack.level].stageRevenue)}</span>
                       </div>
                     ) : null}
@@ -2197,9 +2342,52 @@ export function ConvergenceApp() {
                       <button type="button" onClick={() => store.adjustCompute(store.selectedTrack, 5)} className="rounded-xl border border-sky-400/40 bg-sky-500/10 px-3 py-2 text-white">+5</button>
                       <span className="ml-auto text-xs uppercase tracking-[0.18em] text-slate-500">{freeCompute} PFLOPS free</span>
                     </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Research Capacity</p>
+                        <p className="mt-2 text-sm font-medium text-white">{researchCapacity} PFLOPS</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Commercial Reserve</p>
+                        <p className="mt-2 text-sm font-medium text-white">{reservedCommercialCompute} PFLOPS</p>
+                      </div>
+                    </div>
                     <p className="mt-4 text-sm leading-6 text-slate-400">
-                      Supplier choice and energy policy modify how efficiently this compute turns into progress. Later-stage work now has a recommended compute floor, so underprovisioned projects slow down instead of scaling cleanly.
+                      Supplier choice and energy policy modify how efficiently this compute turns into progress. Live products can also reserve compute, so revenue programs and frontier research now compete for the same cluster time.
                     </p>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Research Economics</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        This is the recurring cost of keeping this program active before you even decide how to monetize it.
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-rose-200">
+                      {formatCurrency(selectedTrackResearchExpense)}
+                      <span className="ml-1 text-[11px] uppercase tracking-[0.18em] text-slate-500">per quarter</span>
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Recurring Research Cost</p>
+                      <p className="mt-2 text-sm font-medium text-white">{formatCurrency(selectedTrackResearchExpense)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Commercial Opex</p>
+                      <p className="mt-2 text-sm font-medium text-white">{formatCurrency(selectedTrackCommercialExpense)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Recommended Compute</p>
+                      <p className="mt-2 text-sm font-medium text-white">{selectedForecast.recommendedCompute} PFLOPS</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">ETA To Next Level</p>
+                      <p className="mt-2 text-sm font-medium text-white">{formatTurns(selectedForecast.turnsToLevel)}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -2208,7 +2396,7 @@ export function ConvergenceApp() {
                     <div>
                       <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Revenue Ladder</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        Each completed stage adds durable quarterly revenue to this track.
+                        Each completed stage adds passive quarterly revenue before you launch a full market path.
                       </p>
                     </div>
                     <span className="text-sm font-medium text-emerald-200">
@@ -2266,6 +2454,136 @@ export function ConvergenceApp() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Commercialization Paths</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Choose how this capability hits the market. These lanes compete with each other on compute, optics, and timing.
+                      </p>
+                    </div>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      {activeCommercialPrograms.length} active
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {commercializationOptions.map((option) => (
+                      <div key={option.id} className={`rounded-[22px] border p-4 ${option.available ? "border-sky-400/25 bg-sky-500/8" : "border-white/8 bg-slate-950/65"}`}>
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-base font-medium text-white">{option.name}</h3>
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                                {formatLaneLabel(option.lane)}
+                              </span>
+                              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                                L{option.minLevel}+
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">{option.summary}</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!option.available}
+                            onClick={() => store.launchCommercialization(option.id)}
+                            className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-slate-500"
+                          >
+                            {option.available ? "Launch" : "Locked"}
+                          </button>
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Upfront</p>
+                            <p className="mt-2 text-sm font-medium text-white">{formatCurrency(option.upfrontCost)}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Quarterly Net</p>
+                            <p className="mt-2 text-sm font-medium text-emerald-200">{formatCurrency(option.netRevenue)}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Compute Demand</p>
+                            <p className="mt-2 text-sm font-medium text-white">{option.computeDemand} PFLOPS</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Launch Time</p>
+                            <p className="mt-2 text-sm font-medium text-white">{option.setupTurns}Q</p>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs leading-5 text-slate-500">
+                          {option.blockedReason
+                            ? option.blockedReason
+                            : `Launch effects include ${option.effects.trust ? `${option.effects.trust > 0 ? "+" : ""}${option.effects.trust} trust` : "stable trust"}${option.effects.fear ? `, ${option.effects.fear > 0 ? "+" : ""}${option.effects.fear} fear` : ""}${option.effects.board ? `, ${option.effects.board > 0 ? "+" : ""}${option.effects.board} board` : ""}.`}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Active Programs</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Programs transition from setup to live status and then reserve compute every quarter.
+                      </p>
+                    </div>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      {trackCommercialRevenueStreams.length ? formatCurrency(trackCommercialRevenueStreams.reduce((sum, stream) => sum + stream.amount, 0)) : "$0"} / quarter
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {activeCommercialPrograms.length ? (
+                      activeCommercialPrograms.map((program) => (
+                        <div key={program.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-white">{program.name}</span>
+                            <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                              {program.status === "live" ? "Live" : `${program.turnsRemaining}Q to live`}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid gap-2 text-xs text-slate-400 sm:grid-cols-3">
+                            <span>Revenue {formatCurrency(program.quarterlyRevenue)}</span>
+                            <span>Expense {formatCurrency(program.quarterlyExpense)}</span>
+                            <span>Compute {program.computeDemand} PFLOPS</span>
+                          </div>
+                          <p className="mt-2 text-xs leading-5 text-slate-500">{program.summary}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">No commercialization programs are active on this track yet.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Market Convergences</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Product choices can create new business-layer convergences before the research layer fully closes.
+                      </p>
+                    </div>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      {activeCommercialConvergences.length} live
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {activeCommercialConvergences.length ? (
+                      activeCommercialConvergences.map((convergence) => (
+                        <div key={convergence.id} className="rounded-2xl border border-emerald-400/20 bg-emerald-500/8 px-3 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-white">{convergence.name}</span>
+                            <span className="text-sm text-emerald-200">{formatCurrency(convergence.revenue)}</span>
+                          </div>
+                          <p className="mt-2 text-xs leading-5 text-slate-300">{convergence.description}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">No live market convergence yet. Launch track-specific products to create business-layer synergies.</p>
+                    )}
                   </div>
                 </div>
 
@@ -2421,11 +2739,11 @@ export function ConvergenceApp() {
 
                         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                           <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Stage Lift</p>
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Passive Lift</p>
                             <p className="mt-2 text-sm font-medium text-emerald-200">+{formatCurrency(stage.stageRevenue)}</p>
                           </div>
                           <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
-                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cumulative</p>
+                            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cumulative Passive</p>
                             <p className="mt-2 text-sm font-medium text-white">{formatCurrency(stage.cumulativeRevenue)}</p>
                           </div>
                           <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
@@ -2557,9 +2875,9 @@ export function ConvergenceApp() {
                       <p className="mt-3 text-base font-medium text-white">{chiefMemo ? "AI Memo" : store.resolution?.headline}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <button type="button" onClick={() => void narrateTurnSummary()} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white">
+                      <button type="button" onClick={() => void narrateTurnSummary()} disabled={isNarrationLoading} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
                         <AudioLines className="h-4 w-4" />
-                        Read Summary
+                        {isNarrationLoading ? "Generating Voice..." : "Read Summary"}
                       </button>
                       <button
                         type="button"
@@ -2702,7 +3020,7 @@ export function ConvergenceApp() {
                   <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Compute Capacity</p>
                     <p className="mt-3 text-2xl font-semibold text-white">{store.resources.computeCapacity} PFLOPS</p>
-                    <p className="mt-2 text-xs text-slate-500">Total PFLOPS available to allocate across research tracks.</p>
+                    <p className="mt-2 text-xs text-slate-500">Raw capacity {researchCapacity} research PFLOPS after {reservedCommercialCompute} PFLOPS reserved for live products.</p>
                   </div>
                 </div>
 
@@ -2734,7 +3052,7 @@ export function ConvergenceApp() {
                       {expenseEntries.map(([label, amount]) => (
                         <div key={label} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-sm font-medium capitalize text-white">{label}</span>
+                            <span className="text-sm font-medium text-white">{formatExpenseLabel(label)}</span>
                             <span className="text-sm text-rose-200">{formatCurrency(amount)}</span>
                           </div>
                           <p className="mt-2 text-xs text-slate-500">
@@ -2742,6 +3060,123 @@ export function ConvergenceApp() {
                           </p>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Research Cost By Track</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        Total {formatCurrency(store.resources.expenses.research)}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {researchExpenseBreakdown.map((entry) => (
+                        <div key={entry.trackId} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-white">{entry.name}</span>
+                            <span className="text-sm text-rose-200">{formatCurrency(entry.amount)}</span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-400">
+                            {entry.projectName} · {entry.assignedCount} staff · {entry.compute} PFLOPS
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Commercial Programs</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        Opex {formatCurrency(store.resources.expenses.commercialization)}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {commercializationExpenseBreakdown.length ? (
+                        commercializationExpenseBreakdown.map((entry) => (
+                          <div key={entry.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-medium text-white">{entry.name}</span>
+                              <span className="text-sm text-rose-200">{formatCurrency(entry.amount)}</span>
+                            </div>
+                            <p className="mt-2 text-xs text-slate-400">
+                              {TRACK_DEFINITIONS.find((track) => track.id === entry.trackId)?.name} · {entry.status === "live" ? "Live" : "Launching"} · {entry.computeDemand} PFLOPS
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">No commercial operating load yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Founder Control</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        {formatFundingRoundLabel(store.flags.fundingRound)}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Control</p>
+                        <p className="mt-2 text-sm font-medium text-white">{Math.round(store.flags.founderControl)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Board Confidence</p>
+                        <p className="mt-2 text-sm font-medium text-white">{Math.round(store.resources.boardConfidence)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Last Raise</p>
+                        <p className="mt-2 text-sm font-medium text-white">
+                          {store.flags.lastFundingTurn < 0 ? "Never" : `Turn ${store.flags.lastFundingTurn}`}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      Lower founder control makes negative net quarters and fear spikes hurt board confidence faster.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Capital Market Offers</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        {fundingOffers.length ? `${fundingOffers.length} live` : "No window"}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {fundingOffers.length ? (
+                        fundingOffers.map((offer) => (
+                          <div key={offer.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium text-white">{offer.name}</span>
+                                <span className="mt-1 block text-xs leading-5 text-slate-400">{offer.summary}</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => store.takeFunding(offer.id)}
+                                className="rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100"
+                              >
+                                Take
+                              </button>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-3">
+                              <span>Cash {formatCurrency(offer.capital)}</span>
+                              <span>Control -{offer.founderControlLoss}</span>
+                              <span>{offer.computeGrant ? `+${offer.computeGrant} PFLOPS` : "No compute grant"}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">Runway is acceptable for now. Offers appear when the market window is open or the lab starts running hot on cash.</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2989,7 +3424,7 @@ export function ConvergenceApp() {
                     <button type="button" onClick={() => void activateOpenAI()} disabled={openAiStatus.tone === "checking"} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
                       {openAiStatus.tone === "checking" ? "Testing..." : "Activate Voice"}
                     </button>
-                    <button type="button" onClick={() => void narrateTurnSummary()} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">Test Current Summary</button>
+                    <button type="button" onClick={() => void narrateTurnSummary()} disabled={isNarrationLoading} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-60">{isNarrationLoading ? "Generating Voice..." : "Test Current Summary"}</button>
                     <button type="button" onClick={disableOpenAI} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">Disable</button>
                   </div>
                   <label className="mt-4 flex items-center gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-4 py-3 text-sm">
@@ -3125,9 +3560,9 @@ export function ConvergenceApp() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <button type="button" onClick={() => void narrateDilemmaSummary()} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white">
+                  <button type="button" onClick={() => void narrateDilemmaSummary()} disabled={isNarrationLoading} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
                     <AudioLines className="h-4 w-4" />
-                    Read Context
+                    {isNarrationLoading ? "Generating Voice..." : "Read Context"}
                   </button>
                   <button
                     type="button"
