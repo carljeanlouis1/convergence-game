@@ -644,7 +644,7 @@ function CommercializationGraph({
         </div>
       </div>
 
-      <div className="mt-4 overflow-auto rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(8,14,28,0.94),rgba(6,10,22,0.98))]">
+      <div className="mt-4 overflow-x-auto overflow-y-hidden rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(8,14,28,0.94),rgba(6,10,22,0.98))]">
         <div className="border-b border-white/6 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-500 lg:hidden">
           Scroll to inspect the full commercialization graph.
         </div>
@@ -977,7 +977,7 @@ function TrackMap({
         <div className="border-b border-white/6 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-500 lg:hidden">
           Scroll to inspect the full research web.
         </div>
-        <div className="overflow-auto">
+        <div className="overflow-x-auto overflow-y-hidden">
           <div className="relative h-[620px] min-w-[920px] lg:h-[560px] lg:min-w-0 2xl:h-[660px]">
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
               {links.map((link) => (
@@ -1386,8 +1386,9 @@ export function ConvergenceApp() {
     : "";
   const payrollEntries = [...store.employees].sort((left, right) => right.salary - left.salary);
   const layoutClass = intelCollapsed
-    ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)] 2xl:grid-cols-[88px_minmax(0,1fr)_minmax(330px,380px)]"
-    : "grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)_minmax(330px,380px)]";
+    ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)]"
+    : "grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]";
+  const workspaceClass = "min-w-0 space-y-4";
   const currentNarrationText = [
     store.resolution?.headline,
     chiefMemo ?? store.resolution?.briefing,
@@ -2224,7 +2225,7 @@ export function ConvergenceApp() {
     <main className="relative min-h-screen overflow-x-clip bg-[#040812] text-white">
       <PixiBackground />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.12),transparent_34%),linear-gradient(180deg,rgba(5,10,22,0.85),rgba(4,8,20,0.96))]" />
-      <div className="relative mx-auto flex min-h-screen max-w-[1680px] flex-col px-4 py-4 lg:px-6">
+      <div className="relative mx-auto flex min-h-screen max-w-[1880px] flex-col px-4 py-4 lg:px-6">
         <header className="mb-4 flex flex-col gap-4 rounded-[28px] border border-white/10 bg-slate-950/78 px-5 py-4 backdrop-blur">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex min-w-0 items-center gap-4">
@@ -2490,6 +2491,7 @@ export function ConvergenceApp() {
             )}
           </aside>
 
+          <div className={workspaceClass}>
           <section className="min-w-0 space-y-4">
             <AnimatePresence>
               {store.tutorialStep < tutorialNotes.length ? (
@@ -2620,7 +2622,7 @@ export function ConvergenceApp() {
             ) : null}
           </section>
 
-          <aside className="min-w-0 space-y-4 rounded-[28px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur xl:col-span-2 2xl:col-span-1">
+          <aside className="min-w-0 space-y-4 rounded-[28px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Detail Panel</p>
@@ -4090,6 +4092,7 @@ export function ConvergenceApp() {
               </div>
             ) : null}
           </aside>
+          </div>
         </div>
       </div>
 
