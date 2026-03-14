@@ -573,6 +573,20 @@ function commercializationRowXPositions(count: number) {
   }
 }
 
+const commercializationLaneOrder = {
+  commercial: 0,
+  "public-sector": 1,
+  strategic: 2,
+  frontier: 3,
+} as const;
+
+const commercializationLaneColumns = {
+  commercial: 18,
+  "public-sector": 40,
+  strategic: 62,
+  frontier: 84,
+} as const;
+
 function CommercializationGraph({
   options,
   selectedId,
@@ -584,16 +598,31 @@ function CommercializationGraph({
 }) {
   const tiers: Array<1 | 2 | 3> = [1, 2, 3];
   const tierY: Record<1 | 2 | 3, number> = {
-    1: 18,
+    1: 82,
     2: 50,
-    3: 82,
+    3: 18,
   };
   const positions = new Map<string, { x: number; y: number }>();
 
   tiers.forEach((tier) => {
     const row = options.filter((option) => option.tier === tier);
-    const xs = commercializationRowXPositions(row.length);
-    row.forEach((option, index) => {
+    const uniqueLanes = new Set(row.map((option) => option.lane));
+    const laneAligned =
+      row.length > 0 &&
+      row.length <= 4 &&
+      uniqueLanes.size === row.length &&
+      !row.every((option) => option.lane === "frontier");
+    const orderedRow = laneAligned
+      ? [...row].sort(
+          (left, right) =>
+            commercializationLaneOrder[left.lane] - commercializationLaneOrder[right.lane],
+        )
+      : row;
+    const xs = laneAligned
+      ? orderedRow.map((option) => commercializationLaneColumns[option.lane])
+      : commercializationRowXPositions(orderedRow.length);
+
+    orderedRow.forEach((option, index) => {
       positions.set(option.id, { x: xs[index] ?? 50, y: tierY[tier] });
     });
   });
@@ -631,9 +660,9 @@ function CommercializationGraph({
                   <line
                     key={`${prerequisiteId}-${option.id}`}
                     x1={from.x}
-                    y1={from.y + 6}
+                    y1={from.y > to.y ? from.y - 6 : from.y + 6}
                     x2={to.x}
-                    y2={to.y - 6}
+                    y2={from.y > to.y ? to.y + 6 : to.y - 6}
                     stroke={option.available || option.isLive || option.isLaunching ? "rgba(125,211,252,0.42)" : "rgba(120,140,180,0.18)"}
                     strokeDasharray={option.isLive || option.isLaunching ? "0" : "4 4"}
                     strokeWidth={option.isLive || option.isLaunching ? 1.2 : 0.8}
