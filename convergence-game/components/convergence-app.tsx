@@ -95,6 +95,7 @@ import {
   CloudSaveSummary,
   GameState,
   PanelId,
+  Researcher,
   RivalId,
   SaveSlotId,
   StartPresetId,
@@ -474,6 +475,57 @@ function SignalChip({
     <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${classes}`}>
       {label}
     </span>
+  );
+}
+
+function getInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function StaffAvatar({
+  researcher,
+  size = "md",
+}: {
+  researcher: Pick<Researcher, "id" | "name" | "primaryTrack" | "role">;
+  size?: "sm" | "md" | "lg";
+}) {
+  const track = TRACK_DEFINITIONS.find((entry) => entry.id === researcher.primaryTrack);
+  const sizeClass = size === "lg" ? "h-20 w-20" : size === "sm" ? "h-11 w-11" : "h-14 w-14";
+  const textClass = size === "lg" ? "text-lg" : size === "sm" ? "text-xs" : "text-sm";
+
+  return (
+    <div
+      className={`relative shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70 ${sizeClass}`}
+      style={{
+        boxShadow: track ? `0 0 0 1px ${track.accent}33, 0 16px 42px ${track.accent}16` : undefined,
+      }}
+      title={`${researcher.name} - ${researcher.role}`}
+    >
+      <div
+        className={`absolute inset-0 flex items-center justify-center font-semibold text-white ${textClass}`}
+        style={{
+          background: track
+            ? `radial-gradient(circle at 30% 20%, ${track.accent}66, transparent 48%), linear-gradient(135deg, #0a1328, #030713)`
+            : undefined,
+        }}
+      >
+        {getInitials(researcher.name)}
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/staff/${researcher.id}.jpg`}
+        alt={`${researcher.name} profile portrait`}
+        className="relative z-10 h-full w-full object-cover"
+        onError={(event) => {
+          event.currentTarget.style.display = "none";
+        }}
+      />
+    </div>
   );
 }
 
@@ -1967,6 +2019,82 @@ export function ConvergenceApp() {
       body: commandPriority.message,
     },
   ];
+  const priorityObjectives = [
+    store.activeDilemma
+      ? {
+          label: "Resolve the active dilemma",
+          detail: "The simulation clock is paused until this crisis has a recorded answer.",
+          panel: "dilemmas" as PanelId,
+          tone: "bad" as const,
+        }
+      : null,
+    selectedForecast.blockedReason
+      ? {
+          label: `Unblock ${getTrackLabel(store.selectedTrack)}`,
+          detail: selectedForecast.blockedReason,
+          panel: "track" as PanelId,
+          tone: "bad" as const,
+        }
+      : null,
+    freeCompute >= 5
+      ? {
+          label: "Put idle compute to work",
+          detail: `${freeCompute} PFLOPS can still accelerate an active research lane.`,
+          panel: "track" as PanelId,
+          tone: "focus" as const,
+        }
+      : null,
+    assignedHeadcount < store.employees.length
+      ? {
+          label: "Assign idle staff",
+          detail: `${store.employees.length - assignedHeadcount} employee${store.employees.length - assignedHeadcount === 1 ? "" : "s"} can still contribute before ending the turn.`,
+          panel: "track" as PanelId,
+          tone: "focus" as const,
+        }
+      : null,
+    store.resources.runwayMonths < 12
+      ? {
+          label: "Protect runway",
+          detail: "Review burn, payroll, funding, and commercialization before the board loses patience.",
+          panel: "finance" as PanelId,
+          tone: "bad" as const,
+        }
+      : null,
+    fundingOffers.length > 0 && store.resources.runwayMonths < 18
+      ? {
+          label: "Review live funding",
+          detail: `${fundingOffers.length} capital window${fundingOffers.length === 1 ? " is" : "s are"} open, with control tradeoffs.`,
+          panel: "finance" as PanelId,
+          tone: "neutral" as const,
+        }
+      : null,
+    selectedCommercializationOption?.available &&
+    !selectedCommercializationOption.isLive &&
+    !selectedCommercializationOption.isLaunching
+      ? {
+          label: "Consider a revenue program",
+          detail: `${selectedCommercializationOption.name} can convert research progress into recurring cash.`,
+          panel: "track" as PanelId,
+          tone: "good" as const,
+        }
+      : null,
+    matchingCandidateCount > 0
+      ? {
+          label: "Scan the talent market",
+          detail: `${matchingCandidateCount} candidate${matchingCandidateCount === 1 ? "" : "s"} fit the selected research lane.`,
+          panel: "hiring" as PanelId,
+          tone: "neutral" as const,
+        }
+      : null,
+  ]
+    .filter(Boolean)
+    .slice(0, 4) as Array<{
+    label: string;
+    detail: string;
+    panel: PanelId;
+    tone: "bad" | "focus" | "good" | "neutral";
+  }>;
+  const oneMoreTurnReady = !store.activeDilemma && priorityObjectives.every((objective) => objective.tone !== "bad");
   const sceneArtModeSummary = serverSceneArtReady
     ? "Auto scenes use the fast image lane first; manual premium generation uses GPT Image 2 when available."
     : "Connect production AI to unlock automatic briefing and crisis art.";
@@ -3114,6 +3242,42 @@ export function ConvergenceApp() {
               </div>
 
               <div className="mission-card rounded-[28px] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Next Objectives</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      {oneMoreTurnReady
+                        ? "No red blockers. You can tune choices or advance the quarter."
+                        : "Clear the highest-pressure items before ending the turn."}
+                    </p>
+                  </div>
+                  <SignalChip label={oneMoreTurnReady ? "Ready" : "Check first"} tone={oneMoreTurnReady ? "good" : "focus"} />
+                </div>
+                <div className="mt-4 space-y-2">
+                  {priorityObjectives.length ? (
+                    priorityObjectives.map((objective, index) => (
+                      <button
+                        key={`${objective.label}-${index}`}
+                        type="button"
+                        onClick={() => store.openPanel(objective.panel)}
+                        className="flex w-full items-start justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3 text-left transition hover:border-sky-400/25 hover:bg-sky-500/8"
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-white">{objective.label}</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-400">{objective.detail}</span>
+                        </span>
+                        <SignalChip label={`0${index + 1}`} tone={objective.tone} />
+                      </button>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-emerald-400/18 bg-emerald-500/10 px-3 py-3 text-sm leading-6 text-emerald-100">
+                      The board is calm, the lab is staffed, and the clock can move when you are ready.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mission-card rounded-[28px] p-5">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Run Controls</p>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <button
@@ -3622,9 +3786,13 @@ export function ConvergenceApp() {
                         return (
                         <div key={candidate.id} className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="text-lg font-semibold text-white">{candidate.name}</h3>
-                              <p className="mt-1 text-sm text-slate-400">{candidate.role}</p>
+                            <div className="flex min-w-0 items-start gap-3">
+                              <StaffAvatar researcher={candidate} size="lg" />
+                              <div className="min-w-0">
+                                <h3 className="text-lg font-semibold text-white">{candidate.name}</h3>
+                                <p className="mt-1 text-sm text-slate-400">{candidate.role}</p>
+                                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">{candidate.location}</p>
+                              </div>
                             </div>
                             <button
                               type="button"
@@ -4370,9 +4538,12 @@ export function ConvergenceApp() {
 
                         return (
                           <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, null)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
-                            <span className="min-w-0">
-                              <span className="block text-sm font-medium text-white">{employee.name}</span>
-                              <span className="text-xs text-slate-400">{employee.role} / {contributor.focus} / +{contributor.contribution}</span>
+                            <span className="flex min-w-0 items-center gap-3">
+                              <StaffAvatar researcher={employee} size="sm" />
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium text-white">{employee.name}</span>
+                                <span className="text-xs text-slate-400">{employee.role} / {contributor.focus} / +{contributor.contribution}</span>
+                              </span>
                             </span>
                             <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Unassign</span>
                           </button>
@@ -4398,10 +4569,13 @@ export function ConvergenceApp() {
                         {availableResearchers.length ? (
                           availableResearchers.slice(0, 6).map((employee) => (
                             <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
-                              <span className="min-w-0">
-                                <span className="block text-sm font-medium text-white">{employee.name}</span>
-                                <span className="text-xs text-slate-400">{employee.role} / Salary {formatCurrency(employee.salary)}</span>
-                                <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
+                              <span className="flex min-w-0 items-center gap-3">
+                                <StaffAvatar researcher={employee} size="sm" />
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-medium text-white">{employee.name}</span>
+                                  <span className="text-xs text-slate-400">{employee.role} / Salary {formatCurrency(employee.salary)}</span>
+                                  <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
+                                </span>
                               </span>
                               <span className="text-xs uppercase tracking-[0.18em] text-sky-300">Assign</span>
                             </button>
@@ -4418,12 +4592,15 @@ export function ConvergenceApp() {
                         {committedResearchers.length ? (
                           committedResearchers.slice(0, 6).map((employee) => (
                             <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
-                              <span className="min-w-0">
-                                <span className="block text-sm font-medium text-white">{employee.name}</span>
-                                <span className="text-xs text-slate-400">
-                                  {employee.role} / Currently on {getTrackLabel(employee.assignedTrack)}
+                              <span className="flex min-w-0 items-center gap-3">
+                                <StaffAvatar researcher={employee} size="sm" />
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-medium text-white">{employee.name}</span>
+                                  <span className="text-xs text-slate-400">
+                                    {employee.role} / Currently on {getTrackLabel(employee.assignedTrack)}
+                                  </span>
+                                  <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
                                 </span>
-                                <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
                               </span>
                               <span className="text-xs uppercase tracking-[0.18em] text-amber-300">Reassign</span>
                             </button>
@@ -4439,10 +4616,13 @@ export function ConvergenceApp() {
                       <div className="mt-2 space-y-2">
                         {ineligibleResearchers.length ? (
                           ineligibleResearchers.slice(0, 6).map((employee) => (
-                            <div key={employee.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
-                              <span className="block text-sm font-medium text-white">{employee.name}</span>
-                              <span className="block text-xs text-slate-400">{employee.role}</span>
-                              <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
+                            <div key={employee.id} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                              <StaffAvatar researcher={employee} size="sm" />
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium text-white">{employee.name}</span>
+                                <span className="block text-xs text-slate-400">{employee.role}</span>
+                                <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
+                              </span>
                             </div>
                           ))
                         ) : (
@@ -4957,9 +5137,12 @@ export function ConvergenceApp() {
                     <div className="mt-3 space-y-2">
                       {payrollEntries.map((employee) => (
                         <div key={employee.id} className="flex items-start justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
-                          <span className="min-w-0">
-                            <span className="block text-sm font-medium text-white">{employee.name}</span>
-                            <span className="text-xs text-slate-400">{employee.role} / {getTrackLabel(employee.assignedTrack)}</span>
+                          <span className="flex min-w-0 items-center gap-3">
+                            <StaffAvatar researcher={employee} size="sm" />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-white">{employee.name}</span>
+                              <span className="text-xs text-slate-400">{employee.role} / {getTrackLabel(employee.assignedTrack)}</span>
+                            </span>
                           </span>
                           <span className="shrink-0 text-sm text-white">{formatCurrency(employee.salary / 4)}</span>
                         </div>
@@ -4977,7 +5160,10 @@ export function ConvergenceApp() {
                         store.pendingHires.map((hire) => (
                           <div key={hire.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
                             <div className="flex items-center justify-between gap-3">
-                              <span className="text-sm font-medium text-white">{hire.name}</span>
+                              <span className="flex min-w-0 items-center gap-3">
+                                <StaffAvatar researcher={hire} size="sm" />
+                                <span className="text-sm font-medium text-white">{hire.name}</span>
+                              </span>
                               <span className="text-sm text-amber-200">Arrives next quarter</span>
                             </div>
                             <p className="mt-1 text-xs text-slate-400">{hire.role} / Unlocks {getTrackLabel(hire.primaryTrack)}</p>
@@ -5065,7 +5251,10 @@ export function ConvergenceApp() {
                       store.pendingHires.map((hire) => (
                         <div key={hire.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-sm font-medium text-white">{hire.name}</span>
+                            <span className="flex min-w-0 items-center gap-3">
+                              <StaffAvatar researcher={hire} size="sm" />
+                              <span className="text-sm font-medium text-white">{hire.name}</span>
+                            </span>
                             <span className="text-xs uppercase tracking-[0.18em] text-amber-300">Arrives next quarter</span>
                           </div>
                           <p className="mt-1 text-xs text-slate-400">{hire.role} / {getTrackLabel(hire.primaryTrack)}</p>

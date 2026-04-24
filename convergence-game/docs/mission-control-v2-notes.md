@@ -42,3 +42,11 @@ Separate visual mockups live in `docs/mission-control-v2-mockups/`:
 - Make every major panel answer three questions: what changed, why it matters, and what to do next.
 - Use AI scene art as an atmosphere layer in briefing and dilemma moments, not as required core gameplay.
 - Keep public API endpoints unchanged: `/api/ai/status`, `/api/ai/narrative`, `/api/ai/scene-image`, and `/api/ai/tts`.
+
+## Staff Portraits
+
+- Generated square staff portraits for the full researcher catalog with Gemini image generation.
+- Portraits live in `public/staff/` and are referenced by researcher ID, for example `/staff/mae-ibarra.jpg`.
+- The generation script is `scripts/generate-staff-portraits.mjs` and reads `GEMINI_API_KEY` from the local environment.
+- The key is intentionally not stored in the repository.
+- Candidate and staff surfaces now show portraits in hiring, research assignment, payroll, and pending-hire queues.

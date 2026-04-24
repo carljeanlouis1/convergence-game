@@ -1,0 +1,206 @@
+{
+  "model": "gemini-3.1-flash-image-preview",
+  "generatedAt": "2026-04-24T03:40:54.987Z",
+  "staff": [
+    {
+      "id": "mae-ibarra",
+      "name": "Mae Ibarra",
+      "role": "Chief Scientist",
+      "primaryTrack": "foundation",
+      "secondaryTrack": "simulation",
+      "file": "/staff/mae-ibarra.jpg"
+    },
+    {
+      "id": "tessa-noor",
+      "name": "Tessa Noor",
+      "role": "Alignment Lead",
+      "primaryTrack": "alignment",
+      "secondaryTrack": "foundation",
+      "file": "/staff/tessa-noor.jpg"
+    },
+    {
+      "id": "rafael-sato",
+      "name": "Rafael Sato",
+      "role": "Simulation Economist",
+      "primaryTrack": "simulation",
+      "secondaryTrack": "foundation",
+      "file": "/staff/rafael-sato.jpg"
+    },
+    {
+      "id": "keiko-tan",
+      "name": "Keiko Tan",
+      "role": "Infrastructure Director",
+      "primaryTrack": "foundation",
+      "secondaryTrack": "robotics",
+      "file": "/staff/keiko-tan.jpg"
+    },
+    {
+      "id": "laila-njeri",
+      "name": "Laila Njeri",
+      "role": "Chief of Staff",
+      "primaryTrack": "alignment",
+      "secondaryTrack": "simulation",
+      "file": "/staff/laila-njeri.jpg"
+    },
+    {
+      "id": "jonah-rex",
+      "name": "Jonah Rex",
+      "role": "Platform Engineer",
+      "primaryTrack": "foundation",
+      "secondaryTrack": "simulation",
+      "file": "/staff/jonah-rex.jpg"
+    },
+    {
+      "id": "anya-kovacs",
+      "name": "Anya Kovacs",
+      "role": "Robotics PI",
+      "primaryTrack": "robotics",
+      "secondaryTrack": "materials",
+      "file": "/staff/anya-kovacs.jpg"
+    },
+    {
+      "id": "marcus-vale",
+      "name": "Marcus Vale",
+      "role": "Applied Roboticist",
+      "primaryTrack": "robotics",
+      "secondaryTrack": "foundation",
+      "file": "/staff/marcus-vale.jpg"
+    },
+    {
+      "id": "dr-samira-chen",
+      "name": "Dr. Samira Chen",
+      "role": "Computational Biologist",
+      "primaryTrack": "biology",
+      "secondaryTrack": "foundation",
+      "file": "/staff/dr-samira-chen.jpg"
+    },
+    {
+      "id": "eli-baptiste",
+      "name": "Eli Baptiste",
+      "role": "Synthetic Biology Fellow",
+      "primaryTrack": "biology",
+      "secondaryTrack": "alignment",
+      "file": "/staff/eli-baptiste.jpg"
+    },
+    {
+      "id": "sofia-haddad",
+      "name": "Sofia Haddad",
+      "role": "Materials Scientist",
+      "primaryTrack": "materials",
+      "secondaryTrack": "robotics",
+      "file": "/staff/sofia-haddad.jpg"
+    },
+    {
+      "id": "diego-morrow",
+      "name": "Diego Morrow",
+      "role": "Metamaterials Engineer",
+      "primaryTrack": "materials",
+      "secondaryTrack": "space",
+      "file": "/staff/diego-morrow.jpg"
+    },
+    {
+      "id": "priya-raman",
+      "name": "Priya Raman",
+      "role": "Quantum Systems Lead",
+      "primaryTrack": "quantum",
+      "secondaryTrack": "foundation",
+      "file": "/staff/priya-raman.jpg"
+    },
+    {
+      "id": "mateo-klein",
+      "name": "Mateo Klein",
+      "role": "Quantum Hardware Engineer",
+      "primaryTrack": "quantum",
+      "secondaryTrack": "materials",
+      "file": "/staff/mateo-klein.jpg"
+    },
+    {
+      "id": "nora-kim",
+      "name": "Nora Kim",
+      "role": "Orbital Systems Director",
+      "primaryTrack": "space",
+      "secondaryTrack": "robotics",
+      "file": "/staff/nora-kim.jpg"
+    },
+    {
+      "id": "owen-park",
+      "name": "Owen Park",
+      "role": "Satellite Autonomy Engineer",
+      "primaryTrack": "space",
+      "secondaryTrack": "simulation",
+      "file": "/staff/owen-park.jpg"
+    },
+    {
+      "id": "camila-ortega",
+      "name": "Camila Ortega",
+      "role": "Public Policy Counsel",
+      "primaryTrack": "alignment",
+      "secondaryTrack": "simulation",
+      "file": "/staff/camila-ortega.jpg"
+    },
+    {
+      "id": "hayden-sloan",
+      "name": "Hayden Sloan",
+      "role": "Product and Monetization",
+      "primaryTrack": "simulation",
+      "secondaryTrack": "foundation",
+      "file": "/staff/hayden-sloan.jpg"
+    },
+    {
+      "id": "yasmin-bekele",
+      "name": "Yasmin Bekele",
+      "role": "Trust and Safety PM",
+      "primaryTrack": "alignment",
+      "secondaryTrack": "foundation",
+      "file": "/staff/yasmin-bekele.jpg"
+    },
+    {
+      "id": "li-wei",
+      "name": "Li Wei",
+      "role": "Systems Security Researcher",
+      "primaryTrack": "foundation",
+      "secondaryTrack": "quantum",
+      "file": "/staff/li-wei.jpg"
+    },
+    {
+      "id": "grace-oduro",
+      "name": "Grace Oduro",
+      "role": "Climate Simulation Lead",
+      "primaryTrack": "simulation",
+      "secondaryTrack": "space",
+      "file": "/staff/grace-oduro.jpg"
+    },
+    {
+      "id": "viktor-aronov",
+      "name": "Viktor Aronov",
+      "role": "Autonomy Architect",
+      "primaryTrack": "foundation",
+      "secondaryTrack": "robotics",
+      "file": "/staff/viktor-aronov.jpg"
+    },
+    {
+      "id": "selene-ross",
+      "name": "Selene Ross",
+      "role": "Biosecurity Advisor",
+      "primaryTrack": "biology",
+      "secondaryTrack": "alignment",
+      "file": "/staff/selene-ross.jpg"
+    },
+    {
+      "id": "ida-larsen",
+      "name": "Ida Larsen",
+      "role": "Energy and Data Center Strategist",
+      "primaryTrack": "materials",
+      "secondaryTrack": "space",
+      "file": "/staff/ida-larsen.jpg"
+    },
+    {
+      "id": "darius-mbaye",
+      "name": "Darius Mbaye",
+      "role": "Field Robotics Operator",
+      "primaryTrack": "robotics",
+      "secondaryTrack": "space",
+      "file": "/staff/darius-mbaye.jpg"
+    }
+  ]
+}

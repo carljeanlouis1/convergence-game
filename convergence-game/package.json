@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "portraits:generate": "node scripts/generate-staff-portraits.mjs"
   },
   "dependencies": {
     "@pixi/react": "^8.0.5",
