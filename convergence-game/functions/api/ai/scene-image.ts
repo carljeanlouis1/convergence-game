@@ -20,6 +20,7 @@ const readPayload = async (request: Request) =>
   (await request.json().catch(() => null)) as
     | {
         prompt?: string;
+        mode?: "fast" | "premium";
       }
     | null;
 
@@ -28,11 +29,13 @@ const imageResponse = ({
   mimeType,
   provider,
   model,
+  mode,
 }: {
   bytes: ArrayBuffer;
   mimeType: string;
   provider: string;
   model: string;
+  mode: "fast" | "premium";
 }) =>
   new Response(bytes, {
     headers: {
@@ -40,6 +43,7 @@ const imageResponse = ({
       "Cache-Control": "no-store",
       "X-AI-Provider": provider,
       "X-AI-Model": model,
+      "X-AI-Mode": mode,
       "X-AI-Message": `${provider === "openai" ? "OpenAI" : "Gemini"} scene art generated successfully.`,
     },
   });
@@ -186,6 +190,7 @@ export async function onRequestPost({ request, env }: PagesContext) {
 
   const payload = await readPayload(request);
   const prompt = payload?.prompt?.trim();
+  const mode = payload?.mode === "fast" ? "fast" : "premium";
 
   if (!prompt) {
     return json({ ok: false, message: "Missing scene art prompt." }, 400);
@@ -201,44 +206,50 @@ export async function onRequestPost({ request, env }: PagesContext) {
   const openAIQuality = envValue(env.OPENAI_IMAGE_QUALITY, DEFAULT_OPENAI_IMAGE_QUALITY);
   const geminiModel = envValue(env.GEMINI_IMAGE_MODEL, DEFAULT_GEMINI_IMAGE_MODEL);
   let fallbackMessage = "Production AI scene art is not configured yet.";
+  const providerOrder =
+    mode === "fast" ? (["gemini", "openai"] as const) : (["openai", "gemini"] as const);
 
-  if (openAIKey) {
-    const result = await generateOpenAIImage({
-      apiKey: openAIKey,
-      model: openAIModel,
-      quality: openAIQuality,
-      prompt,
-    });
-
-    if (result.ok) {
-      return imageResponse({
-        bytes: result.bytes,
-        mimeType: result.mimeType,
-        provider: "openai",
+  for (const provider of providerOrder) {
+    if (provider === "openai" && openAIKey) {
+      const result = await generateOpenAIImage({
+        apiKey: openAIKey,
         model: openAIModel,
+        quality: openAIQuality,
+        prompt,
       });
+
+      if (result.ok) {
+        return imageResponse({
+          bytes: result.bytes,
+          mimeType: result.mimeType,
+          provider: "openai",
+          model: openAIModel,
+          mode,
+        });
+      }
+
+      fallbackMessage = result.message;
     }
 
-    fallbackMessage = result.message;
-  }
-
-  if (geminiKey) {
-    const result = await generateGeminiImage({
-      apiKey: geminiKey,
-      model: geminiModel,
-      prompt,
-    });
-
-    if (result.ok) {
-      return imageResponse({
-        bytes: result.bytes,
-        mimeType: result.mimeType,
-        provider: "gemini",
+    if (provider === "gemini" && geminiKey) {
+      const result = await generateGeminiImage({
+        apiKey: geminiKey,
         model: geminiModel,
+        prompt,
       });
-    }
 
-    fallbackMessage = result.message;
+      if (result.ok) {
+        return imageResponse({
+          bytes: result.bytes,
+          mimeType: result.mimeType,
+          provider: "gemini",
+          model: geminiModel,
+          mode,
+        });
+      }
+
+      fallbackMessage = result.message;
+    }
   }
 
   return json({ ok: false, message: fallbackMessage }, openAIKey || geminiKey ? 502 : 503);

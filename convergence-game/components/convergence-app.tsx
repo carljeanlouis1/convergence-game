@@ -126,6 +126,15 @@ const TRACK_UNLOCK_NOTES: Record<TrackId, string> = {
 
 const slots: SaveSlotId[] = [1, 2, 3];
 
+const NAV_PANELS: Array<{ id: PanelId; label: string; icon: typeof BrainCircuit }> = [
+  { id: "briefing", label: "Brief", icon: Globe2 },
+  { id: "track", label: "Research", icon: BrainCircuit },
+  { id: "finance", label: "Finance", icon: BarChart3 },
+  { id: "hiring", label: "Hiring", icon: Users },
+  { id: "facilities", label: "Build", icon: Building2 },
+  { id: "settings", label: "AI", icon: Handshake },
+];
+
 const tutorialSlides = [
   {
     title: "The Quarterly Loop",
@@ -494,6 +503,47 @@ function describeAssignmentScope(
   return employee.secondaryTrack
     ? `Eligible for ${getTrackLabel(employee.primaryTrack)} and ${getTrackLabel(employee.secondaryTrack)}.`
     : `Eligible for ${getTrackLabel(employee.primaryTrack)} only.`;
+}
+
+function getCandidateFitScore(
+  candidate: {
+    generalist?: boolean;
+    primaryTrack: TrackId;
+    secondaryTrack?: TrackId;
+    research: number;
+    execution: number;
+    leadership: number;
+    ethics: number;
+    contestedBy?: RivalId | null;
+  },
+  trackId: TrackId,
+) {
+  const laneFit = candidate.generalist
+    ? 28
+    : candidate.primaryTrack === trackId
+      ? 38
+      : candidate.secondaryTrack === trackId
+        ? 28
+        : 8;
+  const capabilityFit =
+    candidate.research * 3.2 + candidate.execution * 2.2 + candidate.leadership * 1.4 + candidate.ethics * 1.2;
+  const contestModifier = candidate.contestedBy ? -6 : 0;
+
+  return Math.max(0, Math.min(100, Math.round(laneFit + capabilityFit + contestModifier)));
+}
+
+function getCandidateFitLabel(score: number) {
+  if (score >= 82) return "Prime fit";
+  if (score >= 66) return "Strong fit";
+  if (score >= 48) return "Viable fit";
+  return "Stretch fit";
+}
+
+function getCandidateFitTone(score: number): "neutral" | "good" | "bad" | "focus" {
+  if (score >= 82) return "good";
+  if (score >= 66) return "focus";
+  if (score >= 48) return "neutral";
+  return "bad";
 }
 
 function describeConvergenceReward(reward: {
@@ -1101,6 +1151,32 @@ function TrackMap({
   const liveProgramsOnTrack = state.commercializationPrograms.filter(
     (program) => program.trackId === state.selectedTrack && program.status === "live",
   ).length;
+  const selectedConvergenceReadiness = CONVERGENCES.filter((convergence) =>
+    Object.keys(convergence.requirements).includes(state.selectedTrack),
+  ).map((convergence) => {
+    const requiredLevel = convergence.requirements[state.selectedTrack] ?? 0;
+    const partnerRequirements = Object.entries(convergence.requirements).filter(
+      ([trackId]) => trackId !== state.selectedTrack,
+    ) as Array<[TrackId, number]>;
+    const partnersReady = partnerRequirements.every(
+      ([trackId, level]) => state.tracks[trackId].level >= level,
+    );
+
+    return {
+      id: convergence.id,
+      name: convergence.name,
+      requiredLevel,
+      ready: selectedTrack.level >= requiredLevel && partnersReady,
+      near: selectedTrack.level + 1 >= requiredLevel,
+      partnerLabel: partnerRequirements.length
+        ? partnerRequirements
+            .map(([trackId, level]) => `${getTrackLabel(trackId)} L${level}`)
+            .join(" + ")
+        : "No partner gate",
+    };
+  });
+  const readyConvergenceCount = selectedConvergenceReadiness.filter((convergence) => convergence.ready).length;
+  const nextConvergence = selectedConvergenceReadiness.find((convergence) => !convergence.ready && convergence.near);
 
   return (
     <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.18),transparent_40%),linear-gradient(180deg,rgba(7,12,28,0.98),rgba(7,10,24,0.92))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
@@ -1147,6 +1223,10 @@ function TrackMap({
             />
             <SignalChip label={`${selectedForecast.assignedCount} staff`} tone="neutral" />
             <SignalChip label={`${selectedTrack.compute} PFLOPS allocated`} tone="neutral" />
+            <SignalChip
+              label={nextConvergence ? `Next combo: ${nextConvergence.partnerLabel}` : `${readyConvergenceCount} combos ready`}
+              tone={readyConvergenceCount ? "good" : nextConvergence ? "focus" : "neutral"}
+            />
           </div>
         </div>
         <CommandMetric
@@ -1836,6 +1916,60 @@ export function ConvergenceApp() {
       tone: "slate" as const,
     };
   })();
+  const runwayPercent = Math.max(5, Math.min(100, (store.resources.runwayMonths / 36) * 100));
+  const runwayTone = store.resources.runwayMonths < 10 ? "bad" : store.resources.runwayMonths < 18 ? "neutral" : "good";
+  const maxLedgerMagnitude = Math.max(store.resources.revenue, store.resources.burn, Math.abs(quarterlyNet), 1);
+  const revenuePercent = Math.max(4, Math.min(100, (store.resources.revenue / maxLedgerMagnitude) * 100));
+  const burnPercent = Math.max(4, Math.min(100, (store.resources.burn / maxLedgerMagnitude) * 100));
+  const netPercent = Math.max(4, Math.min(100, (Math.abs(quarterlyNet) / maxLedgerMagnitude) * 100));
+  const staffCoveragePercent = Math.round((assignedHeadcount / Math.max(store.employees.length, 1)) * 100);
+  const researchCapacityPercent = Math.max(
+    5,
+    Math.min(100, (researchCapacity / Math.max(store.resources.computeCapacity, 1)) * 100),
+  );
+  const reservedComputePercent = Math.max(
+    reservedCommercialCompute > 0 ? 5 : 0,
+    Math.min(100, (reservedCommercialCompute / Math.max(store.resources.computeCapacity, 1)) * 100),
+  );
+  const nextProjectDue = store.projects.reduce<(typeof store.projects)[number] | null>(
+    (soonest, project) => (!soonest || project.turnsRemaining < soonest.turnsRemaining ? project : soonest),
+    null,
+  );
+  const missionActionCards = [
+    {
+      label: "What Changed",
+      value: store.activeDilemma
+        ? store.activeDilemma.title
+        : store.resolution?.headline ?? `${store.year} Q${store.quarterIndex + 1} command state`,
+      body:
+        store.resolution?.breakthroughs[0] ??
+        store.resolution?.worldEvents[0] ??
+        "The lab is waiting on your next allocation decision.",
+    },
+    {
+      label: "Why It Matters",
+      value:
+        store.resources.runwayMonths < 10
+          ? "Runway is fragile"
+          : quarterlyNet < 0
+            ? "Speed is spending trust and cash"
+            : `Rank #${playerRank} in the race board`,
+      body:
+        store.resources.runwayMonths < 10
+          ? "Cash pressure can turn a good research quarter into a board crisis."
+          : quarterlyNet < 0
+            ? "The current burn rate is acceptable only if the roadmap is moving fast enough."
+            : "You have room to shape the next quarter instead of merely reacting.",
+    },
+    {
+      label: "Next Move",
+      value: commandPriority.label,
+      body: commandPriority.message,
+    },
+  ];
+  const sceneArtModeSummary = serverSceneArtReady
+    ? "Auto scenes use the fast image lane first; manual premium generation uses GPT Image 2 when available."
+    : "Connect production AI to unlock automatic briefing and crisis art.";
   const layoutClass = intelCollapsed
     ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)]"
     : "grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]";
@@ -2208,7 +2342,10 @@ export function ConvergenceApp() {
     await playBlob(result.blob);
   };
 
-  const generateSceneArt = async (scope: "briefing" | "dilemma") => {
+  const generateSceneArt = async (
+    scope: "briefing" | "dilemma",
+    mode: "fast" | "premium" = "premium",
+  ) => {
     if (!store.aiSettings.enabled || !store.aiSettings.apiKey) {
       setSceneArtStatus({
         tone: "error",
@@ -2240,12 +2377,20 @@ export function ConvergenceApp() {
 
     setSceneArtStatus({
       tone: "checking",
-      message: scope === "dilemma" ? "Generating crisis scene art..." : "Generating briefing scene art...",
+      message:
+        scope === "dilemma"
+          ? mode === "fast"
+            ? "Generating fast crisis scene art..."
+            : "Generating premium crisis scene art..."
+          : mode === "fast"
+            ? "Generating fast briefing scene art..."
+            : "Generating premium briefing scene art...",
     });
 
     const result = await generateGeminiSceneImage({
       apiKey: store.aiSettings.apiKey,
       prompt,
+      mode,
     });
 
     if (!result.ok || !result.blob) {
@@ -2381,7 +2526,7 @@ export function ConvergenceApp() {
     }
 
     autoSceneArtKeyRef.current = key;
-    await generateSceneArt(scope);
+    await generateSceneArt(scope, "fast");
   });
 
   const connectProductionAI = useEffectEvent(async () => {
@@ -2655,13 +2800,13 @@ export function ConvergenceApp() {
 
   if (store.mode === "menu") {
     return (
-      <main className="relative min-h-screen overflow-x-clip bg-[#050916] text-white">
+      <main className="mission-shell relative min-h-screen overflow-x-clip text-white">
         <PixiBackground />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.16),transparent_28%),linear-gradient(180deg,rgba(4,10,22,0.78),rgba(4,8,20,0.96))]" />
         <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-8 lg:px-10">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-3xl">
-              <p className="text-xs uppercase tracking-[0.3em] text-sky-200">Convergence</p>
+              <p className="mission-eyebrow">Convergence Mission Control</p>
               <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight text-white lg:text-6xl">
                 Run the AI lab that decides what the century becomes.
               </h1>
@@ -2669,17 +2814,45 @@ export function ConvergenceApp() {
                 Turn-based strategy across 120 quarters of hiring, compute allocation, geopolitics,
                 and moral tradeoffs.
               </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                <SignalChip label="120 quarter campaign" tone="focus" />
+                <SignalChip label="Deterministic simulation" tone="neutral" />
+                <SignalChip label={serverSceneArtReady ? "Production AI online" : "AI optional"} tone={serverSceneArtReady ? "good" : "neutral"} />
+              </div>
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                <div className="mission-card rounded-[24px] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Opening Read</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">You are not just racing. You are deciding which compromises become normal.</p>
+                </div>
+                <div className="mission-card rounded-[24px] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Core Loop</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">Assign people, allocate compute, manage burn, then survive the next quarter.</p>
+                </div>
+                <div className="mission-card rounded-[24px] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">AI Layer</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">{sceneArtModeSummary}</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setTutorialOpen(true)}
-                className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200"
+                className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-3 text-sm text-sky-50"
               >
                 <BookOpen className="h-4 w-4" />
                 How It Works
               </button>
             </div>
-            <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-slate-950/80 p-5 xl:block">
+            <div className="mission-panel w-full max-w-sm rounded-[28px] p-5 xl:block">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Session Controls</p>
+              <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(geminiStatus.tone)}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <span>Production AI</span>
+                  <span className="text-[11px] uppercase tracking-[0.18em]">
+                    {serverAIStatus?.providers.openai || serverAIStatus?.providers.gemini ? "connected" : "standby"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5">{geminiStatus.message}</p>
+              </div>
               <div className="mt-4 space-y-3">
                 <button
                   type="button"
@@ -2804,11 +2977,11 @@ export function ConvergenceApp() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-x-clip bg-[#040812] text-white">
+    <main className="mission-shell relative min-h-screen overflow-x-clip text-white">
       <PixiBackground />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.12),transparent_34%),linear-gradient(180deg,rgba(5,10,22,0.85),rgba(4,8,20,0.96))]" />
-      <div className="relative mx-auto flex min-h-screen max-w-[1880px] flex-col px-4 py-4 lg:px-6">
-        <header className="mb-4 rounded-[32px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur lg:p-6">
+      <div className="relative mx-auto flex min-h-screen max-w-[1880px] flex-col px-4 py-4 pb-24 lg:px-6 lg:pb-6">
+        <header className="mission-panel-strong mb-4 rounded-[32px] p-5 lg:p-6">
           <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
             <div className="space-y-4">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -2839,7 +3012,7 @@ export function ConvergenceApp() {
                 </div>
               </div>
 
-              <div className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(83,166,255,0.16),transparent_36%),linear-gradient(180deg,rgba(9,16,32,0.94),rgba(8,13,26,0.82))] p-5">
+              <div className="mission-panel rounded-[30px] p-5">
                 <p className="text-xs uppercase tracking-[0.24em] text-sky-200">{activePanelMeta.eyebrow}</p>
                 <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-white">{activePanelMeta.title}</h2>
                 <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">{activePanelMeta.description}</p>
@@ -2861,10 +3034,19 @@ export function ConvergenceApp() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <SignalChip label={store.activeDilemma ? "Turn paused" : "Simulation live"} tone={store.activeDilemma ? "bad" : "good"} />
-                      <SignalChip label={`${assignedHeadcount}/${store.employees.length} staff assigned`} tone="neutral" />
+                      <SignalChip label={`${staffCoveragePercent}% staff assigned`} tone="neutral" />
                       <SignalChip label={`${liveProgramsCount} live programs`} tone="focus" />
                     </div>
                   </div>
+                </div>
+                <div className="mission-action-grid mt-5 grid gap-3 rounded-[26px] border border-white/8 p-3 md:grid-cols-3">
+                  {missionActionCards.map((card) => (
+                    <div key={card.label} className="rounded-[22px] border border-white/8 bg-slate-950/56 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{card.label}</p>
+                      <p className="mt-2 text-sm font-semibold text-white">{card.value}</p>
+                      <p className="mt-2 text-xs leading-5 text-slate-400">{card.body}</p>
+                    </div>
+                  ))}
                 </div>
                 <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <CommandMetric
@@ -2900,7 +3082,7 @@ export function ConvergenceApp() {
             </div>
 
             <div className="flex flex-col gap-4">
-              <div className="rounded-[28px] border border-white/10 bg-white/4 p-5">
+              <div className="mission-card rounded-[28px] p-5">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Quarter Posture</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
@@ -2931,7 +3113,7 @@ export function ConvergenceApp() {
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-white/10 bg-white/4 p-5">
+              <div className="mission-card rounded-[28px] p-5">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Run Controls</p>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <button
@@ -2988,7 +3170,7 @@ export function ConvergenceApp() {
 
         <div className={layoutClass}>
           <aside
-            className={`min-w-0 rounded-[28px] border border-white/10 bg-slate-950/78 backdrop-blur ${
+            className={`mission-panel min-w-0 rounded-[28px] ${
               intelCollapsed ? "p-3" : "p-5"
             }`}
           >
@@ -3196,7 +3378,7 @@ export function ConvergenceApp() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void generateSceneArt("briefing")}
+                          onClick={() => void generateSceneArt("briefing", "premium")}
                           disabled={sceneArtStatus.tone === "checking"}
                           className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -3212,44 +3394,68 @@ export function ConvergenceApp() {
                       </div>
                     </div>
 
-                    <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
-                      <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                        <RichText text={chiefMemo ?? store.resolution?.briefing} />
+                    <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(320px,0.98fr)_minmax(0,1.02fr)]">
+                      <div className="mission-art-frame min-h-[320px] rounded-[28px]">
+                        {sceneArtScope === "briefing" && sceneArtUrl ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={sceneArtUrl} alt="AI-generated quarterly briefing scene art" className="absolute inset-0 h-full w-full object-cover" />
+                            <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-slate-950/92 to-transparent p-5">
+                              <SignalChip label="AI scene feed" tone="good" />
+                              <p className="mt-3 text-sm leading-6 text-slate-200">A visual readout of the current briefing generated from the quarter state.</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="relative z-10 flex h-full min-h-[320px] flex-col justify-between p-5">
+                            <div>
+                              <SignalChip label={serverSceneArtReady ? "Fast auto art ready" : "Scene art standby"} tone={serverSceneArtReady ? "focus" : "neutral"} />
+                              <h3 className="mt-5 text-2xl font-semibold text-white">Command-room visual feed</h3>
+                              <p className="mt-3 max-w-md text-sm leading-6 text-slate-300">
+                                {sceneArtModeSummary} The frame stays text-free so it feels like a live intelligence wall instead of a poster.
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                              <span className="rounded-2xl border border-white/8 bg-slate-950/50 px-3 py-2">World</span>
+                              <span className="rounded-2xl border border-white/8 bg-slate-950/50 px-3 py-2">Lab</span>
+                              <span className="rounded-2xl border border-white/8 bg-slate-950/50 px-3 py-2">Pressure</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="grid gap-3">
-                        <CommandMetric
-                          label="Quarter Delta"
-                          value={`${store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? "+" : ""}${formatCurrency(store.resolution?.financeDelta ?? 0)}`}
-                          helper="Net swing recorded when the quarter resolved."
-                          icon={store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? TrendingUp : TrendingDown}
-                          tone={store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? "emerald" : "rose"}
-                        />
-                        <CommandMetric
-                          label="Breakthroughs"
-                          value={`${store.resolution?.breakthroughs.length ?? 0}`}
-                          helper="Major discoveries or milestones from this quarter."
-                          icon={Sparkles}
-                          tone="sky"
-                        />
-                        <CommandMetric
-                          label="Revenue Live"
-                          value={formatCurrency(store.resources.revenue)}
-                          helper="Current live quarterly revenue across all lines."
-                          icon={BarChart3}
-                          tone="emerald"
-                        />
+                        <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Chief Memo</p>
+                          <RichText text={chiefMemo ?? store.resolution?.briefing} className="mt-3" />
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                          <CommandMetric
+                            label="Quarter Delta"
+                            value={`${store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? "+" : ""}${formatCurrency(store.resolution?.financeDelta ?? 0)}`}
+                            helper="Net swing recorded when the quarter resolved."
+                            icon={store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? TrendingUp : TrendingDown}
+                            tone={store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? "emerald" : "rose"}
+                          />
+                          <CommandMetric
+                            label="Breakthroughs"
+                            value={`${store.resolution?.breakthroughs.length ?? 0}`}
+                            helper="Major discoveries or milestones from this quarter."
+                            icon={Sparkles}
+                            tone="sky"
+                          />
+                          <CommandMetric
+                            label="Revenue Live"
+                            value={formatCurrency(store.resources.revenue)}
+                            helper="Current live quarterly revenue across all lines."
+                            icon={BarChart3}
+                            tone="emerald"
+                          />
+                        </div>
                       </div>
                     </div>
 
                     {(sceneArtScope === "briefing" || sceneArtStatus.tone !== "idle") ? (
                       <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(sceneArtStatus.tone)}`}>
                         {sceneArtStatus.message}
-                      </div>
-                    ) : null}
-                    {sceneArtScope === "briefing" && sceneArtUrl ? (
-                      <div className="mt-4 overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={sceneArtUrl} alt="AI-generated quarterly briefing scene art" className="h-auto w-full object-cover" />
                       </div>
                     ) : null}
                   </div>
@@ -3409,7 +3615,11 @@ export function ConvergenceApp() {
 
                   {filteredCandidates.length ? (
                     <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                      {filteredCandidates.map((candidate) => (
+                      {filteredCandidates.map((candidate) => {
+                        const fitScore = getCandidateFitScore(candidate, candidatePriorityTrack);
+                        const fitTone = getCandidateFitTone(fitScore);
+
+                        return (
                         <div key={candidate.id} className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
@@ -3429,6 +3639,7 @@ export function ConvergenceApp() {
                           </div>
 
                           <div className="mt-4 flex flex-wrap gap-2">
+                            <SignalChip label={`${fitScore}% ${getCandidateFitLabel(fitScore)}`} tone={fitTone} />
                             <SignalChip label={getTrackLabel(candidate.primaryTrack)} tone="focus" />
                             {candidate.secondaryTrack ? <SignalChip label={getTrackLabel(candidate.secondaryTrack)} tone="neutral" /> : null}
                             {candidate.generalist ? <SignalChip label="Generalist" tone="good" /> : null}
@@ -3436,6 +3647,30 @@ export function ConvergenceApp() {
                               label={candidate.contestedBy ? `Contested by ${store.rivals[candidate.contestedBy].name}` : "Uncontested"}
                               tone={candidate.contestedBy ? "bad" : "neutral"}
                             />
+                          </div>
+
+                          <div className="mt-4 rounded-[22px] border border-white/8 bg-white/4 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Lane Fit</span>
+                              <span className="text-sm font-medium text-white">{getTrackLabel(candidatePriorityTrack)}</span>
+                            </div>
+                            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/6">
+                              <div
+                                className={`h-full rounded-full ${
+                                  fitTone === "good"
+                                    ? "bg-emerald-300"
+                                    : fitTone === "focus"
+                                      ? "bg-sky-300"
+                                      : fitTone === "bad"
+                                        ? "bg-rose-300"
+                                        : "bg-slate-300"
+                                }`}
+                                style={{ width: `${fitScore}%` }}
+                              />
+                            </div>
+                            <p className="mt-3 text-xs leading-5 text-slate-500">
+                              Fit weighs eligible lanes, research strength, execution, ethics, leadership, and rival contest pressure.
+                            </p>
                           </div>
 
                           <p className="mt-4 text-sm italic leading-6 text-slate-300">&ldquo;{candidate.ask}&rdquo;</p>
@@ -3486,7 +3721,8 @@ export function ConvergenceApp() {
                             <p className="mt-3 text-xs leading-5 text-slate-500">{describeAssignmentScope(candidate)}</p>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="rounded-[28px] border border-dashed border-white/10 bg-slate-950/65 px-4 py-8 text-center text-sm text-slate-500">
@@ -3600,7 +3836,7 @@ export function ConvergenceApp() {
               ) : null}
             </section>
 
-            <aside className="min-w-0 self-start space-y-4 rounded-[28px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur xl:sticky xl:top-4">
+            <aside className="mission-panel min-w-0 self-start space-y-4 rounded-[28px] p-5 xl:sticky xl:top-4">
               <div className="rounded-[26px] border border-white/8 bg-white/4 p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
@@ -4471,6 +4707,67 @@ export function ConvergenceApp() {
             ) : null}
             {store.panel === "finance" ? (
               <div className="space-y-4 text-sm text-slate-300">
+                <div className="mission-card rounded-[26px] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Runway Forecast</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">{store.resources.runwayMonths} months of operating room</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        Finance should read like a flight instrument: capital altitude, burn velocity, and the next dilution window.
+                      </p>
+                    </div>
+                    <SignalChip label={runwayTone === "bad" ? "Cash warning" : runwayTone === "good" ? "Stable runway" : "Watch runway"} tone={runwayTone} />
+                  </div>
+                  <div className="mt-5 space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        <span>Runway buffer</span>
+                        <span>{store.resources.runwayMonths}/36 months</span>
+                      </div>
+                      <div className="mt-2 h-3 overflow-hidden rounded-full bg-white/6">
+                        <div
+                          className={`h-full rounded-full bg-gradient-to-r ${
+                            runwayTone === "bad"
+                              ? "from-rose-400 to-amber-300"
+                              : runwayTone === "good"
+                                ? "from-emerald-300 to-sky-300"
+                                : "from-amber-300 to-sky-300"
+                          }`}
+                          style={{ width: `${runwayPercent}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="rounded-2xl border border-emerald-400/18 bg-emerald-500/10 px-3 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-emerald-200">Revenue</span>
+                          <span className="font-medium text-emerald-100">{formatCurrency(store.resources.revenue)}</span>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                          <div className="h-full rounded-full bg-emerald-300" style={{ width: `${revenuePercent}%` }} />
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-rose-400/18 bg-rose-500/10 px-3 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-[11px] uppercase tracking-[0.18em] text-rose-200">Burn</span>
+                          <span className="font-medium text-rose-100">{formatCurrency(store.resources.burn)}</span>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                          <div className="h-full rounded-full bg-rose-300" style={{ width: `${burnPercent}%` }} />
+                        </div>
+                      </div>
+                      <div className={`rounded-2xl border px-3 py-3 ${quarterlyNet >= 0 ? "border-sky-400/18 bg-sky-500/10" : "border-amber-400/18 bg-amber-500/10"}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className={`text-[11px] uppercase tracking-[0.18em] ${quarterlyNet >= 0 ? "text-sky-200" : "text-amber-100"}`}>Net</span>
+                          <span className="font-medium text-white">{quarterlyNet >= 0 ? "+" : ""}{formatCurrency(quarterlyNet)}</span>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                          <div className={`h-full rounded-full ${quarterlyNet >= 0 ? "bg-sky-300" : "bg-amber-300"}`} style={{ width: `${netPercent}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Capital</p>
@@ -4789,6 +5086,56 @@ export function ConvergenceApp() {
 
             {store.panel === "facilities" ? (
               <div className="space-y-4 text-sm text-slate-300">
+                <div className="mission-card rounded-[26px] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Compute Supply</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">
+                        {researchCapacity} research PFLOPS available from {store.resources.computeCapacity} total
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        Facilities is the supply chain view: supplier throughput, energy politics, reserved product load, and build timing.
+                      </p>
+                    </div>
+                    <SignalChip
+                      label={nextProjectDue ? `${nextProjectDue.name} ${nextProjectDue.turnsRemaining}Q` : "No active build"}
+                      tone={nextProjectDue ? "focus" : "neutral"}
+                    />
+                  </div>
+                  <div className="mt-5 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-sky-400/18 bg-sky-500/10 p-3">
+                      <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-sky-100">
+                        <span>Research Capacity</span>
+                        <span>{Math.round(researchCapacityPercent)}%</span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                        <div className="h-full rounded-full bg-sky-300" style={{ width: `${researchCapacityPercent}%` }} />
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-400">Capacity left after commercial programs reserve cluster time.</p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-400/18 bg-amber-500/10 p-3">
+                      <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-amber-100">
+                        <span>Product Reserve</span>
+                        <span>{reservedCommercialCompute} PFLOPS</span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                        <div className="h-full rounded-full bg-amber-300" style={{ width: `${reservedComputePercent}%` }} />
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-400">Revenue programs make money but compete with frontier research.</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/56 p-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Build Queue</p>
+                      <p className="mt-2 text-sm font-medium text-white">
+                        {store.projects.length ? `${store.projects.length} active project${store.projects.length === 1 ? "" : "s"}` : "Idle"}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-slate-400">
+                        {nextProjectDue
+                          ? `${nextProjectDue.region} expansion lands in ${nextProjectDue.turnsRemaining}Q.`
+                          : "No construction drag right now. Expansion decisions can be timed around cash pressure."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Supplier</p>
@@ -4875,7 +5222,7 @@ export function ConvergenceApp() {
                     <div>
                       <label className="text-xs uppercase tracking-[0.22em] text-slate-400">AI Narrative + Scene Art</label>
                       <p className="mt-2 text-xs leading-5 text-slate-500">
-                        Production uses Cloudflare secrets first. Manual Gemini keys are only a local fallback for development.
+                        Production uses Cloudflare secrets first. {sceneArtModeSummary} Manual keys are only a local fallback for development.
                       </p>
                     </div>
                     <span className="rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
@@ -4884,6 +5231,20 @@ export function ConvergenceApp() {
                   </div>
                   <input value={apiKeyDraft ?? (aiUsesServer ? "" : store.aiSettings.apiKey)} onChange={(event) => { setApiKeyDraft(event.target.value); setGeminiStatusOverride(null); }} placeholder={serverNarrativeReady || serverSceneArtReady ? "Production AI secret connected" : "Optional Gemini key for local fallback"} className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
                   <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(geminiStatus.tone)}`}>{geminiStatus.message}</div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Narrative</p>
+                      <p className="mt-2 text-sm font-medium text-white">{serverAIStatus?.narrative.model ?? "Local fallback"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Fast Art</p>
+                      <p className="mt-2 text-sm font-medium text-white">{serverAIStatus?.providers.gemini ? "Gemini image" : "Unavailable"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Premium Art</p>
+                      <p className="mt-2 text-sm font-medium text-white">{serverAIStatus?.sceneArt.model ?? "Unavailable"}</p>
+                    </div>
+                  </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button type="button" onClick={() => void activateGemini()} disabled={geminiStatus.tone === "checking"} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
                       {geminiStatus.tone === "checking" ? "Checking..." : "Activate AI"}
@@ -5031,6 +5392,26 @@ export function ConvergenceApp() {
         </div>
       </div>
 
+      <nav className="mission-bottom-nav fixed inset-x-3 bottom-3 z-30 rounded-[26px] border border-white/10 bg-slate-950/92 p-2 backdrop-blur-xl lg:hidden">
+        <div className="grid grid-cols-6 gap-1">
+          {NAV_PANELS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => store.openPanel(id)}
+              className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[10px] uppercase tracking-[0.12em] transition ${
+                store.panel === id
+                  ? "bg-sky-400/18 text-sky-50"
+                  : "text-slate-400 hover:bg-white/6 hover:text-slate-100"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
       <AnimatePresence>
         {store.activeDilemma ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/68 p-4 backdrop-blur-sm">
@@ -5056,7 +5437,7 @@ export function ConvergenceApp() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => void generateSceneArt("dilemma")}
+                          onClick={() => void generateSceneArt("dilemma", "premium")}
                           disabled={sceneArtStatus.tone === "checking"}
                           className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -5089,12 +5470,29 @@ export function ConvergenceApp() {
                       {sceneArtStatus.message}
                     </div>
                   ) : null}
-                  {sceneArtScope === "dilemma" && sceneArtUrl ? (
-                    <div className="overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={sceneArtUrl} alt="AI-generated dilemma scene art" className="h-auto w-full object-cover" />
-                    </div>
-                  ) : null}
+                  <div className="mission-art-frame min-h-[260px] rounded-[28px]">
+                    {sceneArtScope === "dilemma" && sceneArtUrl ? (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={sceneArtUrl} alt="AI-generated dilemma scene art" className="absolute inset-0 h-full w-full object-cover" />
+                        <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-slate-950/92 to-transparent p-5">
+                          <SignalChip label="Crisis visualization" tone="bad" />
+                          <p className="mt-3 text-sm leading-6 text-slate-200">Generated from this dilemma so the choice feels like a live incident, not a modal.</p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="relative z-10 flex min-h-[260px] flex-col justify-between p-5">
+                        <div>
+                          <SignalChip label={serverSceneArtReady ? "Fast crisis art ready" : "Art standby"} tone={serverSceneArtReady ? "focus" : "neutral"} />
+                          <h3 className="mt-5 text-2xl font-semibold text-white">Crisis theater</h3>
+                          <p className="mt-3 max-w-md text-sm leading-6 text-slate-300">
+                            Generate a frame when you want this decision to feel like a boardroom emergency with consequences on the wall.
+                          </p>
+                        </div>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100">The turn clock is paused until you choose.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-4">

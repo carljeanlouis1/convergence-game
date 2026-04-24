@@ -3,6 +3,13 @@
 :root {
   --background: #050916;
   --foreground: #eff6ff;
+  --mission-panel: rgba(8, 16, 33, 0.82);
+  --mission-panel-strong: rgba(5, 11, 24, 0.92);
+  --mission-border: rgba(180, 214, 255, 0.12);
+  --mission-cyan: #6bd6ff;
+  --mission-amber: #f5c968;
+  --mission-emerald: #64e6a5;
+  --mission-rose: #fb7185;
 }
 
 @theme inline {
@@ -29,6 +36,99 @@ body {
     linear-gradient(180deg, #040812 0%, #071022 100%);
   color: var(--foreground);
   font-family: var(--font-space-grotesk), sans-serif;
+}
+
+::selection {
+  background: rgba(107, 214, 255, 0.3);
+  color: #ffffff;
+}
+
+.mission-shell {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(107, 214, 255, 0.14), transparent 28%),
+    radial-gradient(circle at 76% 16%, rgba(245, 201, 104, 0.08), transparent 24%),
+    linear-gradient(180deg, #040812 0%, #071326 52%, #050916 100%);
+}
+
+.mission-shell::before {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  content: "";
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.82), transparent 78%);
+}
+
+.mission-shell > * {
+  position: relative;
+  z-index: 2;
+}
+
+.mission-panel {
+  border: 1px solid var(--mission-border);
+  background:
+    linear-gradient(180deg, rgba(12, 24, 48, 0.84), rgba(5, 12, 28, 0.78)),
+    radial-gradient(circle at top left, rgba(107, 214, 255, 0.08), transparent 34%);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.mission-panel-strong {
+  border: 1px solid rgba(186, 220, 255, 0.16);
+  background:
+    radial-gradient(circle at top left, rgba(107, 214, 255, 0.14), transparent 38%),
+    linear-gradient(180deg, rgba(10, 22, 45, 0.96), rgba(5, 11, 24, 0.9));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 28px 90px rgba(0, 0, 0, 0.34);
+}
+
+.mission-card {
+  border: 1px solid rgba(186, 220, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.mission-eyebrow {
+  color: #9ddfff;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.mission-art-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(157, 223, 255, 0.16);
+  background:
+    radial-gradient(circle at 30% 24%, rgba(107, 214, 255, 0.24), transparent 28%),
+    radial-gradient(circle at 78% 62%, rgba(245, 201, 104, 0.14), transparent 25%),
+    linear-gradient(135deg, rgba(10, 22, 45, 0.98), rgba(2, 8, 20, 0.96));
+}
+
+.mission-art-frame::after {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.08) 42%, transparent 52%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 18px;
+  mix-blend-mode: screen;
+  opacity: 0.46;
+}
+
+.mission-action-grid {
+  background:
+    linear-gradient(90deg, rgba(107, 214, 255, 0.12), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.028));
+}
+
+.mission-bottom-nav {
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.34);
 }
 
 button,

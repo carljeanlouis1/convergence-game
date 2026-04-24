@@ -351,9 +351,11 @@ export const validateGeminiKey = async (apiKey: string) => {
 export const generateGeminiSceneImage = async ({
   apiKey,
   prompt,
+  mode = "premium",
 }: {
   apiKey: string;
   prompt: string;
+  mode?: "fast" | "premium";
 }) => {
   const trimmedKey = apiKey.trim();
 
@@ -372,7 +374,7 @@ export const generateGeminiSceneImage = async ({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, mode }),
       });
 
       if (!response.ok) {
