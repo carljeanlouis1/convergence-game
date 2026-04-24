@@ -33,6 +33,7 @@ npx wrangler pages secret put GEMINI_API_KEY --project-name=convergence-game
 ```
 
 `OPENAI_API_KEY` is the best-quality path for narrative, GPT Image 2 scene art, and voice. `GEMINI_API_KEY` is optional fallback support for Gemini narrative and image generation.
+After adding or changing Cloudflare secrets, redeploy the project so the active Pages deployment receives them.
 
 Optional model overrides:
 
