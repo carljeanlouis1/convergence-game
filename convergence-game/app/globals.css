@@ -148,3 +148,189 @@ input {
     transform: translateX(-40%);
   }
 }
+
+/* Mission Control V4 preview branch.
+   This keeps the existing simulation intact while giving the shell a more
+   deliberate cockpit/data-wall identity for side-by-side testing. */
+body:has(.mission-v4) {
+  background:
+    radial-gradient(circle at 18% 4%, rgba(94, 234, 212, 0.12), transparent 28%),
+    radial-gradient(circle at 86% 14%, rgba(251, 191, 36, 0.12), transparent 26%),
+    linear-gradient(180deg, #020714 0%, #07111f 42%, #03050c 100%);
+}
+
+.mission-v4 {
+  --v4-cyan: #7dd3fc;
+  --v4-teal: #5eead4;
+  --v4-amber: #fbbf24;
+  --v4-graphite: rgba(5, 10, 22, 0.86);
+  --v4-panel: rgba(7, 15, 31, 0.78);
+  --v4-border: rgba(186, 230, 253, 0.18);
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 12% 14%, rgba(125, 211, 252, 0.14), transparent 26%),
+    radial-gradient(circle at 78% 8%, rgba(251, 191, 36, 0.11), transparent 22%),
+    radial-gradient(circle at 52% 82%, rgba(20, 184, 166, 0.10), transparent 30%),
+    linear-gradient(135deg, #020713 0%, #071526 48%, #02040b 100%);
+}
+
+.mission-v4.mission-shell::before {
+  z-index: 0;
+  background:
+    linear-gradient(rgba(125, 211, 252, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.035) 1px, transparent 1px),
+    linear-gradient(135deg, transparent 0 47%, rgba(251, 191, 36, 0.08) 48% 49%, transparent 50%);
+  background-size: 84px 84px, 84px 84px, 140px 140px;
+  mask-image:
+    radial-gradient(circle at 50% 12%, rgba(0, 0, 0, 0.95), transparent 58%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.95), transparent 86%);
+  opacity: 0.9;
+}
+
+.mission-v4::after {
+  pointer-events: none;
+  position: fixed;
+  inset: auto -18vw -36vh auto;
+  z-index: 0;
+  width: min(80vw, 980px);
+  height: min(80vw, 980px);
+  border: 1px solid rgba(125, 211, 252, 0.10);
+  border-radius: 999px;
+  content: "";
+  background:
+    repeating-conic-gradient(from 16deg, rgba(125, 211, 252, 0.11) 0deg 1deg, transparent 1deg 14deg),
+    radial-gradient(circle, transparent 0 46%, rgba(125, 211, 252, 0.10) 47% 48%, transparent 49% 62%, rgba(251, 191, 36, 0.08) 63% 64%, transparent 65%);
+  filter: blur(0.2px);
+  opacity: 0.7;
+}
+
+.mission-v4 .mission-panel,
+.mission-v4 .mission-panel-strong,
+.mission-v4 .mission-card,
+.mission-v4 .mission-kpi,
+.mission-v4 .mission-menu-card {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--v4-border);
+  backdrop-filter: blur(24px) saturate(1.15);
+}
+
+.mission-v4 .mission-panel-strong {
+  background:
+    linear-gradient(135deg, rgba(125, 211, 252, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(9, 19, 38, 0.94), rgba(3, 8, 18, 0.88)),
+    radial-gradient(circle at 82% 12%, rgba(251, 191, 36, 0.12), transparent 28%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(125, 211, 252, 0.06),
+    0 34px 110px rgba(0, 0, 0, 0.44);
+}
+
+.mission-v4 .mission-panel-strong::before,
+.mission-v4 .mission-panel::before,
+.mission-v4 .mission-card::before,
+.mission-v4 .mission-menu-card::before {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.09), transparent 24% 72%, rgba(125, 211, 252, 0.06)),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 34px;
+  opacity: 0.32;
+}
+
+.mission-v4 .mission-panel {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(94, 234, 212, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(8, 18, 38, 0.84), rgba(4, 9, 20, 0.78));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+    0 24px 90px rgba(0, 0, 0, 0.34);
+}
+
+.mission-v4 .mission-card,
+.mission-v4 .mission-kpi,
+.mission-v4 .mission-menu-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.072), rgba(255, 255, 255, 0.035)),
+    radial-gradient(circle at top left, rgba(125, 211, 252, 0.08), transparent 36%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 52px rgba(0, 0, 0, 0.22);
+}
+
+.mission-v4 .mission-menu-card {
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.mission-v4 .mission-menu-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(125, 211, 252, 0.34);
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.10), rgba(255, 255, 255, 0.04)),
+    radial-gradient(circle at top right, rgba(251, 191, 36, 0.10), transparent 32%);
+}
+
+.mission-v4 .mission-eyebrow {
+  color: #bae6fd;
+  text-shadow: 0 0 24px rgba(125, 211, 252, 0.28);
+}
+
+.mission-v4 .mission-nav-button {
+  min-height: 42px;
+  border-radius: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.mission-v4 .mission-nav-button[data-active="true"] {
+  border-color: rgba(125, 211, 252, 0.58);
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.24), rgba(14, 165, 233, 0.12)),
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.18), transparent 55%);
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.14),
+    0 14px 34px rgba(14, 165, 233, 0.18);
+}
+
+.mission-v4 .mission-signal-chip {
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mission-v4 .mission-art-frame {
+  border-color: rgba(125, 211, 252, 0.26);
+  background:
+    radial-gradient(circle at 26% 22%, rgba(125, 211, 252, 0.26), transparent 28%),
+    radial-gradient(circle at 80% 62%, rgba(251, 191, 36, 0.16), transparent 25%),
+    linear-gradient(135deg, rgba(9, 20, 42, 0.98), rgba(2, 7, 17, 0.98));
+  box-shadow:
+    inset 0 0 42px rgba(125, 211, 252, 0.06),
+    0 24px 80px rgba(0, 0, 0, 0.32);
+}
+
+.mission-v4 .mission-action-grid {
+  background:
+    linear-gradient(90deg, rgba(94, 234, 212, 0.12), transparent 35%),
+    linear-gradient(180deg, rgba(125, 211, 252, 0.08), rgba(255, 255, 255, 0.032));
+}
+
+.mission-v4 input {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+@media (max-width: 768px) {
+  .mission-v4 .mission-nav-button {
+    min-height: 38px;
+    letter-spacing: 0.03em;
+  }
+
+  .mission-v4::after {
+    opacity: 0.34;
+  }
+}

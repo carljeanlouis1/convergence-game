@@ -14,8 +14,8 @@ const spectral = Spectral({
 });
 
 export const metadata: Metadata = {
-  title: "Convergence",
-  description: "AI research lab strategy simulation",
+  title: "Convergence V4 Preview",
+  description: "Experimental mission-control facelift for the AI research lab strategy simulation",
 };
 
 export default function RootLayout({
