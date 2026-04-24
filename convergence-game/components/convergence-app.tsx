@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type PointerEvent,
   type ReactNode,
   useDeferredValue,
   useEffect,
@@ -141,6 +142,7 @@ const NAV_PANELS: Array<{ id: PanelId; label: string; icon: typeof BrainCircuit 
 ];
 
 const LAYOUT_PREFS_KEY = "convergence-layout-v3";
+const TRACK_MAP_LAYOUT_KEY = "convergence-v4-track-map-layout";
 
 const DEFAULT_SECTION_OPEN: Record<string, boolean> = {
   "briefing-feed": true,
@@ -679,6 +681,38 @@ function getTalentAssignmentStatus(
     detail: `Already working on ${getTrackLabel(employee.assignedTrack)}. Clicking will reassign them here.`,
     tone: "warn" as const,
   };
+}
+
+type TrackMapPositions = Record<TrackId, { x: number; y: number }>;
+
+function getDefaultTrackMapPositions(): TrackMapPositions {
+  return TRACK_DEFINITIONS.reduce((positions, track) => {
+    positions[track.id] = { ...track.position };
+    return positions;
+  }, {} as TrackMapPositions);
+}
+
+function clampTrackMapPosition(value: number, edgePadding: number) {
+  return Math.max(edgePadding, Math.min(100 - edgePadding, value));
+}
+
+function normalizeTrackMapPositions(positions: Partial<TrackMapPositions>): TrackMapPositions {
+  const fallback = getDefaultTrackMapPositions();
+
+  TRACK_DEFINITIONS.forEach((track) => {
+    const position = positions[track.id];
+
+    if (!position) {
+      return;
+    }
+
+    fallback[track.id] = {
+      x: clampTrackMapPosition(position.x, 7),
+      y: clampTrackMapPosition(position.y, 9),
+    };
+  });
+
+  return fallback;
 }
 
 function getCandidateFitScore(
@@ -1307,6 +1341,16 @@ function TrackMap({
   state: GameState;
   onOpenTrack: (trackId: TrackId) => void;
 }) {
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{
+    trackId: TrackId;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  } | null>(null);
+  const [nodePositions, setNodePositions] = useState<TrackMapPositions>(() => getDefaultTrackMapPositions());
+  const [mapLayoutLoaded, setMapLayoutLoaded] = useState(false);
   const links = CONVERGENCES.flatMap((convergence) => {
     const ids = Object.keys(convergence.requirements) as TrackId[];
 
@@ -1354,6 +1398,112 @@ function TrackMap({
   const readyConvergenceCount = selectedConvergenceReadiness.filter((convergence) => convergence.ready).length;
   const nextConvergence = selectedConvergenceReadiness.find((convergence) => !convergence.ready && convergence.near);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TRACK_MAP_LAYOUT_KEY);
+
+      if (raw) {
+        setNodePositions(normalizeTrackMapPositions(JSON.parse(raw) as Partial<TrackMapPositions>));
+      }
+    } catch {
+      setNodePositions(getDefaultTrackMapPositions());
+    } finally {
+      setMapLayoutLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!mapLayoutLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(TRACK_MAP_LAYOUT_KEY, JSON.stringify(nodePositions));
+  }, [mapLayoutLoaded, nodePositions]);
+
+  const updateDraggedNode = (trackId: TrackId, clientX: number, clientY: number) => {
+    const rect = mapRef.current?.getBoundingClientRect();
+
+    if (!rect) {
+      return;
+    }
+
+    const nextPosition = {
+      x: clampTrackMapPosition(((clientX - rect.left) / rect.width) * 100, 7),
+      y: clampTrackMapPosition(((clientY - rect.top) / rect.height) * 100, 9),
+    };
+
+    setNodePositions((current) => ({
+      ...current,
+      [trackId]: nextPosition,
+    }));
+  };
+
+  const handleNodePointerDown = (
+    event: PointerEvent<HTMLButtonElement>,
+    trackId: TrackId,
+  ) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    dragStateRef.current = {
+      trackId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleNodePointerMove = (event: PointerEvent<HTMLButtonElement>, trackId: TrackId) => {
+    const dragState = dragStateRef.current;
+
+    if (!dragState || dragState.trackId !== trackId || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const distance = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY);
+
+    if (distance > 4) {
+      dragState.moved = true;
+      updateDraggedNode(trackId, event.clientX, event.clientY);
+    }
+  };
+
+  const handleNodePointerUp = (event: PointerEvent<HTMLButtonElement>, trackId: TrackId) => {
+    const dragState = dragStateRef.current;
+
+    if (!dragState || dragState.trackId !== trackId || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const wasDragging = dragState.moved;
+    dragStateRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (!wasDragging) {
+      onOpenTrack(trackId);
+    }
+  };
+
+  const handleNodePointerCancel = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    dragStateRef.current = null;
+  };
+
+  const resetTrackMapLayout = () => {
+    const nextPositions = getDefaultTrackMapPositions();
+    setNodePositions(nextPositions);
+    window.localStorage.setItem(TRACK_MAP_LAYOUT_KEY, JSON.stringify(nextPositions));
+  };
+
   return (
     <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.18),transparent_40%),linear-gradient(180deg,rgba(7,12,28,0.98),rgba(7,10,24,0.92))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1364,9 +1514,18 @@ function TrackMap({
             Each node is an active research program. Assign staff, allocate compute, and watch ETA shrink.
           </p>
         </div>
-        <div className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-sky-200">
-          {Math.round((committedCompute / Math.max(researchCapacity, 1)) * 100)}
-          % research compute committed
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-sky-200">
+            {Math.round((committedCompute / Math.max(researchCapacity, 1)) * 100)}
+            % research compute committed
+          </div>
+          <button
+            type="button"
+            onClick={resetTrackMapLayout}
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.18em] text-slate-300 transition hover:border-sky-300/30 hover:bg-sky-500/10"
+          >
+            Reset map
+          </button>
         </div>
       </div>
       <div className="mb-5 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.6fr))]">
@@ -1428,46 +1587,61 @@ function TrackMap({
         />
       </div>
       <div className="overflow-hidden rounded-[28px] border border-white/6 bg-[linear-gradient(180deg,rgba(12,18,38,0.88),rgba(8,12,24,0.92))]">
-        <div className="border-b border-white/6 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-500 lg:hidden">
-          Scroll to inspect the full research web.
+        <div className="border-b border-white/6 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+          Drag cards to clear overlaps. Click without dragging to select a research lane.
         </div>
         <div className="overflow-x-auto overflow-y-hidden">
-          <div className="relative h-[560px] min-w-[760px] md:min-w-[920px] lg:min-w-0 2xl:h-[660px]">
+          <div ref={mapRef} className="relative h-[680px] min-w-[980px] touch-none select-none md:min-w-[1120px] 2xl:h-[760px]">
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {links.map((link) => (
-                <line
-                  key={link.key}
-                  x1={link.source.position.x}
-                  y1={link.source.position.y}
-                  x2={link.target.position.x}
-                  y2={link.target.position.y}
-                  stroke={link.active ? "rgba(132, 204, 255, 0.72)" : "rgba(120, 140, 180, 0.14)"}
-                  strokeDasharray={link.active ? "0" : "3 4"}
-                  strokeWidth={link.active ? 1.3 : 0.7}
-                />
-              ))}
+              {links.map((link) => {
+                const sourcePosition = nodePositions[link.source.id];
+                const targetPosition = nodePositions[link.target.id];
+
+                return (
+                  <line
+                    key={link.key}
+                    x1={sourcePosition.x}
+                    y1={sourcePosition.y}
+                    x2={targetPosition.x}
+                    y2={targetPosition.y}
+                    stroke={link.active ? "rgba(132, 204, 255, 0.72)" : "rgba(120, 140, 180, 0.14)"}
+                    strokeDasharray={link.active ? "0" : "3 4"}
+                    strokeWidth={link.active ? 1.3 : 0.7}
+                  />
+                );
+              })}
             </svg>
             {TRACK_DEFINITIONS.map((track) => {
               const stateTrack = state.tracks[track.id];
               const Icon = TRACK_ICONS[track.id];
               const selected = state.selectedTrack === track.id;
               const forecast = getTrackForecast(state, track.id);
+              const position = nodePositions[track.id];
 
               return (
                 <motion.button
                   key={track.id}
                   type="button"
-                  onClick={() => onOpenTrack(track.id)}
+                  onPointerDown={(event) => handleNodePointerDown(event, track.id)}
+                  onPointerMove={(event) => handleNodePointerMove(event, track.id)}
+                  onPointerUp={(event) => handleNodePointerUp(event, track.id)}
+                  onPointerCancel={handleNodePointerCancel}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onOpenTrack(track.id);
+                    }
+                  }}
                   whileHover={{ scale: 1.03 }}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[26px] border p-4 text-left shadow-[0_16px_60px_rgba(5,12,32,0.36)] transition ${
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-[26px] border p-4 text-left shadow-[0_16px_60px_rgba(5,12,32,0.36)] transition active:cursor-grabbing ${
                     selected
                       ? "border-sky-300/70 bg-slate-900/96"
                       : "border-white/8 bg-slate-950/84 hover:border-white/16"
                   } ${stateTrack.unlocked ? "" : "opacity-70"}`}
                   style={{
-                    left: `${track.position.x}%`,
-                    top: `${track.position.y}%`,
-                    width: selected ? 202 : 170,
+                    left: `${position.x}%`,
+                    top: `${position.y}%`,
+                    width: selected ? 248 : 222,
                     boxShadow: selected ? `0 0 0 1px ${track.accent}55, 0 0 28px ${track.accent}33` : undefined,
                   }}
                 >
