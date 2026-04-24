@@ -554,7 +554,7 @@ function SignalChip({
   tone = "neutral",
 }: {
   label: string;
-  tone?: "neutral" | "good" | "bad" | "focus";
+  tone?: "neutral" | "good" | "bad" | "focus" | "warn";
 }) {
   const classes =
     tone === "good"
@@ -563,6 +563,8 @@ function SignalChip({
         ? "border-rose-400/20 bg-rose-500/10 text-rose-100"
         : tone === "focus"
           ? "border-sky-400/20 bg-sky-500/10 text-sky-100"
+          : tone === "warn"
+            ? "border-amber-400/25 bg-amber-500/10 text-amber-100"
           : "border-white/10 bg-white/5 text-slate-300";
 
   return (
@@ -649,6 +651,33 @@ function describeAssignmentScope(
   return employee.secondaryTrack
     ? `Eligible for ${getTrackLabel(employee.primaryTrack)} and ${getTrackLabel(employee.secondaryTrack)}.`
     : `Eligible for ${getTrackLabel(employee.primaryTrack)} only.`;
+}
+
+function getTalentAssignmentStatus(
+  employee: Pick<Researcher, "assignedTrack">,
+  selectedTrack?: TrackId,
+) {
+  if (!employee.assignedTrack) {
+    return {
+      label: "Free",
+      detail: "Unassigned this quarter. Assigning does not pull them off another lane.",
+      tone: "good" as const,
+    };
+  }
+
+  if (employee.assignedTrack === selectedTrack) {
+    return {
+      label: "On this research",
+      detail: `Currently assigned to ${getTrackLabel(employee.assignedTrack)}.`,
+      tone: "focus" as const,
+    };
+  }
+
+  return {
+    label: `On ${getTrackLabel(employee.assignedTrack)}`,
+    detail: `Already working on ${getTrackLabel(employee.assignedTrack)}. Clicking will reassign them here.`,
+    tone: "warn" as const,
+  };
 }
 
 function getCandidateFitScore(
@@ -4600,8 +4629,8 @@ export function ConvergenceApp() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <SignalChip label={`${assignedResearchers.length} assigned`} tone={assignedResearchers.length ? "good" : "bad"} />
-                      <SignalChip label={`${availableResearchers.length} free matches`} tone={availableResearchers.length ? "focus" : "neutral"} />
-                      <SignalChip label={`${committedResearchers.length} reassignable`} tone={committedResearchers.length ? "focus" : "neutral"} />
+                      <SignalChip label={`${availableResearchers.length} free`} tone={availableResearchers.length ? "good" : "neutral"} />
+                      <SignalChip label={`${committedResearchers.length} assigned elsewhere`} tone={committedResearchers.length ? "warn" : "neutral"} />
                     </div>
                   </div>
 
@@ -4615,6 +4644,7 @@ export function ConvergenceApp() {
                         {assignedResearchers.length ? (
                           selectedForecast.contributors.map((contributor) => {
                             const employee = assignedResearchers.find((entry) => entry.id === contributor.id)!;
+                            const status = getTalentAssignmentStatus(employee, store.selectedTrack);
 
                             return (
                               <button
@@ -4628,9 +4658,13 @@ export function ConvergenceApp() {
                                   <span className="min-w-0">
                                     <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
                                     <span className="block truncate text-xs text-slate-400">{contributor.focus} · +{contributor.contribution} / quarter</span>
+                                    <span className="mt-1 block truncate text-[11px] text-sky-200">{status.detail}</span>
                                   </span>
                                 </span>
-                                <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-rose-200">Remove</span>
+                                <span className="flex shrink-0 flex-col items-end gap-2">
+                                  <SignalChip label={status.label} tone={status.tone} />
+                                  <span className="text-xs uppercase tracking-[0.18em] text-rose-200">Remove</span>
+                                </span>
                               </button>
                             );
                           })
@@ -4644,7 +4678,12 @@ export function ConvergenceApp() {
 
                     <div className="rounded-[22px] border border-white/8 bg-slate-950/60 p-4">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Available To Add</p>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Available To Add</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            Green is free talent. Amber is already used by another research lane and will move if clicked.
+                          </p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => store.openPanel("hiring")}
@@ -4654,27 +4693,39 @@ export function ConvergenceApp() {
                         </button>
                       </div>
                       <div className="mt-3 grid gap-2 md:grid-cols-2">
-                        {[...availableResearchers, ...committedResearchers].slice(0, 8).map((employee) => (
-                          <button
-                            key={`quick-available-${employee.id}`}
-                            type="button"
-                            onClick={() => store.assignPerson(employee.id, store.selectedTrack)}
-                            className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-left transition hover:border-sky-400/25 hover:bg-sky-500/8"
-                          >
-                            <span className="flex min-w-0 items-center gap-3">
-                              <StaffAvatar researcher={employee} size="sm" />
-                              <span className="min-w-0">
-                                <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
-                                <span className="block truncate text-xs text-slate-400">
-                                  {employee.assignedTrack ? `From ${getTrackLabel(employee.assignedTrack)}` : describeAssignmentScope(employee)}
+                        {[...availableResearchers, ...committedResearchers].slice(0, 8).map((employee) => {
+                          const status = getTalentAssignmentStatus(employee, store.selectedTrack);
+
+                          return (
+                            <button
+                              key={`quick-available-${employee.id}`}
+                              type="button"
+                              onClick={() => store.assignPerson(employee.id, store.selectedTrack)}
+                              className={`rounded-2xl border px-3 py-3 text-left transition ${
+                                employee.assignedTrack
+                                  ? "border-amber-400/18 bg-amber-500/8 hover:border-amber-300/30 hover:bg-amber-500/12"
+                                  : "border-emerald-400/18 bg-emerald-500/8 hover:border-emerald-300/30 hover:bg-emerald-500/12"
+                              }`}
+                            >
+                              <span className="flex items-start justify-between gap-3">
+                                <span className="flex min-w-0 items-center gap-3">
+                                  <StaffAvatar researcher={employee} size="sm" />
+                                  <span className="min-w-0">
+                                    <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
+                                    <span className="block truncate text-xs text-slate-400">{describeAssignmentScope(employee)}</span>
+                                  </span>
+                                </span>
+                                <SignalChip label={status.label} tone={status.tone} />
+                              </span>
+                              <span className="mt-3 flex items-center justify-between gap-3">
+                                <span className="text-xs leading-5 text-slate-300">{status.detail}</span>
+                                <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-sky-300">
+                                  {employee.assignedTrack ? "Reassign" : "Assign"}
                                 </span>
                               </span>
-                            </span>
-                            <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-sky-300">
-                              {employee.assignedTrack ? "Reassign" : "Assign"}
-                            </span>
-                          </button>
-                        ))}
+                            </button>
+                          );
+                        })}
                         {availableResearchers.length + committedResearchers.length === 0 ? (
                           <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 px-3 py-3 text-sm leading-6 text-slate-500 md:col-span-2">
                             No eligible staff can move here right now. Open Talent to hire someone who covers {trackDefinition.shortName}.
@@ -5136,6 +5187,7 @@ export function ConvergenceApp() {
                     {assignedResearchers.length ? (
                       selectedForecast.contributors.map((contributor) => {
                         const employee = assignedResearchers.find((entry) => entry.id === contributor.id)!;
+                        const status = getTalentAssignmentStatus(employee, store.selectedTrack);
 
                         return (
                           <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, null)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
@@ -5146,7 +5198,10 @@ export function ConvergenceApp() {
                                 <span className="text-xs text-slate-400">{employee.role} / {contributor.focus} / +{contributor.contribution}</span>
                               </span>
                             </span>
-                            <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Unassign</span>
+                            <span className="flex shrink-0 flex-col items-end gap-2">
+                              <SignalChip label={status.label} tone={status.tone} />
+                              <span className="text-xs uppercase tracking-[0.18em] text-slate-500">Unassign</span>
+                            </span>
                           </button>
                         );
                       })
@@ -5168,19 +5223,26 @@ export function ConvergenceApp() {
                       <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Ready To Assign</p>
                       <div className="mt-2 space-y-2">
                         {availableResearchers.length ? (
-                          availableResearchers.slice(0, 6).map((employee) => (
-                            <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
-                              <span className="flex min-w-0 items-center gap-3">
-                                <StaffAvatar researcher={employee} size="sm" />
-                                <span className="min-w-0">
-                                  <span className="block text-sm font-medium text-white">{employee.name}</span>
-                                  <span className="text-xs text-slate-400">{employee.role} / Salary {formatCurrency(employee.salary)}</span>
-                                  <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
+                          availableResearchers.slice(0, 6).map((employee) => {
+                            const status = getTalentAssignmentStatus(employee, store.selectedTrack);
+
+                            return (
+                              <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-400/18 bg-emerald-500/8 px-3 py-3 text-left">
+                                <span className="flex min-w-0 items-center gap-3">
+                                  <StaffAvatar researcher={employee} size="sm" />
+                                  <span className="min-w-0">
+                                    <span className="block text-sm font-medium text-white">{employee.name}</span>
+                                    <span className="text-xs text-slate-400">{employee.role} / Salary {formatCurrency(employee.salary)}</span>
+                                    <span className="mt-1 block text-[11px] leading-5 text-slate-500">{status.detail}</span>
+                                  </span>
                                 </span>
-                              </span>
-                              <span className="text-xs uppercase tracking-[0.18em] text-sky-300">Assign</span>
-                            </button>
-                          ))
+                                <span className="flex shrink-0 flex-col items-end gap-2">
+                                  <SignalChip label={status.label} tone={status.tone} />
+                                  <span className="text-xs uppercase tracking-[0.18em] text-sky-300">Assign</span>
+                                </span>
+                              </button>
+                            );
+                          })
                         ) : (
                           <p className="text-sm text-slate-500">No eligible unassigned staff are idle right now.</p>
                         )}
@@ -5191,21 +5253,28 @@ export function ConvergenceApp() {
                       <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Committed Elsewhere</p>
                       <div className="mt-2 space-y-2">
                         {committedResearchers.length ? (
-                          committedResearchers.slice(0, 6).map((employee) => (
-                            <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
-                              <span className="flex min-w-0 items-center gap-3">
-                                <StaffAvatar researcher={employee} size="sm" />
-                                <span className="min-w-0">
-                                  <span className="block text-sm font-medium text-white">{employee.name}</span>
-                                  <span className="text-xs text-slate-400">
-                                    {employee.role} / Currently on {getTrackLabel(employee.assignedTrack)}
+                          committedResearchers.slice(0, 6).map((employee) => {
+                            const status = getTalentAssignmentStatus(employee, store.selectedTrack);
+
+                            return (
+                              <button key={employee.id} type="button" onClick={() => store.assignPerson(employee.id, store.selectedTrack)} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-400/18 bg-amber-500/8 px-3 py-3 text-left">
+                                <span className="flex min-w-0 items-center gap-3">
+                                  <StaffAvatar researcher={employee} size="sm" />
+                                  <span className="min-w-0">
+                                    <span className="block text-sm font-medium text-white">{employee.name}</span>
+                                    <span className="text-xs text-slate-400">
+                                      {employee.role} / Currently on {getTrackLabel(employee.assignedTrack)}
+                                    </span>
+                                    <span className="mt-1 block text-[11px] leading-5 text-slate-500">{status.detail}</span>
                                   </span>
-                                  <span className="mt-1 block text-[11px] leading-5 text-slate-500">{describeAssignmentScope(employee)}</span>
                                 </span>
-                              </span>
-                              <span className="text-xs uppercase tracking-[0.18em] text-amber-300">Reassign</span>
-                            </button>
-                          ))
+                                <span className="flex shrink-0 flex-col items-end gap-2">
+                                  <SignalChip label={status.label} tone={status.tone} />
+                                  <span className="text-xs uppercase tracking-[0.18em] text-amber-300">Reassign</span>
+                                </span>
+                              </button>
+                            );
+                          })
                         ) : (
                           <p className="text-sm text-slate-500">No one else is currently tied to another project.</p>
                         )}
@@ -6415,7 +6484,7 @@ export function ConvergenceApp() {
                   <div className="rounded-[28px] border border-white/10 bg-white/4 p-4">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Decision Rule</p>
                     <p className="mt-3 text-sm leading-6 text-slate-300">
-                      Choose one path. The outcome becomes part of the lab&apos;s permanent memory and can shift endings, legitimacy, and future pressure.
+                      Choose one path. The game rolls one of that path&apos;s shown percentage outcomes, applies its effects immediately, and records the result in the lab&apos;s permanent memory.
                     </p>
                   </div>
                 </div>
@@ -6441,6 +6510,9 @@ export function ConvergenceApp() {
                     </div>
 
                     <div className="mt-4 space-y-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        Outcome roll: one branch below will happen if you commit.
+                      </p>
                       {option.outcomes.map((outcome) => {
                         const effectEntries = getDilemmaEffectEntries(outcome.effects);
 
@@ -6448,7 +6520,7 @@ export function ConvergenceApp() {
                           <div key={outcome.id} className="rounded-[22px] border border-white/8 bg-slate-950/65 p-3">
                             <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-400">
                               <span>{outcome.label}</span>
-                              <span>{Math.round(outcome.chance * 100)}%</span>
+                              <span>{Math.round(outcome.chance * 100)}% chance</span>
                             </div>
                             <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/6">
                               <div className="h-full rounded-full bg-gradient-to-r from-sky-300 to-violet-400" style={{ width: `${outcome.chance * 100}%` }} />
