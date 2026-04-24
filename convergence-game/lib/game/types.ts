@@ -426,7 +426,7 @@ export interface AISettings {
 export interface OpenAISettings {
   enabled: boolean;
   apiKey: string;
-  voice: "nova";
+  voice: "nova" | "marin";
   autoPlay: boolean;
 }
 

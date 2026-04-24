@@ -154,7 +154,7 @@ const defaultExpenses = (): ExpenseBreakdown => ({
 const defaultOpenAISettings = (): GameState["openAISettings"] => ({
   enabled: false,
   apiKey: "",
-  voice: "nova",
+  voice: "marin",
   autoPlay: false,
 });
 
@@ -2291,7 +2291,7 @@ export const setOpenAISettings = (
     enabled,
     apiKey,
     autoPlay,
-    voice: "nova",
+    voice: "marin",
   };
 };
 

@@ -44,11 +44,14 @@ import {
   Zap,
 } from "lucide-react";
 import {
+  SERVER_AI_KEY,
+  fetchAIStatus,
   fetchGeminiNarrative,
   generateGeminiSceneImage,
   synthesizeOpenAITts,
   validateGeminiKey,
   validateOpenAITtsKey,
+  type AIProviderStatus,
 } from "@/lib/game/ai";
 import {
   clearStoredCloudCredentials,
@@ -192,8 +195,8 @@ const tutorialSlides = [
     summary: "Decisions are logged, can shift endings, and can now be narrated out loud.",
     points: [
       "The decision log in the briefing panel remembers your calls and impact lines.",
-      "Gemini adds narrative flavor only. The deterministic simulation runs with or without it.",
-      "OpenAI voice can read your quarterly summary using the `nova` voice if you activate it in Settings.",
+      "Production AI adds narrative flavor and scene art only. The deterministic simulation runs with or without it.",
+      "OpenAI voice can read your quarterly summary using a high-quality narration voice if you activate it in Settings.",
     ],
   },
 ];
@@ -1298,6 +1301,7 @@ export function ConvergenceApp() {
   const [rivalColor, setRivalColor] = useState<string | null>(null);
   const [apiKeyDraft, setApiKeyDraft] = useState<string | null>(null);
   const [openAiKeyDraft, setOpenAiKeyDraft] = useState<string | null>(null);
+  const [serverAIStatus, setServerAIStatus] = useState<AIProviderStatus | null>(null);
   const [geminiStatusOverride, setGeminiStatusOverride] = useState<{
     tone: "idle" | "checking" | "success" | "error";
     message: string;
@@ -1311,7 +1315,7 @@ export function ConvergenceApp() {
     message: string;
   }>({
     tone: "idle",
-    message: "Scene art is ready when you want extra flavor.",
+    message: "Scene art will auto-generate for new briefings and dilemmas when production AI is connected.",
   });
   const [sceneArtUrl, setSceneArtUrl] = useState<string | null>(null);
   const [sceneArtScope, setSceneArtScope] = useState<"briefing" | "dilemma" | null>(null);
@@ -1323,6 +1327,7 @@ export function ConvergenceApp() {
   const audioUrlRef = useRef<string | null>(null);
   const sceneArtUrlRef = useRef<string | null>(null);
   const autoNarratedTurnRef = useRef<number | null>(null);
+  const autoSceneArtKeyRef = useRef<string | null>(null);
   const hasAutosave =
     typeof window !== "undefined" && Boolean(window.localStorage.getItem("convergence-autosave"));
   const [cloudCredentials, setCloudCredentials] = useState<CloudCredentials | null>(null);
@@ -1341,20 +1346,45 @@ export function ConvergenceApp() {
   const [candidateFocusFilter, setCandidateFocusFilter] = useState<TrackId | "all">("all");
   const [showContestedCandidatesOnly, setShowContestedCandidatesOnly] = useState(false);
 
+  const serverNarrativeReady = Boolean(serverAIStatus?.narrative.available);
+  const serverSceneArtReady = Boolean(serverAIStatus?.sceneArt.available);
+  const serverVoiceReady = Boolean(serverAIStatus?.voice.available);
+  const aiUsesServer = store.aiSettings.apiKey === SERVER_AI_KEY;
+  const voiceUsesServer = store.openAISettings.apiKey === SERVER_AI_KEY;
+  const productionAIModel = serverAIStatus?.narrative.model ?? serverAIStatus?.sceneArt.model;
+  const productionVoiceModel = serverAIStatus?.voice.model;
+
   const geminiStatus =
     geminiStatusOverride ??
     (store.aiSettings.enabled && store.aiSettings.apiKey
-      ? { tone: "success" as const, message: "Gemini narrative is active." }
-      : { tone: "idle" as const, message: "Gemini narrative is disabled." });
+      ? {
+          tone: "success" as const,
+          message: aiUsesServer
+            ? `Production AI narrative and scene art are active${productionAIModel ? ` (${productionAIModel})` : ""}.`
+            : "Manual Gemini narrative and scene art are active.",
+        }
+      : serverNarrativeReady || serverSceneArtReady
+        ? {
+            tone: "idle" as const,
+            message: "Production AI is configured. Activate it to use server-side narrative and scene art.",
+          }
+        : { tone: "idle" as const, message: "AI narrative and scene art are disabled." });
 
   const openAiStatus =
     openAiStatusOverride ??
     (store.openAISettings.enabled && store.openAISettings.apiKey
       ? {
           tone: "success" as const,
-          message: "OpenAI voice is active and ready to narrate turn summaries.",
+          message: voiceUsesServer
+            ? `Production OpenAI voice is active${productionVoiceModel ? ` (${productionVoiceModel})` : ""}.`
+            : "Manual OpenAI voice is active and ready to narrate turn summaries.",
         }
-      : { tone: "idle" as const, message: "OpenAI voice is disabled." });
+      : serverVoiceReady
+        ? {
+            tone: "idle" as const,
+            message: "Production OpenAI voice is configured. Activate it to narrate briefings.",
+          }
+        : { tone: "idle" as const, message: "OpenAI voice is disabled." });
   const cloudAutosaveSummary = cloudSummaries.find((entry) => entry.slot === "autosave");
   const saveControlsLocked = saveQuitBusy || cloudBusyKey !== null;
 
@@ -1732,7 +1762,7 @@ export function ConvergenceApp() {
               ]
             : store.panel === "settings"
               ? [
-                  { label: "Gemini", value: store.aiSettings.enabled ? "On" : "Off" },
+                  { label: "AI", value: store.aiSettings.enabled ? "On" : "Off" },
                   { label: "Voice", value: store.openAISettings.enabled ? "On" : "Off" },
                   { label: "Cloud", value: cloudCredentials ? "Connected" : "Offline" },
                   { label: "Sound", value: soundEnabled ? "On" : "Off" },
@@ -2145,7 +2175,7 @@ export function ConvergenceApp() {
     if (!store.openAISettings.enabled || !store.openAISettings.apiKey) {
       setOpenAiStatusOverride({
         tone: "error",
-        message: "Activate OpenAI voice in Settings first.",
+        message: "Activate AI voice in Settings first.",
       });
       return;
     }
@@ -2182,7 +2212,7 @@ export function ConvergenceApp() {
     if (!store.aiSettings.enabled || !store.aiSettings.apiKey) {
       setSceneArtStatus({
         tone: "error",
-        message: "Activate Gemini first to generate scene art.",
+        message: "Activate AI scene art in Settings first.",
       });
       return;
     }
@@ -2324,9 +2354,86 @@ export function ConvergenceApp() {
     await narrateTurnSummary();
   });
 
+  const autoGenerateSceneArt = useEffectEvent(async () => {
+    if (!store.aiSettings.enabled || !store.aiSettings.apiKey || store.mode === "menu") {
+      return;
+    }
+
+    const scope = store.activeDilemma ? "dilemma" : store.resolution ? "briefing" : null;
+    if (!scope || sceneArtStatus.tone === "checking") {
+      return;
+    }
+
+    const waitingForNarrative =
+      scope === "dilemma" ? Boolean(store.activeDilemma && !dilemmaFlavor) : Boolean(store.resolution && !chiefMemo && !worldLead);
+
+    if (waitingForNarrative) {
+      return;
+    }
+
+    const key =
+      scope === "dilemma"
+        ? `dilemma:${store.activeDilemma?.id}:${dilemmaFlavor ?? "base"}`
+        : `briefing:${store.resolution?.turn}:${chiefMemo ?? worldLead ?? "base"}`;
+
+    if (autoSceneArtKeyRef.current === key) {
+      return;
+    }
+
+    autoSceneArtKeyRef.current = key;
+    await generateSceneArt(scope);
+  });
+
+  const connectProductionAI = useEffectEvent(async () => {
+    const status = await fetchAIStatus();
+    setServerAIStatus(status);
+
+    if (!status?.ok) {
+      if (store.aiSettings.apiKey === SERVER_AI_KEY) {
+        store.updateAIConfig(false, "");
+      }
+      if (store.openAISettings.apiKey === SERVER_AI_KEY) {
+        store.updateOpenAIConfig(false, "", store.openAISettings.autoPlay);
+      }
+      return;
+    }
+
+    if (status.narrative.available || status.sceneArt.available) {
+      store.updateAIConfig(true, SERVER_AI_KEY);
+      setGeminiStatusOverride({
+        tone: "success",
+        message: `Production AI is connected${status.narrative.model ? ` (${status.narrative.model})` : ""}.`,
+      });
+    } else if (store.aiSettings.apiKey === SERVER_AI_KEY) {
+      store.updateAIConfig(false, "");
+      setGeminiStatusOverride({
+        tone: "idle",
+        message: "Production AI secrets are not configured yet.",
+      });
+    }
+
+    if (status.voice.available) {
+      store.updateOpenAIConfig(true, SERVER_AI_KEY, store.openAISettings.autoPlay);
+      setOpenAiStatusOverride({
+        tone: "success",
+        message: `Production OpenAI voice is connected${status.voice.model ? ` (${status.voice.model})` : ""}.`,
+      });
+    } else if (store.openAISettings.apiKey === SERVER_AI_KEY) {
+      store.updateOpenAIConfig(false, "", store.openAISettings.autoPlay);
+      setOpenAiStatusOverride({
+        tone: "idle",
+        message: "Production OpenAI voice is not configured yet.",
+      });
+    }
+  });
+
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    void connectProductionAI();
+  }, []);
 
   useEffect(() => {
     const storedCredentials = loadStoredCloudCredentials();
@@ -2377,9 +2484,22 @@ export function ConvergenceApp() {
     clearSceneArt();
     setSceneArtStatus({
       tone: "idle",
-      message: "Scene art is ready when you want extra flavor.",
+      message: "Scene art will auto-generate for this moment if AI scene art is active.",
     });
   }, [store.resolution?.turn, store.activeDilemma?.id]);
+
+  useEffect(() => {
+    void autoGenerateSceneArt();
+  }, [
+    store.aiSettings.enabled,
+    store.aiSettings.apiKey,
+    store.mode,
+    store.resolution?.turn,
+    store.activeDilemma?.id,
+    chiefMemo,
+    worldLead,
+    dilemmaFlavor,
+  ]);
 
   useEffect(() => {
     if (store.resolution?.breakthroughs.length) {
@@ -2421,9 +2541,28 @@ export function ConvergenceApp() {
 
   const activateGemini = async () => {
     const trimmedKey = (apiKeyDraft ?? store.aiSettings.apiKey).trim();
+
+    if (trimmedKey === SERVER_AI_KEY) {
+      store.updateAIConfig(true, SERVER_AI_KEY);
+      setGeminiStatusOverride({
+        tone: "success",
+        message: `Production AI is active${productionAIModel ? ` (${productionAIModel})` : ""}.`,
+      });
+      return;
+    }
+
+    if (!trimmedKey && (serverNarrativeReady || serverSceneArtReady)) {
+      store.updateAIConfig(true, SERVER_AI_KEY);
+      setGeminiStatusOverride({
+        tone: "success",
+        message: `Production AI is active${productionAIModel ? ` (${productionAIModel})` : ""}.`,
+      });
+      return;
+    }
+
     setGeminiStatusOverride({
       tone: "checking",
-      message: "Checking Gemini connection...",
+      message: "Checking manual Gemini fallback connection...",
     });
 
     const result = await validateGeminiKey(trimmedKey);
@@ -2444,15 +2583,35 @@ export function ConvergenceApp() {
   };
 
   const disableGemini = () => {
-    store.updateAIConfig(false, (apiKeyDraft ?? store.aiSettings.apiKey).trim());
+    const trimmedKey = (apiKeyDraft ?? store.aiSettings.apiKey).trim();
+    store.updateAIConfig(false, trimmedKey === SERVER_AI_KEY ? "" : trimmedKey);
     setGeminiStatusOverride({
       tone: "idle",
-      message: "Gemini narrative is disabled.",
+      message: "AI narrative and scene art are disabled.",
     });
   };
 
   const activateOpenAI = async () => {
     const trimmedKey = (openAiKeyDraft ?? store.openAISettings.apiKey).trim();
+
+    if (trimmedKey === SERVER_AI_KEY) {
+      store.updateOpenAIConfig(true, SERVER_AI_KEY, store.openAISettings.autoPlay);
+      setOpenAiStatusOverride({
+        tone: "success",
+        message: `Production OpenAI voice is active${productionVoiceModel ? ` (${productionVoiceModel})` : ""}.`,
+      });
+      return;
+    }
+
+    if (!trimmedKey && serverVoiceReady) {
+      store.updateOpenAIConfig(true, SERVER_AI_KEY, store.openAISettings.autoPlay);
+      setOpenAiStatusOverride({
+        tone: "success",
+        message: `Production OpenAI voice is active${productionVoiceModel ? ` (${productionVoiceModel})` : ""}.`,
+      });
+      return;
+    }
+
     setOpenAiStatusOverride({
       tone: "checking",
       message: "Testing OpenAI voice with a live sample...",
@@ -2478,7 +2637,8 @@ export function ConvergenceApp() {
 
   const disableOpenAI = () => {
     stopNarration();
-    store.updateOpenAIConfig(false, (openAiKeyDraft ?? store.openAISettings.apiKey).trim(), false);
+    const trimmedKey = (openAiKeyDraft ?? store.openAISettings.apiKey).trim();
+    store.updateOpenAIConfig(false, trimmedKey === SERVER_AI_KEY ? "" : trimmedKey, false);
     setOpenAiStatusOverride({
       tone: "idle",
       message: "OpenAI voice is disabled.",
@@ -3089,7 +3249,7 @@ export function ConvergenceApp() {
                     {sceneArtScope === "briefing" && sceneArtUrl ? (
                       <div className="mt-4 overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={sceneArtUrl} alt="Gemini-generated quarterly briefing scene art" className="h-auto w-full object-cover" />
+                        <img src={sceneArtUrl} alt="AI-generated quarterly briefing scene art" className="h-auto w-full object-cover" />
                       </div>
                     ) : null}
                   </div>
@@ -4711,22 +4871,40 @@ export function ConvergenceApp() {
             {store.panel === "settings" ? (
               <div className="space-y-4 text-sm text-slate-300">
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <label className="text-xs uppercase tracking-[0.22em] text-slate-400">Gemini API Key</label>
-                  <input value={apiKeyDraft ?? store.aiSettings.apiKey} onChange={(event) => { setApiKeyDraft(event.target.value); setGeminiStatusOverride(null); }} placeholder="AIza..." className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
-                  <p className="mt-3 text-xs leading-5 text-slate-500">Stored locally only. Gemini writes flavor text and optional scene art; the simulation logic stays deterministic.</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <label className="text-xs uppercase tracking-[0.22em] text-slate-400">AI Narrative + Scene Art</label>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        Production uses Cloudflare secrets first. Manual Gemini keys are only a local fallback for development.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      {aiUsesServer ? "server" : store.aiSettings.enabled ? "manual" : "off"}
+                    </span>
+                  </div>
+                  <input value={apiKeyDraft ?? (aiUsesServer ? "" : store.aiSettings.apiKey)} onChange={(event) => { setApiKeyDraft(event.target.value); setGeminiStatusOverride(null); }} placeholder={serverNarrativeReady || serverSceneArtReady ? "Production AI secret connected" : "Optional Gemini key for local fallback"} className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
                   <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(geminiStatus.tone)}`}>{geminiStatus.message}</div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button type="button" onClick={() => void activateGemini()} disabled={geminiStatus.tone === "checking"} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
-                      {geminiStatus.tone === "checking" ? "Checking..." : "Activate Gemini"}
+                      {geminiStatus.tone === "checking" ? "Checking..." : "Activate AI"}
                     </button>
                     <button type="button" onClick={disableGemini} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">Disable</button>
                   </div>
                 </div>
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <label className="text-xs uppercase tracking-[0.22em] text-slate-400">OpenAI API Key</label>
-                  <input value={openAiKeyDraft ?? store.openAISettings.apiKey} onChange={(event) => { setOpenAiKeyDraft(event.target.value); setOpenAiStatusOverride(null); }} placeholder="sk-..." className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
-                  <p className="mt-3 text-xs leading-5 text-slate-500">Uses OpenAI text-to-speech with the `nova` voice to read quarterly summaries aloud.</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <label className="text-xs uppercase tracking-[0.22em] text-slate-400">AI Voice</label>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        Uses OpenAI text-to-speech with a high-quality narration voice. Production secrets stay server-side.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      {voiceUsesServer ? "server" : store.openAISettings.enabled ? "manual" : "off"}
+                    </span>
+                  </div>
+                  <input value={openAiKeyDraft ?? (voiceUsesServer ? "" : store.openAISettings.apiKey)} onChange={(event) => { setOpenAiKeyDraft(event.target.value); setOpenAiStatusOverride(null); }} placeholder={serverVoiceReady ? "Production OpenAI secret connected" : "Optional OpenAI key for local fallback"} className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" />
                   <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(openAiStatus.tone)}`}>{openAiStatus.message}</div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button type="button" onClick={() => void activateOpenAI()} disabled={openAiStatus.tone === "checking"} className="rounded-2xl border border-sky-400/40 bg-sky-500/10 px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
@@ -4789,7 +4967,7 @@ export function ConvergenceApp() {
                       </button>
                     </div>
                     <p className="text-xs leading-5 text-slate-500">
-                      API keys stay local only. Cloud saves upload game state, not your Gemini or OpenAI secrets. New saves can take a few seconds to appear on another browser.
+                      Production API keys stay in Cloudflare secrets. Manual fallback keys stay local only, and cloud saves upload game state without AI secrets. New saves can take a few seconds to appear on another browser.
                     </p>
                   </div>
                 </div>
@@ -4914,7 +5092,7 @@ export function ConvergenceApp() {
                   {sceneArtScope === "dilemma" && sceneArtUrl ? (
                     <div className="overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={sceneArtUrl} alt="Gemini-generated dilemma scene art" className="h-auto w-full object-cover" />
+                      <img src={sceneArtUrl} alt="AI-generated dilemma scene art" className="h-auto w-full object-cover" />
                     </div>
                   ) : null}
                 </div>

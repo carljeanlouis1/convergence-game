@@ -1,11 +1,39 @@
 import { GameState, NarrativeSystemId } from "./types";
 
+export const SERVER_AI_KEY = "__convergence_server_ai__";
+
+const GEMINI_TEXT_MODEL = "gemini-2.5-flash";
 const GEMINI_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent`;
 const GEMINI_IMAGE_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent";
 const OPENAI_TTS_ENDPOINT = "https://api.openai.com/v1/audio/speech";
 const OPENAI_TTS_MODEL = "gpt-4o-mini-tts";
+const OPENAI_TTS_VOICE = "marin";
+const SERVER_AI_STATUS_ENDPOINT = "/api/ai/status";
+const SERVER_AI_NARRATIVE_ENDPOINT = "/api/ai/narrative";
+const SERVER_AI_SCENE_IMAGE_ENDPOINT = "/api/ai/scene-image";
+const SERVER_AI_TTS_ENDPOINT = "/api/ai/tts";
+
+type AIProviderName = "openai" | "gemini";
+
+export interface AIProviderConfig {
+  available: boolean;
+  provider: AIProviderName | null;
+  model: string | null;
+}
+
+export interface AIProviderStatus {
+  ok: boolean;
+  providers: {
+    openai: boolean;
+    gemini: boolean;
+  };
+  narrative: AIProviderConfig;
+  sceneArt: AIProviderConfig;
+  voice: AIProviderConfig;
+  message: string;
+}
 
 const SYSTEM_PROMPTS: Record<NarrativeSystemId, string> = {
   "world-news":
@@ -99,6 +127,39 @@ const extractImagePart = (payload: unknown) => {
   );
 };
 
+const isServerAIKey = (apiKey: string) => apiKey.trim() === SERVER_AI_KEY;
+
+const parseServerError = async (response: Response, fallback: string) => {
+  try {
+    const json = (await response.json()) as {
+      message?: string;
+      error?: {
+        message?: string;
+      };
+    };
+
+    return json.message ?? json.error?.message ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+export const fetchAIStatus = async () => {
+  try {
+    const response = await fetch(SERVER_AI_STATUS_ENDPOINT, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as AIProviderStatus;
+  } catch {
+    return null;
+  }
+};
+
 export const buildNarrativePrompt = (
   system: NarrativeSystemId,
   state: GameState,
@@ -159,7 +220,9 @@ export const fetchGeminiNarrative = async (
   system: NarrativeSystemId,
   context: string,
 ) => {
-  if (!state.aiSettings.enabled || !state.aiSettings.apiKey) {
+  const apiKey = state.aiSettings.apiKey.trim();
+
+  if (!state.aiSettings.enabled || !apiKey) {
     return null;
   }
 
@@ -171,7 +234,27 @@ export const fetchGeminiNarrative = async (
     return { cacheKey, text: cached };
   }
 
-  const response = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(state.aiSettings.apiKey)}`, {
+  if (isServerAIKey(apiKey)) {
+    const response = await fetch(SERVER_AI_NARRATIVE_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const json = (await response.json()) as {
+      text?: string;
+    };
+
+    return json.text ? { cacheKey, text: normalizeNarrativeMoney(json.text) } : null;
+  }
+
+  const response = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -272,16 +355,59 @@ export const generateGeminiSceneImage = async ({
   apiKey: string;
   prompt: string;
 }) => {
-  if (!apiKey.trim()) {
+  const trimmedKey = apiKey.trim();
+
+  if (!trimmedKey) {
     return {
       ok: false as const,
-      message: "Activate Gemini first.",
+      message: "Activate AI scene art first.",
       blob: null as Blob | null,
     };
   }
 
+  if (isServerAIKey(trimmedKey)) {
+    try {
+      const response = await fetch(SERVER_AI_SCENE_IMAGE_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!response.ok) {
+        return {
+          ok: false as const,
+          message: await parseServerError(response, "AI scene art generation failed."),
+          blob: null as Blob | null,
+        };
+      }
+
+      const blob = await response.blob();
+      if (!blob.size) {
+        return {
+          ok: false as const,
+          message: "AI scene art returned an empty image.",
+          blob: null as Blob | null,
+        };
+      }
+
+      return {
+        ok: true as const,
+        message: response.headers.get("X-AI-Message") ?? "AI scene art generated successfully.",
+        blob,
+      };
+    } catch {
+      return {
+        ok: false as const,
+        message: "Unable to reach production AI scene art right now.",
+        blob: null as Blob | null,
+      };
+    }
+  }
+
   try {
-    const response = await fetch(`${GEMINI_IMAGE_ENDPOINT}?key=${encodeURIComponent(apiKey.trim())}`, {
+    const response = await fetch(`${GEMINI_IMAGE_ENDPOINT}?key=${encodeURIComponent(trimmedKey)}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -375,15 +501,53 @@ export const synthesizeOpenAITts = async ({
   text: string;
   instructions?: string;
 }) => {
+  const trimmedKey = apiKey.trim();
+
+  if (isServerAIKey(trimmedKey)) {
+    const response = await fetch(SERVER_AI_TTS_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        instructions,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false as const,
+        message: await parseServerError(response, "OpenAI voice generation failed."),
+        blob: null,
+      };
+    }
+
+    const blob = await response.blob();
+    if (!blob.size) {
+      return {
+        ok: false as const,
+        message: "OpenAI returned an empty audio file.",
+        blob: null,
+      };
+    }
+
+    return {
+      ok: true as const,
+      message: response.headers.get("X-AI-Message") ?? "OpenAI TTS generated audio successfully.",
+      blob,
+    };
+  }
+
   const response = await fetch(OPENAI_TTS_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey.trim()}`,
+      Authorization: `Bearer ${trimmedKey}`,
     },
     body: JSON.stringify({
       model: OPENAI_TTS_MODEL,
-      voice: "nova",
+      voice: OPENAI_TTS_VOICE,
       input: text,
       instructions,
       response_format: "mp3",
