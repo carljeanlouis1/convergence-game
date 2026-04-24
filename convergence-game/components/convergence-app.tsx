@@ -32,6 +32,8 @@ import {
   Pause,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Play,
   Radar,
   RotateCcw,
@@ -86,6 +88,7 @@ import {
   getResearchExpenseBreakdown,
   getTrackForecast,
   getTrackRevenueBreakdown,
+  TRACK_POSTURES,
   tutorialNotes,
 } from "@/lib/game/engine";
 import { useConvergenceStore } from "@/lib/game/store";
@@ -100,6 +103,7 @@ import {
   SaveSlotId,
   StartPresetId,
   TrackId,
+  TrackPostureId,
 } from "@/lib/game/types";
 import { PixiBackground } from "./pixi-background";
 
@@ -135,6 +139,56 @@ const NAV_PANELS: Array<{ id: PanelId; label: string; icon: typeof BrainCircuit 
   { id: "facilities", label: "Build", icon: Building2 },
   { id: "settings", label: "AI", icon: Handshake },
 ];
+
+const LAYOUT_PREFS_KEY = "convergence-layout-v3";
+
+const DEFAULT_SECTION_OPEN: Record<string, boolean> = {
+  "briefing-feed": true,
+  "briefing-pulse": true,
+  "briefing-memory": false,
+  "briefing-result": true,
+  "briefing-revenue": true,
+  "briefing-rivals": false,
+  "briefing-race": false,
+  "research-bottlenecks": true,
+  "research-economics": true,
+  "research-revenue": false,
+  "research-market": true,
+  "research-programs": false,
+  "research-convergences": false,
+  "research-team": true,
+  "research-staffing": true,
+  "research-arc": false,
+  "finance-ledger": true,
+  "finance-costs": true,
+  "finance-capital": false,
+  "finance-payroll": false,
+  "finance-commitments": false,
+  "hiring-pressure": true,
+  "hiring-coverage": true,
+  "hiring-queue": false,
+  "facilities-supplier": true,
+  "facilities-energy": true,
+  "facilities-projects": true,
+  "facilities-expansion": true,
+  "settings-ai": true,
+  "settings-voice": true,
+  "settings-audio": false,
+  "settings-cloud": false,
+  "settings-slots": false,
+};
+
+type LayoutPreferences = {
+  intelCollapsed: boolean;
+  detailCollapsed: boolean;
+  sections: Record<string, boolean>;
+};
+
+const defaultLayoutPreferences = (): LayoutPreferences => ({
+  intelCollapsed: false,
+  detailCollapsed: false,
+  sections: { ...DEFAULT_SECTION_OPEN },
+});
 
 const tutorialSlides = [
   {
@@ -396,6 +450,46 @@ function IntelSection({
         </div>
         <span className="rounded-full border border-white/10 bg-slate-950/65 p-1 text-slate-400">
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </span>
+      </button>
+      {open ? <div className="mt-4">{children}</div> : null}
+    </div>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  subtitle,
+  open,
+  onToggle,
+  children,
+  actions,
+  className = "",
+}: {
+  title: string;
+  subtitle?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-[24px] border border-white/8 bg-white/4 p-4 ${className}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-start justify-between gap-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-xs uppercase tracking-[0.22em] text-slate-400">{title}</span>
+          {subtitle ? <span className="mt-1 block text-sm leading-5 text-slate-500">{subtitle}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {actions}
+          <span className="rounded-full border border-white/10 bg-slate-950/65 p-1 text-slate-400">
+            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </span>
         </span>
       </button>
       {open ? <div className="mt-4">{children}</div> : null}
@@ -1424,6 +1518,11 @@ export function ConvergenceApp() {
     message: "Choose where to store this run before returning to the menu.",
   });
   const [intelCollapsed, setIntelCollapsed] = useState(false);
+  const [detailCollapsed, setDetailCollapsed] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({
+    ...DEFAULT_SECTION_OPEN,
+  }));
+  const [layoutPrefsLoaded, setLayoutPrefsLoaded] = useState(false);
   const [worldStateOpen, setWorldStateOpen] = useState(true);
   const [governmentsOpen, setGovernmentsOpen] = useState(true);
   const [rivalsOpen, setRivalsOpen] = useState(true);
@@ -1549,6 +1648,58 @@ export function ConvergenceApp() {
   const reservedCommercialCompute = getCommercializationReservedCompute(store);
   const freeCompute = Math.max(researchCapacity - totalAllocated, 0);
   const buildOptions = availableBuildOptions(store);
+  const postureOptions = Object.values(TRACK_POSTURES) as Array<(typeof TRACK_POSTURES)[TrackPostureId]>;
+  const selectedPosture = TRACK_POSTURES[selectedTrack.posture ?? "balanced"];
+  const queuedComputeDelta = store.projects.reduce((sum, project) => sum + project.computeDelta, 0);
+  const queuedUpkeepDelta = store.projects.reduce((sum, project) => sum + project.upkeep, 0);
+  const projectedComputeCapacity = store.resources.computeCapacity + queuedComputeDelta;
+  const projectedResearchCapacity = Math.max(projectedComputeCapacity - reservedCommercialCompute, 0);
+  const projectedUtilization =
+    projectedResearchCapacity > 0 ? Math.min(100, (totalAllocated / projectedResearchCapacity) * 100) : 0;
+  const selectedTrackCommercializationOptions = getCommercializationOptions(store, store.selectedTrack);
+  const commercializationReadyCount = selectedTrackCommercializationOptions.filter((option) => option.available).length;
+  const researchBottlenecks = [
+    selectedForecast.blockedReason
+      ? {
+          label: "Specialist or unlock gate",
+          detail: selectedForecast.blockedReason,
+          tone: "bad" as const,
+        }
+      : null,
+    selectedTrack.unlocked && selectedForecast.assignedCount === 0
+      ? {
+          label: "Missing staff assignment",
+          detail: "Assign eligible researchers before the quarter clock advances.",
+          tone: "bad" as const,
+        }
+      : null,
+    selectedTrack.unlocked && selectedTrack.compute < selectedForecast.recommendedCompute
+      ? {
+          label: "Compute shortfall",
+          detail: `${selectedTrack.compute}/${selectedForecast.recommendedCompute} PFLOPS committed to the active stage.`,
+          tone: "focus" as const,
+        }
+      : null,
+    store.resources.fear > store.resources.trust + 8
+      ? {
+          label: "Governance pressure",
+          detail: "Fear is outpacing trust, which can slow frontier work and raise scrutiny.",
+          tone: "bad" as const,
+        }
+      : null,
+    commercializationReadyCount === 0 && selectedTrack.level > 0
+      ? {
+          label: "Commercialization readiness",
+          detail: "No market path is ready on this lane yet. Check role gates, prerequisite programs, and cash.",
+          tone: "neutral" as const,
+        }
+      : null,
+    {
+      label: `${selectedPosture.label} posture`,
+      detail: selectedPosture.summary,
+      tone: selectedPosture.id === "sprint" ? ("focus" as const) : selectedPosture.id === "safe" ? ("good" as const) : ("neutral" as const),
+    },
+  ].filter(Boolean) as Array<{ label: string; detail: string; tone: "bad" | "focus" | "good" | "neutral" }>;
   const convergencePreview = CONVERGENCES
     .filter((convergence) => Object.keys(convergence.requirements).includes(store.selectedTrack))
     .sort(
@@ -2098,11 +2249,79 @@ export function ConvergenceApp() {
   const sceneArtModeSummary = serverSceneArtReady
     ? "Auto scenes use the fast image lane first; manual premium generation uses GPT Image 2 when available."
     : "Connect production AI to unlock automatic briefing and crisis art.";
+  const latestFacilityBeat = store.resolution?.worldEvents.find((event) => event.includes("comes online"));
+  const latestConvergenceBeat = store.resolution?.breakthroughs.find((breakthrough) =>
+    store.convergences.some((convergence) => breakthrough.startsWith(convergence.name)),
+  );
+  const latestBreakthroughBeat = store.resolution?.breakthroughs[0];
+  const sceneBeat = store.activeDilemma
+    ? {
+        label: "Active Dilemma",
+        detail: store.activeDilemma.title,
+        key: `dilemma:${store.activeDilemma.id}`,
+        tone: "bad" as const,
+      }
+    : store.ending
+      ? {
+          label: "Ending",
+          detail: store.ending.title,
+          key: `ending:${store.ending.id}`,
+          tone: "focus" as const,
+        }
+      : latestConvergenceBeat
+        ? {
+            label: "Major Convergence",
+            detail: latestConvergenceBeat,
+            key: `convergence:${store.resolution?.turn}:${latestConvergenceBeat}`,
+            tone: "focus" as const,
+          }
+        : latestFacilityBeat
+          ? {
+              label: "Facility Online",
+              detail: latestFacilityBeat,
+              key: `facility:${store.resolution?.turn}:${latestFacilityBeat}`,
+              tone: "good" as const,
+            }
+          : latestBreakthroughBeat
+            ? {
+                label: "Breakthrough",
+                detail: latestBreakthroughBeat,
+                key: `breakthrough:${store.resolution?.turn}:${latestBreakthroughBeat}`,
+                tone: "good" as const,
+              }
+            : {
+                label: "Quarter Briefing",
+                detail: store.resolution?.headline ?? "The command room is waiting for the next quarter.",
+                key: `briefing:${store.resolution?.turn ?? store.turn}`,
+                tone: "neutral" as const,
+              };
+  const isSectionOpen = (sectionId: string) => sectionOpen[sectionId] ?? true;
+  const toggleSection = (sectionId: string) =>
+    setSectionOpen((current) => ({
+      ...current,
+      [sectionId]: !(current[sectionId] ?? true),
+    }));
+  const collapseDetailSections = () =>
+    setSectionOpen((current) =>
+      Object.fromEntries(
+        Object.keys({ ...DEFAULT_SECTION_OPEN, ...current }).map((sectionId) => [sectionId, false]),
+      ) as Record<string, boolean>,
+    );
+  const restoreDefaultLayout = () => {
+    const defaults = defaultLayoutPreferences();
+    setIntelCollapsed(defaults.intelCollapsed);
+    setDetailCollapsed(defaults.detailCollapsed);
+    setSectionOpen(defaults.sections);
+    setWorldStateOpen(true);
+    setGovernmentsOpen(true);
+    setRivalsOpen(true);
+  };
   const layoutClass = intelCollapsed
     ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)]"
     : "grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]";
-  const workspaceClass =
-    "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.92fr)] 2xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.88fr)]";
+  const workspaceClass = detailCollapsed
+    ? "grid min-w-0 gap-4"
+    : "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.92fr)] 2xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.88fr)]";
   const currentNarrationText = [
     store.resolution?.headline,
     chiefMemo ?? store.resolution?.briefing,
@@ -2486,6 +2705,7 @@ export function ConvergenceApp() {
       scope === "dilemma"
         ? [
             "Create a cinematic strategy-game concept frame for this AI lab crisis.",
+            `Scene beat: ${sceneBeat.label}. ${sceneBeat.detail}`,
             store.activeDilemma?.title ?? "AI crisis",
             store.activeDilemma?.brief ?? "",
             dilemmaFlavor ?? "",
@@ -2495,6 +2715,7 @@ export function ConvergenceApp() {
             .join(" ")
         : [
             "Create a cinematic strategy-game concept frame for this AI lab quarterly briefing.",
+            `Scene beat: ${sceneBeat.label}. ${sceneBeat.detail}`,
             store.resolution?.headline ?? "Quarterly briefing",
             chiefMemo ?? store.resolution?.briefing ?? "",
             worldLead ?? "",
@@ -2647,7 +2868,7 @@ export function ConvergenceApp() {
     const key =
       scope === "dilemma"
         ? `dilemma:${store.activeDilemma?.id}:${dilemmaFlavor ?? "base"}`
-        : `briefing:${store.resolution?.turn}:${chiefMemo ?? worldLead ?? "base"}`;
+        : `briefing:${sceneBeat.key}:${chiefMemo ?? worldLead ?? "base"}`;
 
     if (autoSceneArtKeyRef.current === key) {
       return;
@@ -2703,6 +2924,49 @@ export function ConvergenceApp() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const defaults = defaultLayoutPreferences();
+    const raw = window.localStorage.getItem(LAYOUT_PREFS_KEY);
+
+    if (!raw) {
+      setLayoutPrefsLoaded(true);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<LayoutPreferences>;
+      setIntelCollapsed(Boolean(parsed.intelCollapsed));
+      setDetailCollapsed(Boolean(parsed.detailCollapsed));
+      setSectionOpen({
+        ...defaults.sections,
+        ...(parsed.sections ?? {}),
+      });
+    } catch {
+      setSectionOpen(defaults.sections);
+    }
+
+    setLayoutPrefsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!layoutPrefsLoaded || typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      LAYOUT_PREFS_KEY,
+      JSON.stringify({
+        intelCollapsed,
+        detailCollapsed,
+        sections: sectionOpen,
+      } satisfies LayoutPreferences),
+    );
+  }, [detailCollapsed, intelCollapsed, layoutPrefsLoaded, sectionOpen]);
 
   useEffect(() => {
     void connectProductionAI();
@@ -3244,7 +3508,7 @@ export function ConvergenceApp() {
               <div className="mission-card rounded-[28px] p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Next Objectives</p>
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Command Guidance</p>
                     <p className="mt-2 text-sm leading-6 text-slate-400">
                       {oneMoreTurnReady
                         ? "No red blockers. You can tune choices or advance the quarter."
@@ -3326,6 +3590,44 @@ export function ConvergenceApp() {
                     <Play className="h-4 w-4" />
                     End Turn
                   </button>
+                </div>
+                <div className="mt-4 rounded-[22px] border border-white/8 bg-slate-950/45 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Layout Controls</p>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-600">Saved locally</span>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setIntelCollapsed((value) => !value)}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 transition hover:bg-white/8"
+                    >
+                      {intelCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                      {intelCollapsed ? "Open Intel" : "Compact Intel"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDetailCollapsed((value) => !value)}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 transition hover:bg-white/8"
+                    >
+                      {detailCollapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+                      {detailCollapsed ? "Open Detail" : "Hide Detail"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={collapseDetailSections}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 transition hover:bg-white/8"
+                    >
+                      Collapse Sections
+                    </button>
+                    <button
+                      type="button"
+                      onClick={restoreDefaultLayout}
+                      className="rounded-2xl border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-100 transition hover:bg-sky-500/15"
+                    >
+                      Restore Layout
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3622,22 +3924,38 @@ export function ConvergenceApp() {
                         {sceneArtStatus.message}
                       </div>
                     ) : null}
+                    <div className="mt-4 rounded-[24px] border border-sky-400/18 bg-sky-500/10 p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs uppercase tracking-[0.22em] text-sky-100">Scene Beat</p>
+                          <h3 className="mt-2 text-lg font-semibold text-white">{sceneBeat.label}</h3>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">{sceneBeat.detail}</p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <SignalChip label={sceneArtScope === "briefing" && sceneArtUrl ? "Visualized" : serverSceneArtReady ? "Auto eligible" : "AI standby"} tone={sceneArtScope === "briefing" && sceneArtUrl ? "good" : sceneBeat.tone} />
+                          <button
+                            type="button"
+                            onClick={() => void generateSceneArt("briefing", "premium")}
+                            disabled={sceneArtStatus.tone === "checking"}
+                            className="rounded-2xl border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Regenerate Premium
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-                    <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Event Feed</p>
-                          <p className="mt-2 text-sm text-slate-400">
-                            Quarter-by-quarter news, breakthroughs, and scandals.
-                          </p>
-                        </div>
-                        <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                          Latest {deferredFeed.length}
-                        </span>
-                      </div>
-                      <div className="mt-4 grid gap-3">
+                    <CollapsibleSection
+                      title="Event Feed"
+                      subtitle="Quarter-by-quarter news, breakthroughs, and scandals."
+                      open={isSectionOpen("briefing-feed")}
+                      onToggle={() => toggleSection("briefing-feed")}
+                      actions={<span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest {deferredFeed.length}</span>}
+                      className="bg-slate-950/78"
+                    >
+                      <div className="grid gap-3">
                         {deferredFeed.slice(0, 5).map((item) => (
                           <div key={item.id} className="rounded-[22px] border border-white/8 bg-white/4 p-4">
                             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
@@ -3649,16 +3967,26 @@ export function ConvergenceApp() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </CollapsibleSection>
 
                     <div className="space-y-4">
-                      <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
-                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">World Pulse</p>
+                      <CollapsibleSection
+                        title="World Pulse"
+                        subtitle="External pressure and the strongest narrative signal this quarter."
+                        open={isSectionOpen("briefing-pulse")}
+                        onToggle={() => toggleSection("briefing-pulse")}
+                        className="bg-slate-950/78"
+                      >
                         <RichText text={worldLead ?? store.resolution?.worldEvents[0] ?? "No major event yet."} className="mt-3" />
-                      </div>
-                      <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
-                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Decision Memory</p>
-                        <div className="mt-3 space-y-2">
+                      </CollapsibleSection>
+                      <CollapsibleSection
+                        title="Decision Memory"
+                        subtitle="Permanent calls that can alter future pressure and endings."
+                        open={isSectionOpen("briefing-memory")}
+                        onToggle={() => toggleSection("briefing-memory")}
+                        className="bg-slate-950/78"
+                      >
+                        <div className="space-y-2">
                           {store.decisionLog.length ? (
                             store.decisionLog.slice(0, 3).map((entry) => (
                               <div key={entry.id} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
@@ -3674,7 +4002,7 @@ export function ConvergenceApp() {
                             <p className="text-sm text-slate-500">No major decisions are logged yet.</p>
                           )}
                         </div>
-                      </div>
+                      </CollapsibleSection>
                     </div>
                   </div>
                 </div>
@@ -4004,6 +4332,7 @@ export function ConvergenceApp() {
               ) : null}
             </section>
 
+            {!detailCollapsed ? (
             <aside className="mission-panel min-w-0 self-start space-y-4 rounded-[28px] p-5 xl:sticky xl:top-4">
               <div className="rounded-[26px] border border-white/8 bg-white/4 p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -4088,6 +4417,37 @@ export function ConvergenceApp() {
                       <button type="button" onClick={() => store.adjustCompute(store.selectedTrack, 5)} className="rounded-xl border border-sky-400/40 bg-sky-500/10 px-3 py-2 text-white">+5</button>
                       <span className="ml-auto text-xs uppercase tracking-[0.18em] text-slate-500">{freeCompute} PFLOPS free</span>
                     </div>
+                    <div className="mt-4 rounded-[20px] border border-white/8 bg-slate-950/55 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Research Posture</p>
+                        <span className="text-xs text-slate-400">{selectedPosture.label}</span>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        {postureOptions.map((posture) => (
+                          <button
+                            key={posture.id}
+                            type="button"
+                            disabled={!selectedTrack.unlocked}
+                            onClick={() => store.setTrackPosture(store.selectedTrack, posture.id)}
+                            className={`rounded-2xl border px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                              selectedPosture.id === posture.id
+                                ? "border-sky-400/40 bg-sky-500/12 text-white"
+                                : "border-white/8 bg-white/4 text-slate-300 hover:border-white/16 hover:bg-white/8"
+                            }`}
+                          >
+                            <span className="block text-sm font-medium">{posture.label}</span>
+                            <span className="mt-1 block text-[11px] leading-5 text-slate-500">
+                              {posture.progressMultiplier === 1
+                                ? "Normal tempo"
+                                : `${posture.progressMultiplier > 1 ? "+" : ""}${Math.round((posture.progressMultiplier - 1) * 100)}% speed`}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-slate-500">
+                        {selectedPosture.summary} Expense modifier x{selectedPosture.expenseMultiplier.toFixed(2)}.
+                      </p>
+                    </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
                         <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Research Capacity</p>
@@ -4103,6 +4463,26 @@ export function ConvergenceApp() {
                     </p>
                   </div>
                 </div>
+
+                <CollapsibleSection
+                  title="Bottleneck Scan"
+                  subtitle="Shows why this track is moving, stalling, or getting politically expensive."
+                  open={isSectionOpen("research-bottlenecks")}
+                  onToggle={() => toggleSection("research-bottlenecks")}
+                  actions={<SignalChip label={`${researchBottlenecks.length} signals`} tone="focus" />}
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {researchBottlenecks.map((bottleneck) => (
+                      <div key={bottleneck.label} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-white">{bottleneck.label}</p>
+                          <SignalChip label={bottleneck.tone === "bad" ? "Risk" : bottleneck.tone === "good" ? "Stable" : "Watch"} tone={bottleneck.tone} />
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-400">{bottleneck.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleSection>
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -4971,6 +5351,12 @@ export function ConvergenceApp() {
                   </div>
                 </div>
 
+                <CollapsibleSection
+                  title="Ledger Waterfall"
+                  subtitle="Revenue streams beside the burn stack so cash pressure is easier to diagnose."
+                  open={isSectionOpen("finance-ledger")}
+                  onToggle={() => toggleSection("finance-ledger")}
+                >
                 <div className="grid gap-4 xl:grid-cols-2">
                   <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -5010,7 +5396,14 @@ export function ConvergenceApp() {
                     </div>
                   </div>
                 </div>
+                </CollapsibleSection>
 
+                <CollapsibleSection
+                  title="Research And Commercial Costs"
+                  subtitle="Recurring research overhead, posture effects, and product operating load."
+                  open={isSectionOpen("finance-costs")}
+                  onToggle={() => toggleSection("finance-costs")}
+                >
                 <div className="grid gap-4 xl:grid-cols-2">
                   <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -5027,7 +5420,7 @@ export function ConvergenceApp() {
                             <span className="text-sm text-rose-200">{formatCurrency(entry.amount)}</span>
                           </div>
                           <p className="mt-2 text-xs text-slate-400">
-                            {entry.projectName} · {entry.assignedCount} staff · {entry.compute} PFLOPS
+                            {entry.projectName} · {entry.postureLabel} posture · {entry.assignedCount} staff · {entry.compute} PFLOPS
                           </p>
                         </div>
                       ))}
@@ -5060,7 +5453,14 @@ export function ConvergenceApp() {
                     </div>
                   </div>
                 </div>
+                </CollapsibleSection>
 
+                <CollapsibleSection
+                  title="Capital Markets"
+                  subtitle="Founder control, board confidence, and available financing tradeoffs."
+                  open={isSectionOpen("finance-capital")}
+                  onToggle={() => toggleSection("finance-capital")}
+                >
                 <div className="grid gap-4 xl:grid-cols-2">
                   <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -5128,6 +5528,14 @@ export function ConvergenceApp() {
                   </div>
                 </div>
 
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="Payroll And Pending Hires"
+                  subtitle="People are recurring burn, not just one-time signing bonuses."
+                  open={isSectionOpen("finance-payroll")}
+                  onToggle={() => toggleSection("finance-payroll")}
+                >
                 <div className="grid gap-4 xl:grid-cols-2">
                   <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -5177,7 +5585,14 @@ export function ConvergenceApp() {
                     <p className="mt-3 text-xs text-slate-500">Signed-hire close costs already committed this quarter: {formatCurrency(pendingHireCloseCost)}</p>
                   </div>
                 </div>
+                </CollapsibleSection>
 
+                <CollapsibleSection
+                  title="Capital Commitments"
+                  subtitle="Construction and expansion load that will change compute and upkeep."
+                  open={isSectionOpen("finance-commitments")}
+                  onToggle={() => toggleSection("finance-commitments")}
+                >
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Capital Commitments</p>
@@ -5200,25 +5615,32 @@ export function ConvergenceApp() {
                     )}
                   </div>
                 </div>
+                </CollapsibleSection>
               </div>
             ) : null}
 
             {store.panel === "hiring" ? (
               <div className="space-y-4">
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Hiring Pressure</p>
+                <CollapsibleSection
+                  title="Hiring Pressure"
+                  subtitle="Why recruiting changes next quarter, not this one."
+                  open={isSectionOpen("hiring-pressure")}
+                  onToggle={() => toggleSection("hiring-pressure")}
+                >
                   <p className="mt-3 text-sm leading-6 text-slate-300">
                     Signed hires are locked in now, become assignable next quarter, and then start contributing to payroll and research throughput.
                     Recruiting changes the next turn, not the current one. Specialists only staff their primary or secondary lanes unless marked as generalists.
                   </p>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Active Track Coverage</p>
-                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{getTrackLabel(store.selectedTrack)}</span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                <CollapsibleSection
+                  title="Active Track Coverage"
+                  subtitle="Free matches, committed specialists, and true lane gaps."
+                  open={isSectionOpen("hiring-coverage")}
+                  onToggle={() => toggleSection("hiring-coverage")}
+                  actions={<span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{getTrackLabel(store.selectedTrack)}</span>}
+                >
+                  <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
                       <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Assigned Now</p>
                       <p className="mt-2 text-sm font-medium text-white">{assignedResearchers.length}</p>
@@ -5239,14 +5661,16 @@ export function ConvergenceApp() {
                   <p className="mt-3 text-xs leading-5 text-slate-500">
                     Use this as the context for why a hire matters: coverage gaps, not just headcount, decide which lanes can actually move.
                   </p>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Arrival Queue</p>
-                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{store.pendingHires.length} signed</span>
-                  </div>
-                  <div className="mt-3 space-y-2">
+                <CollapsibleSection
+                  title="Arrival Queue"
+                  subtitle="Signed hires and payroll arriving next turn."
+                  open={isSectionOpen("hiring-queue")}
+                  onToggle={() => toggleSection("hiring-queue")}
+                  actions={<span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{store.pendingHires.length} signed</span>}
+                >
+                  <div className="space-y-2">
                     {store.pendingHires.length ? (
                       store.pendingHires.map((hire) => (
                         <div key={hire.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
@@ -5269,7 +5693,7 @@ export function ConvergenceApp() {
                   <p className="mt-3 text-xs leading-5 text-slate-500">
                     Close cost already committed this quarter: {formatCurrency(pendingHireCloseCost)}.
                   </p>
-                </div>
+                </CollapsibleSection>
               </div>
             ) : null}
 
@@ -5291,7 +5715,7 @@ export function ConvergenceApp() {
                       tone={nextProjectDue ? "focus" : "neutral"}
                     />
                   </div>
-                  <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <div className="rounded-2xl border border-sky-400/18 bg-sky-500/10 p-3">
                       <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-sky-100">
                         <span>Research Capacity</span>
@@ -5323,14 +5747,25 @@ export function ConvergenceApp() {
                           : "No construction drag right now. Expansion decisions can be timed around cash pressure."}
                       </p>
                     </div>
+                    <div className="rounded-2xl border border-emerald-400/18 bg-emerald-500/10 p-3">
+                      <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-emerald-100">
+                        <span>Projected Capacity</span>
+                        <span>{Math.round(projectedUtilization)}% used</span>
+                      </div>
+                      <p className="mt-2 text-sm font-medium text-white">{projectedComputeCapacity} PFLOPS total</p>
+                      <p className="mt-2 text-xs leading-5 text-slate-400">
+                        Queue adds {queuedComputeDelta} PFLOPS and {formatCurrency(queuedUpkeepDelta)} upkeep.
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Supplier</p>
-                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Chips change throughput and cost</span>
-                  </div>
-                  <div className="mt-3 grid gap-2">
+                <CollapsibleSection
+                  title="Supplier"
+                  subtitle="Chips change throughput, cost, and track-level strengths."
+                  open={isSectionOpen("facilities-supplier")}
+                  onToggle={() => toggleSection("facilities-supplier")}
+                >
+                  <div className="grid gap-2">
                     {SUPPLIER_CONTRACTS.map((supplier) => (
                       <button key={supplier.vendor} type="button" onClick={() => store.chooseSupplier(supplier.vendor)} className={`rounded-2xl border px-3 py-3 text-left ${store.supplier.vendor === supplier.vendor ? "border-sky-400/40 bg-sky-500/10" : "border-white/8 bg-slate-950/65"}`}>
                         <span className="block font-medium text-white">{supplier.vendor}</span>
@@ -5339,14 +5774,15 @@ export function ConvergenceApp() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Energy Policy</p>
-                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Cost, trust, and utilization tradeoffs</span>
-                  </div>
-                  <div className="mt-3 grid gap-2">
+                <CollapsibleSection
+                  title="Energy Policy"
+                  subtitle="Cost, trust, and utilization tradeoffs."
+                  open={isSectionOpen("facilities-energy")}
+                  onToggle={() => toggleSection("facilities-energy")}
+                >
+                  <div className="grid gap-2">
                     {ENERGY_POLICIES.map((energy) => (
                       <button key={energy.id} type="button" onClick={() => store.chooseEnergy(energy.id)} className={`rounded-2xl border px-3 py-3 text-left ${store.energyPolicy.id === energy.id ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/8 bg-slate-950/65"}`}>
                         <span className="block font-medium text-white">{energy.name}</span>
@@ -5355,11 +5791,16 @@ export function ConvergenceApp() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Active Projects</p>
-                  <div className="mt-3 space-y-3">
+                <CollapsibleSection
+                  title="Active Projects"
+                  subtitle="Construction queue and compute arriving soon."
+                  open={isSectionOpen("facilities-projects")}
+                  onToggle={() => toggleSection("facilities-projects")}
+                  actions={<span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{store.projects.length} queued</span>}
+                >
+                  <div className="space-y-3">
                     {store.projects.length ? (
                       store.projects.map((project) => {
                         const progressPercent = ((project.totalTurns - project.turnsRemaining) / Math.max(project.totalTurns, 1)) * 100;
@@ -5382,31 +5823,43 @@ export function ConvergenceApp() {
                       <p className="text-sm text-slate-500">No active construction projects.</p>
                     )}
                   </div>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Expansion</p>
-                  <div className="mt-3 grid gap-2">
+                <CollapsibleSection
+                  title="Expansion"
+                  subtitle="Build the compute roadmap, but watch upkeep, trust, and regional risk."
+                  open={isSectionOpen("facilities-expansion")}
+                  onToggle={() => toggleSection("facilities-expansion")}
+                >
+                  <div className="grid gap-2">
                     {buildOptions.map((option) => {
                       const buildTime = getFacilityBuildTime(store, option.id);
+                      const optionProjectedCapacity = store.resources.computeCapacity + queuedComputeDelta + option.computeDelta;
 
                       return (
                         <button key={option.id} type="button" onClick={() => store.startFacility(option.id)} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left">
                           <span className="block font-medium text-white">{option.name}</span>
                           <span className="mt-1 block text-xs leading-5 text-slate-400">{option.region} / Cost {formatCurrency(option.buildCost)} / ETA {buildTime}Q / Upkeep {formatCurrency(option.upkeep)}</span>
                           <span className="mt-2 block text-[11px] uppercase tracking-[0.18em] text-slate-500">+{option.computeDelta} PFLOPS / Trust {option.trustDelta >= 0 ? "+" : ""}{option.trustDelta} / Risk {option.riskDelta >= 0 ? "+" : ""}{option.riskDelta}</span>
+                          <span className="mt-2 block text-[11px] uppercase tracking-[0.18em] text-sky-200">Projected total after build queue: {optionProjectedCapacity} PFLOPS</span>
                           <span className="mt-2 block text-xs leading-5 text-slate-400">{describeFacilityOutcome(option)}</span>
                         </button>
                       );
                     })}
                   </div>
-                </div>
+                </CollapsibleSection>
               </div>
             ) : null}
 
             {store.panel === "settings" ? (
               <div className="space-y-4 text-sm text-slate-300">
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                <CollapsibleSection
+                  title="AI Narrative + Scene Art"
+                  subtitle={`Production uses Cloudflare secrets first. ${sceneArtModeSummary}`}
+                  open={isSectionOpen("settings-ai")}
+                  onToggle={() => toggleSection("settings-ai")}
+                  actions={<span className="rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">{aiUsesServer ? "server" : store.aiSettings.enabled ? "manual" : "off"}</span>}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <label className="text-xs uppercase tracking-[0.22em] text-slate-400">AI Narrative + Scene Art</label>
@@ -5440,9 +5893,15 @@ export function ConvergenceApp() {
                     </button>
                     <button type="button" onClick={disableGemini} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">Disable</button>
                   </div>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                <CollapsibleSection
+                  title="AI Voice"
+                  subtitle="OpenAI text-to-speech for briefing narration."
+                  open={isSectionOpen("settings-voice")}
+                  onToggle={() => toggleSection("settings-voice")}
+                  actions={<span className="rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">{voiceUsesServer ? "server" : store.openAISettings.enabled ? "manual" : "off"}</span>}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <label className="text-xs uppercase tracking-[0.22em] text-slate-400">AI Voice</label>
@@ -5467,9 +5926,14 @@ export function ConvergenceApp() {
                     <input type="checkbox" checked={store.openAISettings.autoPlay} onChange={(event) => store.updateOpenAIConfig(store.openAISettings.enabled, store.openAISettings.apiKey, event.target.checked)} className="h-4 w-4 rounded border-white/15 bg-slate-900" />
                     Auto-play quarterly briefing after each turn
                   </label>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                <CollapsibleSection
+                  title="Local Audio"
+                  subtitle="Browser sound toggles and current narration stop controls."
+                  open={isSectionOpen("settings-audio")}
+                  onToggle={() => toggleSection("settings-audio")}
+                >
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => setSoundEnabled((value) => !value)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/65 px-4 py-3 text-sm text-white">
                       <AudioLines className="h-4 w-4" />
@@ -5482,9 +5946,15 @@ export function ConvergenceApp() {
                       </button>
                     ) : null}
                   </div>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                <CollapsibleSection
+                  title="Cloud Saves"
+                  subtitle="Cloudflare KV sync using commander ID and passphrase."
+                  open={isSectionOpen("settings-cloud")}
+                  onToggle={() => toggleSection("settings-cloud")}
+                  actions={<Cloud className="h-4 w-4 text-violet-200" />}
+                >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Cloud Saves</p>
@@ -5520,11 +5990,15 @@ export function ConvergenceApp() {
                       Production API keys stay in Cloudflare secrets. Manual fallback keys stay local only, and cloud saves upload game state without AI secrets. New saves can take a few seconds to appear on another browser.
                     </p>
                   </div>
-                </div>
+                </CollapsibleSection>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Save Slots</p>
-                  <div className="mt-3 space-y-3">
+                <CollapsibleSection
+                  title="Save Slots"
+                  subtitle="Local and cloud slots stay separate so testing is safe."
+                  open={isSectionOpen("settings-slots")}
+                  onToggle={() => toggleSection("settings-slots")}
+                >
+                  <div className="space-y-3">
                     <div className="rounded-2xl border border-violet-400/18 bg-violet-500/10 px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <div>
@@ -5573,10 +6047,11 @@ export function ConvergenceApp() {
                       );
                     })}
                   </div>
-                </div>
+                </CollapsibleSection>
               </div>
             ) : null}
           </aside>
+            ) : null}
           </div>
         </div>
       </div>
@@ -5644,6 +6119,16 @@ export function ConvergenceApp() {
                     <div className="mt-4 flex flex-wrap gap-2">
                       <SignalChip label="Permanent history" tone="bad" />
                       <SignalChip label={`${store.decisionLog.length} decisions already logged`} tone="neutral" />
+                    </div>
+                    <div className="mt-4 rounded-[22px] border border-amber-400/18 bg-amber-500/10 p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.22em] text-amber-100">Scene Beat</p>
+                          <p className="mt-2 text-base font-semibold text-white">{sceneBeat.label}</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">{sceneBeat.detail}</p>
+                        </div>
+                        <SignalChip label={sceneArtScope === "dilemma" && sceneArtUrl ? "Visualized" : serverSceneArtReady ? "Auto eligible" : "AI standby"} tone={sceneArtScope === "dilemma" && sceneArtUrl ? "good" : "focus"} />
+                      </div>
                     </div>
                   </div>
 

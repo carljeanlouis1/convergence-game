@@ -9,6 +9,14 @@ export function PixiBackground() {
   useEffect(() => {
     let disposed = false;
     let app: Application | null = null;
+    const destroyApp = (target: Application) => {
+      try {
+        target.stop();
+        target.destroy(false, { children: true });
+      } catch {
+        // Pixi's resize plugin can throw during React dev remounts; swallowing keeps the UI usable.
+      }
+    };
 
     const setup = async () => {
       if (!hostRef.current) {
@@ -23,7 +31,7 @@ export function PixiBackground() {
       });
 
       if (disposed || !hostRef.current) {
-        await app.destroy(true);
+        destroyApp(app);
         return;
       }
 
@@ -98,7 +106,8 @@ export function PixiBackground() {
     return () => {
       disposed = true;
       if (app) {
-        void app.destroy(true);
+        destroyApp(app);
+        app = null;
       }
     };
   }, []);

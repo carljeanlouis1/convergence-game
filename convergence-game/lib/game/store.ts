@@ -24,10 +24,11 @@ import {
   setOpenAISettings,
   setEnergyPolicy,
   setPanel,
+  setResearchPosture,
   setSupplier,
   updateTrackCompute,
 } from "./engine";
-import { DilemmaOption, GameSnapshot, GameState, SaveSlotId, StartPresetId, TrackId } from "./types";
+import { DilemmaOption, GameSnapshot, GameState, SaveSlotId, StartPresetId, TrackId, TrackPostureId } from "./types";
 
 interface ConvergenceStore extends GameState {
   hydrated: boolean;
@@ -42,6 +43,7 @@ interface ConvergenceStore extends GameState {
   nextTurn: () => void;
   resolveDilemma: (option: DilemmaOption) => void;
   adjustCompute: (trackId: TrackId, delta: number) => void;
+  setTrackPosture: (trackId: TrackId, posture: TrackPostureId) => void;
   assignPerson: (researcherId: string, trackId: TrackId | null) => void;
   hire: (candidateId: string) => void;
   launchCommercialization: (definitionId: string) => void;
@@ -71,6 +73,7 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
     nextTurn,
     resolveDilemma,
     adjustCompute,
+    setTrackPosture,
     assignPerson,
     hire,
     launchCommercialization,
@@ -99,6 +102,7 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
   void nextTurn;
   void resolveDilemma;
   void adjustCompute;
+  void setTrackPosture;
   void assignPerson;
   void hire;
   void launchCommercialization;
@@ -226,6 +230,12 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
   adjustCompute: (trackId, delta) => {
     const state = cloneGameState(get());
     updateTrackCompute(state, trackId, delta);
+    persistIfPlaying(state);
+    set({ ...state });
+  },
+  setTrackPosture: (trackId, posture) => {
+    const state = cloneGameState(get());
+    setResearchPosture(state, trackId, posture);
     persistIfPlaying(state);
     set({ ...state });
   },

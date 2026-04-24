@@ -38,6 +38,7 @@ import {
   SaveSlotId,
   StartPresetId,
   TrackId,
+  TrackPostureId,
   TrackState,
   TriggeredConvergence,
 } from "./types";
@@ -58,6 +59,51 @@ export const getTrackStageAtIndex = (trackId: TrackId, index: number) =>
   trackById(trackId).levels[index] ?? null;
 
 const currentStageForTrack = (trackId: TrackId, level: number) => getTrackStageAtIndex(trackId, level);
+
+export const TRACK_POSTURES: Record<
+  TrackPostureId,
+  {
+    id: TrackPostureId;
+    label: string;
+    summary: string;
+    progressMultiplier: number;
+    expenseMultiplier: number;
+    trustDelta: number;
+    fearDelta: number;
+    boardDelta: number;
+  }
+> = {
+  safe: {
+    id: "safe",
+    label: "Safe",
+    summary: "Slower and more defensible. Lowers heat while preserving credibility.",
+    progressMultiplier: 0.92,
+    expenseMultiplier: 0.96,
+    trustDelta: 0.08,
+    fearDelta: -0.1,
+    boardDelta: 0.02,
+  },
+  balanced: {
+    id: "balanced",
+    label: "Balanced",
+    summary: "Default lab tempo. No unusual political or operating pressure.",
+    progressMultiplier: 1,
+    expenseMultiplier: 1,
+    trustDelta: 0,
+    fearDelta: 0,
+    boardDelta: 0,
+  },
+  sprint: {
+    id: "sprint",
+    label: "Sprint",
+    summary: "Faster, more expensive, and more visible. Raises heat if overused.",
+    progressMultiplier: 1.18,
+    expenseMultiplier: 1.12,
+    trustDelta: -0.06,
+    fearDelta: 0.16,
+    boardDelta: -0.04,
+  },
+};
 
 export const formatCurrency = (value: number) => {
   const absolute = Math.abs(value);
@@ -335,6 +381,7 @@ const createInitialTracks = (): Record<TrackId, TrackState> =>
         progress: 0,
         compute: definition.starter ? (definition.id === "foundation" ? 44 : 28) : 0,
         unlocked: definition.starter,
+        posture: "balanced",
       };
 
       return accumulator;
@@ -581,6 +628,21 @@ export const normalizeGameState = (input: GameState): GameState => {
   };
   state.feed = state.feed ?? [];
   state.facilities = state.facilities ?? [];
+  state.tracks = Object.fromEntries(
+    (Object.keys(state.tracks ?? createInitialTracks()) as TrackId[]).map((trackId) => {
+      const fallback = createInitialTracks()[trackId];
+      const track = state.tracks?.[trackId] ?? fallback;
+
+      return [
+        trackId,
+        {
+          ...fallback,
+          ...track,
+          posture: track.posture ?? "balanced",
+        },
+      ];
+    }),
+  ) as Record<TrackId, TrackState>;
   state.projects =
     state.projects?.map((project) => ({
       ...project,
@@ -786,6 +848,7 @@ const trackResearchCost = (trackId: TrackId, track: TrackState, assignedCount: n
   }
 
   const activeStage = currentStageForTrack(trackId, track.level);
+  const posture = TRACK_POSTURES[track.posture ?? "balanced"];
 
   const wetLabPremium =
     trackId === "biology" || trackId === "robotics" || trackId === "materials" || trackId === "quantum"
@@ -804,7 +867,7 @@ const trackResearchCost = (trackId: TrackId, track: TrackState, assignedCount: n
     (track.compute / 100) * 0.09 +
     wetLabPremium +
     stagePressure
-  );
+  ) * posture.expenseMultiplier;
 };
 
 export const getFacilityBuildTime = (state: GameState, facilityId: string) => {
@@ -883,9 +946,11 @@ export const getTrackForecast = (state: GameState, trackId: TrackId) => {
       ? Math.max(0, (state.resources.fear - state.resources.trust) * 0.08)
       : 0;
   const staffingPenalty = assigned.length === 0 ? 6 : assigned.length === 1 ? 2.6 : 0;
+  const posture = TRACK_POSTURES[track.posture ?? "balanced"];
+  const baseProgressPerTurn = Math.max(0, computeFactor + teamFactor + synergy - governancePenalty - staffingPenalty);
   const progressPerTurn = specialistGaps.length
     ? 0
-    : Math.max(0, computeFactor + teamFactor + synergy - governancePenalty - staffingPenalty);
+    : baseProgressPerTurn * posture.progressMultiplier;
   const remaining = Math.max(0, target - track.progress);
   const turnsToLevel =
     !track.unlocked || track.level >= maxLevel || progressPerTurn <= 0 ? null : Math.ceil(remaining / progressPerTurn);
@@ -916,6 +981,11 @@ export const getTrackForecast = (state: GameState, trackId: TrackId) => {
     activeTechnology: activeStage?.technology ?? null,
     specialistGaps,
     computeReadiness: Number(computeReadiness.toFixed(2)),
+    posture: posture.id,
+    postureLabel: posture.label,
+    postureSummary: posture.summary,
+    baseProgressPerTurn: Number(baseProgressPerTurn.toFixed(1)),
+    postureProgressDelta: Number((progressPerTurn - baseProgressPerTurn).toFixed(1)),
   };
 };
 
@@ -1581,6 +1651,8 @@ export const getResearchExpenseBreakdown = (state: GameState) =>
         assignedCount,
         compute: track.compute,
         projectName: getTrackForecast(state, trackId).projectName,
+        posture: track.posture ?? "balanced",
+        postureLabel: TRACK_POSTURES[track.posture ?? "balanced"].label,
       };
     })
     .filter((entry) => entry.amount > 0)
@@ -1898,6 +1970,29 @@ const updateGovernments = (state: GameState) => {
   });
 };
 
+const researchPostureDrift = (state: GameState) =>
+  (Object.keys(state.tracks) as TrackId[]).reduce(
+    (drift, trackId) => {
+      const track = state.tracks[trackId];
+      const assignedCount = state.employees.filter((employee) => employee.assignedTrack === trackId).length;
+      const active = track.unlocked && (assignedCount > 0 || track.compute > 0);
+
+      if (!active) {
+        return drift;
+      }
+
+      const posture = TRACK_POSTURES[track.posture ?? "balanced"];
+      const intensity = Math.min(1, 0.35 + assignedCount * 0.18 + Math.min(track.compute, 80) / 180);
+
+      return {
+        trust: drift.trust + posture.trustDelta * intensity,
+        fear: drift.fear + posture.fearDelta * intensity,
+        board: drift.board + posture.boardDelta * intensity,
+      };
+    },
+    { trust: 0, fear: 0, board: 0 },
+  );
+
 export const recalculateState = (state: GameState) => {
   ensureUnlocks(state);
   normalizeAssignments(state);
@@ -2074,11 +2169,13 @@ export const advanceTurn = (current: GameState) => {
   updateRivals(state, worldEvents);
   const worldNews = buildWorldNews(state);
   worldEvents.push(...worldNews.map((item) => item.title));
+  const postureDrift = researchPostureDrift(state);
   state.resources.trust = clamp(
     state.resources.trust +
       state.energyPolicy.trustDelta * 0.18 +
       computeTrustFromFacilities(state.facilities) * 0.12 -
-      Math.max(0, state.flags.ethicsDebt) * 0.1,
+      Math.max(0, state.flags.ethicsDebt) * 0.1 +
+      postureDrift.trust,
     0,
     100,
   );
@@ -2086,10 +2183,12 @@ export const advanceTurn = (current: GameState) => {
     state.resources.fear +
       Math.max(0, state.tracks.foundation.level - state.tracks.alignment.level) * 0.28 +
       computeRiskFromFacilities(state.facilities) * 0.14 +
-      (worldNews.some((item) => item.severity === "critical") ? 1.2 : 0),
+      (worldNews.some((item) => item.severity === "critical") ? 1.2 : 0) +
+      postureDrift.fear,
     0,
     100,
   );
+  state.resources.boardConfidence = clamp(state.resources.boardConfidence + postureDrift.board, 0, 100);
   recalculateState(state);
   applyQuarterlyBoardPressure(state);
   recalculateState(state);
@@ -2165,6 +2264,15 @@ export const updateTrackCompute = (state: GameState, trackId: TrackId, delta: nu
   const change = delta > 0 ? Math.min(delta, freeCompute) : Math.max(delta, -next.compute);
 
   next.compute = Math.max(0, next.compute + change);
+  recalculateState(state);
+};
+
+export const setResearchPosture = (state: GameState, trackId: TrackId, posture: TrackPostureId) => {
+  if (!state.tracks[trackId]?.unlocked) {
+    return;
+  }
+
+  state.tracks[trackId].posture = posture;
   recalculateState(state);
 };
 

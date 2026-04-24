@@ -59,6 +59,8 @@ export type CommercializationLane =
   | "strategic"
   | "frontier";
 
+export type TrackPostureId = "safe" | "balanced" | "sprint";
+
 export type CommercializationStatus = "launching" | "live";
 
 export type FundingRoundId = "seed" | "series-a" | "series-b" | "series-c" | "series-d";
@@ -95,6 +97,7 @@ export interface TrackState {
   progress: number;
   compute: number;
   unlocked: boolean;
+  posture: TrackPostureId;
 }
 
 export interface CommercializationDefinition {
