@@ -135,7 +135,7 @@ const NAV_PANELS: Array<{ id: PanelId; label: string; icon: typeof BrainCircuit 
   { id: "briefing", label: "Brief", icon: Globe2 },
   { id: "track", label: "Research", icon: BrainCircuit },
   { id: "finance", label: "Finance", icon: BarChart3 },
-  { id: "hiring", label: "Hiring", icon: Users },
+  { id: "hiring", label: "Talent", icon: Users },
   { id: "facilities", label: "Build", icon: Building2 },
   { id: "settings", label: "AI", icon: Handshake },
 ];
@@ -220,7 +220,7 @@ const tutorialSlides = [
   },
   {
     title: "Money and Burn",
-    summary: "Hiring does not just cost a signing bonus. It permanently changes payroll and your quarterly burn.",
+    summary: "Talent does not just cost a signing bonus. Every hire permanently changes payroll and quarterly burn.",
     points: [
       "Research levels now create passive baseline revenue, but the bigger money comes from track-specific commercialization programs you choose to launch.",
       "Expenses are broken into payroll, compute, facilities, research overhead, commercialization opex, and expansion projects.",
@@ -1918,6 +1918,19 @@ export function ConvergenceApp() {
         .join(" / ")
     : "";
   const payrollEntries = [...store.employees].sort((left, right) => right.salary - left.salary);
+  const assignedTalent = store.employees.filter((employee) => employee.assignedTrack !== null);
+  const idleTalent = store.employees.filter((employee) => employee.assignedTrack === null);
+  const talentAssignmentRows = TRACK_DEFINITIONS.map((track) => {
+    const assigned = store.employees.filter((employee) => employee.assignedTrack === track.id);
+    const forecast = getTrackForecast(store, track.id);
+
+    return {
+      track,
+      assigned,
+      forecast,
+      open: store.tracks[track.id].unlocked,
+    };
+  });
   const matchingCandidateCount = store.candidates.filter((candidate) =>
     canResearcherSupportTrack(candidate, store.selectedTrack),
   ).length;
@@ -1986,10 +1999,10 @@ export function ConvergenceApp() {
         : TRACK_UNLOCK_NOTES[store.selectedTrack],
     },
     hiring: {
-      eyebrow: "Talent market",
-      title: "Recruit for the next quarter, not this one",
+      eyebrow: "Talent command",
+      title: "Roster, assignments, and recruiting",
       description:
-        "Hiring is a forward-looking commitment. Compare lane coverage, close cost, and payroll before you sign anyone.",
+        "See where your current talent is assigned first, then use the market only when the roster has a real gap.",
     },
     facilities: {
       eyebrow: "Infrastructure posture",
@@ -2031,10 +2044,10 @@ export function ConvergenceApp() {
           ]
         : store.panel === "hiring"
           ? [
-              { label: "Candidates", value: `${store.candidates.length}` },
-              { label: "Contested", value: `${contestedCandidateCount}` },
+              { label: "Assigned", value: `${assignedTalent.length}` },
+              { label: "Idle", value: `${idleTalent.length}` },
+              { label: "Market", value: `${store.candidates.length}` },
               { label: "Signed", value: `${store.pendingHires.length}` },
-              { label: "Close Cost", value: formatCurrency(pendingHireCloseCost) },
             ]
           : store.panel === "facilities"
             ? [
@@ -2099,8 +2112,8 @@ export function ConvergenceApp() {
 
     if (store.panel === "hiring" && matchingCandidateCount > 0) {
       return {
-        label: "Coverage window",
-        message: `${matchingCandidateCount} candidates can support ${getTrackLabel(store.selectedTrack)} right now.`,
+        label: "Talent window",
+        message: `${matchingCandidateCount} market candidate${matchingCandidateCount === 1 ? "" : "s"} can support ${getTrackLabel(store.selectedTrack)} if your current roster cannot cover it.`,
         tone: "sky" as const,
       };
     }
@@ -2231,7 +2244,7 @@ export function ConvergenceApp() {
       : null,
     matchingCandidateCount > 0
       ? {
-          label: "Scan the talent market",
+          label: "Review Talent market",
           detail: `${matchingCandidateCount} candidate${matchingCandidateCount === 1 ? "" : "s"} fit the selected research lane.`,
           panel: "hiring" as PanelId,
           tone: "neutral" as const,
@@ -3398,7 +3411,7 @@ export function ConvergenceApp() {
                   <PanelButton active={store.panel === "briefing"} icon={Globe2} label="Briefing" onClick={() => store.openPanel("briefing")} />
                   <PanelButton active={store.panel === "finance"} icon={BarChart3} label="Finance" onClick={() => store.openPanel("finance")} />
                   <PanelButton active={store.panel === "track"} icon={BrainCircuit} label="Research" onClick={() => store.openPanel("track")} />
-                  <PanelButton active={store.panel === "hiring"} icon={Users} label="Hiring" onClick={() => store.openPanel("hiring")} />
+                  <PanelButton active={store.panel === "hiring"} icon={Users} label="Talent" onClick={() => store.openPanel("hiring")} />
                   <PanelButton active={store.panel === "facilities"} icon={Building2} label="Facilities" onClick={() => store.openPanel("facilities")} />
                   <PanelButton active={store.panel === "settings"} icon={Handshake} label="Settings" onClick={() => store.openPanel("settings")} />
                 </div>
@@ -4013,31 +4026,31 @@ export function ConvergenceApp() {
                   <div className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(83,166,255,0.12),transparent_30%),linear-gradient(180deg,rgba(9,16,32,0.92),rgba(8,13,26,0.82))] p-5">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Talent Market</p>
-                        <h3 className="mt-3 text-2xl font-semibold text-white">Compare next-quarter hires by lane, cost, and pressure</h3>
+                        <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Talent Command</p>
+                        <h3 className="mt-3 text-2xl font-semibold text-white">Current roster first, recruiting market second</h3>
                         <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
-                          Candidates do not fix this turn instantly. They arrive next quarter, change payroll permanently, and only work in the lanes they can actually cover.
+                          See who is already on the team, where they are assigned, and which research lanes are starved before you spend runway on more people.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <SignalChip label={`${matchingCandidateCount} can support ${getTrackLabel(store.selectedTrack)}`} tone="focus" />
-                        <SignalChip label={`${contestedCandidateCount} contested`} tone={contestedCandidateCount ? "bad" : "neutral"} />
+                        <SignalChip label={`${assignedTalent.length}/${store.employees.length} assigned`} tone={idleTalent.length ? "focus" : "good"} />
+                        <SignalChip label={`${store.pendingHires.length} arriving`} tone={store.pendingHires.length ? "focus" : "neutral"} />
                       </div>
                     </div>
                     <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       <CommandMetric
-                        label="Open Candidates"
-                        value={`${store.candidates.length}`}
-                        helper="Available to sign right now."
+                        label="Assigned Talent"
+                        value={`${assignedTalent.length}`}
+                        helper="People actively contributing to research lanes."
                         icon={Users}
-                        tone="slate"
+                        tone="sky"
                       />
                       <CommandMetric
-                        label="Active Track Fits"
-                        value={`${matchingCandidateCount}`}
-                        helper={`Candidates who can work on ${getTrackLabel(store.selectedTrack)}.`}
+                        label="Idle Talent"
+                        value={`${idleTalent.length}`}
+                        helper="Available to assign before ending the quarter."
                         icon={BrainCircuit}
-                        tone="sky"
+                        tone={idleTalent.length ? "amber" : "emerald"}
                       />
                       <CommandMetric
                         label="Signed Queue"
@@ -4047,12 +4060,124 @@ export function ConvergenceApp() {
                         tone="amber"
                       />
                       <CommandMetric
-                        label="Payroll Next Turn"
-                        value={`+${formatCurrency(pendingHirePayroll)}`}
-                        helper="Additional quarterly payroll once pending hires arrive."
+                        label="Market Fits"
+                        value={`${matchingCandidateCount}`}
+                        helper={`Candidates who can work on ${getTrackLabel(store.selectedTrack)} if you need coverage.`}
                         icon={TrendingUp}
                         tone="emerald"
                       />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Current Talent Assignments</p>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                          Click a lane to focus it in Research. Click a person&apos;s assign/reassign controls in Research when you want to move them.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => store.openPanel("track")}
+                        className="inline-flex items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-500/10 px-4 py-2 text-sm text-sky-100"
+                      >
+                        Open Research Assignment
+                      </button>
+                    </div>
+                    <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-4">
+                      {talentAssignmentRows.map(({ track, assigned, forecast, open }) => (
+                        <button
+                          key={track.id}
+                          type="button"
+                          onClick={() => {
+                            store.openTrack(track.id);
+                            store.openPanel("track");
+                          }}
+                          className={`rounded-[22px] border p-4 text-left transition ${
+                            store.selectedTrack === track.id
+                              ? "border-sky-400/35 bg-sky-500/10"
+                              : open
+                                ? "border-white/8 bg-white/4 hover:border-white/16 hover:bg-white/7"
+                                : "border-white/6 bg-slate-950/45 opacity-70"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-white">{track.shortName}</span>
+                              <span className="mt-1 block text-xs leading-5 text-slate-500">
+                                {open ? `${forecast.projectName} · ETA ${formatTurns(forecast.turnsToLevel)}` : TRACK_UNLOCK_NOTES[track.id]}
+                              </span>
+                            </span>
+                            <SignalChip label={open ? `${assigned.length} staff` : "Locked"} tone={open ? (assigned.length ? "good" : "focus") : "bad"} />
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {assigned.length ? (
+                              assigned.slice(0, 3).map((employee) => (
+                                <div key={`${track.id}-${employee.id}`} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-slate-950/65 px-2 py-2">
+                                  <StaffAvatar researcher={employee} size="sm" />
+                                  <span className="min-w-0">
+                                    <span className="block truncate text-xs font-medium text-white">{employee.name}</span>
+                                    <span className="block truncate text-[11px] text-slate-500">{employee.role}</span>
+                                  </span>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="rounded-2xl border border-dashed border-white/10 bg-slate-950/45 px-3 py-3 text-xs leading-5 text-slate-500">
+                                No one assigned. This lane will struggle unless compute and staffing are corrected.
+                              </p>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-[22px] border border-white/8 bg-white/4 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Idle Talent</p>
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{idleTalent.length} unassigned</span>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                        {idleTalent.length ? (
+                          idleTalent.map((employee) => (
+                            <button
+                              key={employee.id}
+                              type="button"
+                              onClick={() => {
+                                store.openTrack(employee.generalist ? store.selectedTrack : employee.primaryTrack);
+                                store.openPanel("track");
+                              }}
+                              className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left transition hover:border-sky-400/25 hover:bg-sky-500/8"
+                            >
+                              <span className="flex min-w-0 items-center gap-3">
+                                <StaffAvatar researcher={employee} size="sm" />
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
+                                  <span className="block truncate text-xs text-slate-400">{describeAssignmentScope(employee)}</span>
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-sky-300">Assign</span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500">Everyone is assigned somewhere right now.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.10),transparent_32%),linear-gradient(180deg,rgba(9,16,32,0.92),rgba(8,13,26,0.82))] p-5">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-emerald-200">Talent Market</p>
+                        <h3 className="mt-3 text-2xl font-semibold text-white">Hire more people only when the roster has a gap</h3>
+                        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+                          Candidates arrive next quarter, change payroll permanently, and only work in lanes they can actually cover.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <SignalChip label={`${matchingCandidateCount} can support ${getTrackLabel(store.selectedTrack)}`} tone="focus" />
+                        <SignalChip label={`${contestedCandidateCount} contested`} tone={contestedCandidateCount ? "bad" : "neutral"} />
+                      </div>
                     </div>
                   </div>
 
@@ -4461,6 +4586,102 @@ export function ConvergenceApp() {
                     <p className="mt-4 text-sm leading-6 text-slate-400">
                       Supplier choice and energy policy modify how efficiently this compute turns into progress. Live products can also reserve compute, so revenue programs and frontier research now compete for the same cluster time.
                     </p>
+                  </div>
+                </div>
+
+                <div className="rounded-[26px] border border-sky-400/18 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_32%),rgba(255,255,255,0.04)] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Assign Talent To This Research</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">{trackDefinition.name}</h3>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                        Assigning staff is immediate. Use this panel first, then fine-tune compute and posture.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <SignalChip label={`${assignedResearchers.length} assigned`} tone={assignedResearchers.length ? "good" : "bad"} />
+                      <SignalChip label={`${availableResearchers.length} free matches`} tone={availableResearchers.length ? "focus" : "neutral"} />
+                      <SignalChip label={`${committedResearchers.length} reassignable`} tone={committedResearchers.length ? "focus" : "neutral"} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                    <div className="rounded-[22px] border border-white/8 bg-slate-950/60 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Currently Assigned</p>
+                        <span className="text-xs text-slate-400">Click to unassign</span>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {assignedResearchers.length ? (
+                          selectedForecast.contributors.map((contributor) => {
+                            const employee = assignedResearchers.find((entry) => entry.id === contributor.id)!;
+
+                            return (
+                              <button
+                                key={`quick-assigned-${employee.id}`}
+                                type="button"
+                                onClick={() => store.assignPerson(employee.id, null)}
+                                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-left transition hover:border-rose-400/25 hover:bg-rose-500/8"
+                              >
+                                <span className="flex min-w-0 items-center gap-3">
+                                  <StaffAvatar researcher={employee} size="sm" />
+                                  <span className="min-w-0">
+                                    <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
+                                    <span className="block truncate text-xs text-slate-400">{contributor.focus} · +{contributor.contribution} / quarter</span>
+                                  </span>
+                                </span>
+                                <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-rose-200">Remove</span>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-amber-400/20 bg-amber-500/10 px-3 py-3 text-sm leading-6 text-amber-100">
+                            No scientist is assigned here yet. Choose a free match or reassign someone from another lane.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-white/8 bg-slate-950/60 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Available To Add</p>
+                        <button
+                          type="button"
+                          onClick={() => store.openPanel("hiring")}
+                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-300"
+                        >
+                          Need More Talent?
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                        {[...availableResearchers, ...committedResearchers].slice(0, 8).map((employee) => (
+                          <button
+                            key={`quick-available-${employee.id}`}
+                            type="button"
+                            onClick={() => store.assignPerson(employee.id, store.selectedTrack)}
+                            className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-left transition hover:border-sky-400/25 hover:bg-sky-500/8"
+                          >
+                            <span className="flex min-w-0 items-center gap-3">
+                              <StaffAvatar researcher={employee} size="sm" />
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
+                                <span className="block truncate text-xs text-slate-400">
+                                  {employee.assignedTrack ? `From ${getTrackLabel(employee.assignedTrack)}` : describeAssignmentScope(employee)}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-sky-300">
+                              {employee.assignedTrack ? "Reassign" : "Assign"}
+                            </span>
+                          </button>
+                        ))}
+                        {availableResearchers.length + committedResearchers.length === 0 ? (
+                          <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 px-3 py-3 text-sm leading-6 text-slate-500 md:col-span-2">
+                            No eligible staff can move here right now. Open Talent to hire someone who covers {trackDefinition.shortName}.
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -5622,7 +5843,7 @@ export function ConvergenceApp() {
             {store.panel === "hiring" ? (
               <div className="space-y-4">
                 <CollapsibleSection
-                  title="Hiring Pressure"
+                  title="Talent Pressure"
                   subtitle="Why recruiting changes next quarter, not this one."
                   open={isSectionOpen("hiring-pressure")}
                   onToggle={() => toggleSection("hiring-pressure")}
