@@ -14,8 +14,11 @@ const SERVER_AI_STATUS_ENDPOINT = "/api/ai/status";
 const SERVER_AI_NARRATIVE_ENDPOINT = "/api/ai/narrative";
 const SERVER_AI_SCENE_IMAGE_ENDPOINT = "/api/ai/scene-image";
 const SERVER_AI_TTS_ENDPOINT = "/api/ai/tts";
+const SERVER_AI_CINEMATIC_SUBMIT_ENDPOINT = "/api/ai/cinematic/submit";
+const SERVER_AI_CINEMATIC_STATUS_ENDPOINT = "/api/ai/cinematic/status";
+const SERVER_AI_CINEMATIC_RESULT_ENDPOINT = "/api/ai/cinematic/result";
 
-type AIProviderName = "openai" | "gemini";
+type AIProviderName = "openai" | "gemini" | "fal";
 
 export interface AIProviderConfig {
   available: boolean;
@@ -28,10 +31,12 @@ export interface AIProviderStatus {
   providers: {
     openai: boolean;
     gemini: boolean;
+    fal?: boolean;
   };
   narrative: AIProviderConfig;
   sceneArt: AIProviderConfig;
   voice: AIProviderConfig;
+  cinematic?: AIProviderConfig;
   message: string;
 }
 
@@ -602,4 +607,116 @@ export const validateOpenAITtsKey = async (apiKey: string) => {
       blob: null as Blob | null,
     };
   }
+};
+
+export interface CinematicSubmitResult {
+  ok: boolean;
+  message: string;
+  requestId?: string;
+  model?: string;
+  mode?: "image-to-video" | "text-to-video";
+}
+
+export interface CinematicStatusResult {
+  ok: boolean;
+  status?: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "UNKNOWN" | string;
+  queuePosition?: number;
+  logs?: string[];
+  message: string;
+}
+
+export interface CinematicResult {
+  ok: boolean;
+  message: string;
+  videoUrl?: string;
+  contentType?: string;
+}
+
+export const submitCinematicVideo = async ({
+  prompt,
+  imageDataUri,
+  duration = "5",
+  resolution = "720p",
+  aspectRatio = "16:9",
+  generateAudio = false,
+}: {
+  prompt: string;
+  imageDataUri?: string | null;
+  duration?: "4" | "5" | "6" | "8" | "10" | "15";
+  resolution?: "480p" | "720p" | "1080p";
+  aspectRatio?: "16:9" | "9:16" | "1:1";
+  generateAudio?: boolean;
+}): Promise<CinematicSubmitResult> => {
+  const response = await fetch(SERVER_AI_CINEMATIC_SUBMIT_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      prompt,
+      imageDataUri,
+      duration,
+      resolution,
+      aspectRatio,
+      generateAudio,
+    }),
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: await parseServerError(response, "Unable to submit cinematic render."),
+    };
+  }
+
+  const payload = (await response.json()) as CinematicSubmitResult;
+  return payload;
+};
+
+export const fetchCinematicStatus = async ({
+  requestId,
+  model,
+}: {
+  requestId: string;
+  model: string;
+}): Promise<CinematicStatusResult> => {
+  const response = await fetch(
+    `${SERVER_AI_CINEMATIC_STATUS_ENDPOINT}?requestId=${encodeURIComponent(requestId)}&model=${encodeURIComponent(model)}`,
+    {
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: await parseServerError(response, "Unable to check cinematic status."),
+    };
+  }
+
+  return (await response.json()) as CinematicStatusResult;
+};
+
+export const fetchCinematicResult = async ({
+  requestId,
+  model,
+}: {
+  requestId: string;
+  model: string;
+}): Promise<CinematicResult> => {
+  const response = await fetch(
+    `${SERVER_AI_CINEMATIC_RESULT_ENDPOINT}?requestId=${encodeURIComponent(requestId)}&model=${encodeURIComponent(model)}`,
+    {
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: await parseServerError(response, "Cinematic render is not ready yet."),
+    };
+  }
+
+  return (await response.json()) as CinematicResult;
 };

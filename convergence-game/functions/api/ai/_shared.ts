@@ -8,6 +8,8 @@ export interface AIEnv {
   GEMINI_API_KEY?: string;
   GEMINI_TEXT_MODEL?: string;
   GEMINI_IMAGE_MODEL?: string;
+  FAL_KEY?: string;
+  FAL_VIDEO_MODEL?: string;
   AI_RATE_LIMITS?: KVNamespaceLike;
   CLOUD_SAVES?: KVNamespaceLike;
 }
@@ -32,6 +34,7 @@ export const DEFAULT_OPENAI_TTS_MODEL = "gpt-4o-mini-tts";
 export const DEFAULT_OPENAI_TTS_VOICE = "marin";
 export const DEFAULT_GEMINI_TEXT_MODEL = "gemini-2.5-flash";
 export const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
+export const DEFAULT_FAL_VIDEO_MODEL = "bytedance/seedance-2.0";
 
 export const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {

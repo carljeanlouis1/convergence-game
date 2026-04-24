@@ -49,8 +49,11 @@ import {
 import {
   SERVER_AI_KEY,
   fetchAIStatus,
+  fetchCinematicResult,
+  fetchCinematicStatus,
   fetchGeminiNarrative,
   generateGeminiSceneImage,
+  submitCinematicVideo,
   synthesizeOpenAITts,
   validateGeminiKey,
   validateOpenAITtsKey,
@@ -174,6 +177,7 @@ const DEFAULT_SECTION_OPEN: Record<string, boolean> = {
   "facilities-projects": true,
   "facilities-expansion": true,
   "settings-ai": true,
+  "settings-cinematic": true,
   "settings-voice": true,
   "settings-audio": false,
   "settings-cloud": false,
@@ -1754,6 +1758,20 @@ export function ConvergenceApp() {
   });
   const [sceneArtUrl, setSceneArtUrl] = useState<string | null>(null);
   const [sceneArtScope, setSceneArtScope] = useState<"briefing" | "dilemma" | null>(null);
+  const [cinematicStatus, setCinematicStatus] = useState<{
+    tone: "idle" | "checking" | "success" | "error";
+    message: string;
+  }>({
+    tone: "idle",
+    message: "Cinematic Mode is optional. Generate video only for story moments you want to preserve.",
+  });
+  const [cinematicJob, setCinematicJob] = useState<{
+    requestId: string;
+    model: string;
+    scope: "briefing" | "dilemma";
+  } | null>(null);
+  const [cinematicVideoUrl, setCinematicVideoUrl] = useState<string | null>(null);
+  const [cinematicGenerateAudio, setCinematicGenerateAudio] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [isNarrating, setIsNarrating] = useState(false);
   const [isNarrationLoading, setIsNarrationLoading] = useState(false);
@@ -1784,10 +1802,12 @@ export function ConvergenceApp() {
   const serverNarrativeReady = Boolean(serverAIStatus?.narrative.available);
   const serverSceneArtReady = Boolean(serverAIStatus?.sceneArt.available);
   const serverVoiceReady = Boolean(serverAIStatus?.voice.available);
+  const serverCinematicReady = Boolean(serverAIStatus?.cinematic?.available);
   const aiUsesServer = store.aiSettings.apiKey === SERVER_AI_KEY;
   const voiceUsesServer = store.openAISettings.apiKey === SERVER_AI_KEY;
   const productionAIModel = serverAIStatus?.narrative.model ?? serverAIStatus?.sceneArt.model;
   const productionVoiceModel = serverAIStatus?.voice.model;
+  const productionCinematicModel = serverAIStatus?.cinematic?.model;
 
   const geminiStatus =
     geminiStatusOverride ??
@@ -2859,6 +2879,104 @@ export function ConvergenceApp() {
     setSceneArtScope(null);
   };
 
+  const sceneArtToDataUri = async () => {
+    if (!sceneArtUrl) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(sceneArtUrl);
+      const blob = await response.blob();
+
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Unable to read scene art image."));
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const buildCinematicPrompt = (scope: "briefing" | "dilemma") => {
+    const sharedDirection = [
+      "Create a short cinematic video for the strategy game Convergence.",
+      "Style: premium near-future AI lab mission-control drama, grounded, no visible text, no logos, no subtitles.",
+      "Camera: slow dolly, subtle parallax, restrained cinematic lighting, realistic human motion, high-stakes but not melodramatic.",
+    ];
+
+    if (scope === "dilemma") {
+      return [
+        ...sharedDirection,
+        `Scene beat: ${sceneBeat.label}. ${sceneBeat.detail}`,
+        `Crisis: ${store.activeDilemma?.title ?? "Executive AI crisis"}.`,
+        store.activeDilemma?.brief ?? "",
+        dilemmaFlavor ? `Advisor context: ${dilemmaFlavor}` : "",
+        "Show tense executives and researchers reacting to the decision pressure. If audio is enabled, use calm mission-control narration, not direct celebrity voices.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    return [
+      ...sharedDirection,
+      `Scene beat: ${sceneBeat.label}. ${sceneBeat.detail}`,
+      `Quarter headline: ${store.resolution?.headline ?? "Quarterly command briefing"}.`,
+      chiefMemo ?? store.resolution?.briefing ?? "",
+      worldLead ?? "",
+      "Show the command room, data wall, lab staff, and the strategic pressure of the quarter. If audio is enabled, use calm briefing narration.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  };
+
+  const generateCinematic = async (scope: "briefing" | "dilemma") => {
+    if (!serverCinematicReady) {
+      setCinematicStatus({
+        tone: "error",
+        message: "Cinematic Mode needs FAL_KEY configured in this Cloudflare environment.",
+      });
+      return;
+    }
+
+    setCinematicStatus({
+      tone: "checking",
+      message: sceneArtUrl
+        ? "Submitting image-to-video cinematic render to fal.ai..."
+        : "Submitting text-to-video cinematic render to fal.ai...",
+    });
+    setCinematicVideoUrl(null);
+
+    const imageDataUri = await sceneArtToDataUri();
+    const result = await submitCinematicVideo({
+      prompt: buildCinematicPrompt(scope),
+      imageDataUri,
+      duration: "5",
+      resolution: "720p",
+      aspectRatio: "16:9",
+      generateAudio: cinematicGenerateAudio,
+    });
+
+    if (!result.ok || !result.requestId || !result.model) {
+      setCinematicStatus({
+        tone: "error",
+        message: result.message,
+      });
+      return;
+    }
+
+    setCinematicJob({
+      requestId: result.requestId,
+      model: result.model,
+      scope,
+    });
+    setCinematicStatus({
+      tone: "checking",
+      message: result.message,
+    });
+  };
+
   const narrateText = async ({
     text,
     instructions,
@@ -3136,6 +3254,13 @@ export function ConvergenceApp() {
         message: "Production OpenAI voice is not configured yet.",
       });
     }
+
+    setCinematicStatus({
+      tone: status.cinematic?.available ? "success" : "idle",
+      message: status.cinematic?.available
+        ? `Cinematic Mode is connected through fal.ai${status.cinematic.model ? ` (${status.cinematic.model})` : ""}.`
+        : "Cinematic Mode is optional and needs FAL_KEY in Cloudflare secrets.",
+    });
   });
 
   useEffect(() => {
@@ -3236,9 +3361,15 @@ export function ConvergenceApp() {
 
   useEffect(() => {
     clearSceneArt();
+    setCinematicJob(null);
+    setCinematicVideoUrl(null);
     setSceneArtStatus({
       tone: "idle",
       message: "Scene art will auto-generate for this moment if AI scene art is active.",
+    });
+    setCinematicStatus({
+      tone: "idle",
+      message: "Cinematic Mode is optional. Generate video only for story moments you want to preserve.",
     });
   }, [store.resolution?.turn, store.activeDilemma?.id]);
 
@@ -3262,6 +3393,75 @@ export function ConvergenceApp() {
       playSynthTone(soundEnabled, "warning");
     }
   }, [store.activeDilemma, store.resolution, soundEnabled]);
+
+  useEffect(() => {
+    if (!cinematicJob || cinematicVideoUrl) {
+      return;
+    }
+
+    let cancelled = false;
+    const poll = async () => {
+      const status = await fetchCinematicStatus({
+        requestId: cinematicJob.requestId,
+        model: cinematicJob.model,
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      if (!status.ok) {
+        setCinematicStatus({
+          tone: "error",
+          message: status.message,
+        });
+        setCinematicJob(null);
+        return;
+      }
+
+      if (status.status === "COMPLETED") {
+        const result = await fetchCinematicResult({
+          requestId: cinematicJob.requestId,
+          model: cinematicJob.model,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (result.ok && result.videoUrl) {
+          setCinematicVideoUrl(result.videoUrl);
+          setCinematicStatus({
+            tone: "success",
+            message: result.message,
+          });
+        } else {
+          setCinematicStatus({
+            tone: "error",
+            message: result.message,
+          });
+        }
+
+        setCinematicJob(null);
+        return;
+      }
+
+      setCinematicStatus({
+        tone: "checking",
+        message: status.queuePosition
+          ? `${status.message} Queue position ${status.queuePosition}.`
+          : status.message,
+      });
+    };
+
+    void poll();
+    const interval = window.setInterval(() => void poll(), 7000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [cinematicJob, cinematicVideoUrl]);
 
   useEffect(() => {
     if (
@@ -3398,6 +3598,53 @@ export function ConvergenceApp() {
       message: "OpenAI voice is disabled.",
     });
   };
+
+  const renderCinematicControls = (scope: "briefing" | "dilemma") => (
+    <div className="mt-4 rounded-[24px] border border-amber-400/20 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_35%),rgba(251,191,36,0.06)] p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs uppercase tracking-[0.22em] text-amber-100">Cinematic Mode</p>
+          <h3 className="mt-2 text-lg font-semibold text-white">Optional fal.ai Seedance render</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            Uses image-to-video when scene art is visible, otherwise text-to-video. It renders in the background and never blocks the turn.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <SignalChip label={serverCinematicReady ? "fal.ai ready" : "FAL standby"} tone={serverCinematicReady ? "good" : "neutral"} />
+          <SignalChip label={sceneArtUrl ? "image-to-video" : "text-to-video"} tone={sceneArtUrl ? "focus" : "neutral"} />
+        </div>
+      </div>
+
+      {cinematicVideoUrl ? (
+        <div className="mt-4 overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/70">
+          <video src={cinematicVideoUrl} controls playsInline className="aspect-video w-full bg-black object-cover" />
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void generateCinematic(scope)}
+          disabled={!serverCinematicReady || cinematicStatus.tone === "checking"}
+          className="rounded-2xl border border-amber-300/35 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {cinematicStatus.tone === "checking" ? "Rendering..." : "Generate Cinematic"}
+        </button>
+        <label className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-sm text-slate-200">
+          <input
+            type="checkbox"
+            checked={cinematicGenerateAudio}
+            onChange={(event) => setCinematicGenerateAudio(event.target.checked)}
+            className="h-4 w-4 rounded border-white/15 bg-slate-900"
+          />
+          Include Seedance audio/dialogue
+        </label>
+      </div>
+      <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(cinematicStatus.tone)}`}>
+        {cinematicStatus.message}
+      </div>
+    </div>
+  );
 
   if (!store.hydrated) {
     return (
@@ -4167,6 +4414,7 @@ export function ConvergenceApp() {
                         </div>
                       </div>
                     </div>
+                    {renderCinematicControls("briefing")}
                   </div>
 
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
@@ -6367,6 +6615,55 @@ export function ConvergenceApp() {
                 </CollapsibleSection>
 
                 <CollapsibleSection
+                  title="Cinematic Mode"
+                  subtitle="Optional fal.ai Seedance video for major story beats."
+                  open={isSectionOpen("settings-cinematic")}
+                  onToggle={() => toggleSection("settings-cinematic")}
+                  actions={<span className="rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">{serverCinematicReady ? "fal.ai" : "off"}</span>}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <label className="text-xs uppercase tracking-[0.22em] text-slate-400">fal.ai Seedance Video</label>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        Video is never required to advance turns. It appears as a premium optional render on dilemmas, scene beats, breakthroughs, and endings.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      {serverCinematicReady ? "server" : "needs FAL_KEY"}
+                    </span>
+                  </div>
+                  <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(cinematicStatus.tone)}`}>
+                    {cinematicStatus.message}
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Provider</p>
+                      <p className="mt-2 text-sm font-medium text-white">{serverCinematicReady ? "fal.ai" : "Unavailable"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Model</p>
+                      <p className="mt-2 text-sm font-medium text-white">{productionCinematicModel ?? "Seedance 2.0"}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Default</p>
+                      <p className="mt-2 text-sm font-medium text-white">720p / 5 sec</p>
+                    </div>
+                  </div>
+                  <label className="mt-4 flex items-center gap-3 rounded-2xl border border-white/8 bg-slate-950/65 px-4 py-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cinematicGenerateAudio}
+                      onChange={(event) => setCinematicGenerateAudio(event.target.checked)}
+                      className="h-4 w-4 rounded border-white/15 bg-slate-900"
+                    />
+                    Include Seedance audio/dialogue by default
+                  </label>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Best default experience: leave audio off for clean ambience, then enable audio when you want an advisor-style crisis briefing.
+                  </p>
+                </CollapsibleSection>
+
+                <CollapsibleSection
                   title="AI Voice"
                   subtitle="OpenAI text-to-speech for briefing narration."
                   open={isSectionOpen("settings-voice")}
@@ -6638,6 +6935,7 @@ export function ConvergenceApp() {
                       </div>
                     )}
                   </div>
+                  {renderCinematicControls("dilemma")}
                 </div>
 
                 <div className="space-y-4">
