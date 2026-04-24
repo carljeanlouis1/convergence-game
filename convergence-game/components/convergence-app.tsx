@@ -3646,6 +3646,126 @@ export function ConvergenceApp() {
     </div>
   );
 
+  const trackTalentAssignmentPanel = (
+    <div className="rounded-[28px] border border-sky-400/18 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_32%),linear-gradient(180deg,rgba(9,16,32,0.9),rgba(6,12,25,0.72))] p-5 shadow-[0_24px_80px_rgba(8,20,40,0.26)]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Assign Talent To This Research</p>
+          <h3 className="mt-2 text-xl font-semibold text-white">{trackDefinition.name}</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+            Assigning staff is immediate. Green cards are free, amber cards are already working somewhere else and will move if clicked.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <SignalChip label={`${assignedResearchers.length} assigned`} tone={assignedResearchers.length ? "good" : "bad"} />
+          <SignalChip label={`${availableResearchers.length} free`} tone={availableResearchers.length ? "good" : "neutral"} />
+          <SignalChip label={`${committedResearchers.length} assigned elsewhere`} tone={committedResearchers.length ? "warn" : "neutral"} />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
+        <div className="rounded-[24px] border border-white/8 bg-slate-950/60 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Currently Assigned</p>
+            <span className="text-xs text-slate-400">Click to unassign</span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {assignedResearchers.length ? (
+              selectedForecast.contributors.map((contributor) => {
+                const employee = assignedResearchers.find((entry) => entry.id === contributor.id)!;
+                const status = getTalentAssignmentStatus(employee, store.selectedTrack);
+
+                return (
+                  <button
+                    key={`quick-assigned-${employee.id}`}
+                    type="button"
+                    onClick={() => store.assignPerson(employee.id, null)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-left transition hover:border-rose-400/25 hover:bg-rose-500/8"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <StaffAvatar researcher={employee} size="sm" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
+                        <span className="block truncate text-xs text-slate-400">{contributor.focus} · +{contributor.contribution} / quarter</span>
+                        <span className="mt-1 block truncate text-[11px] text-sky-200">{status.detail}</span>
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 flex-col items-end gap-2">
+                      <SignalChip label={status.label} tone={status.tone} />
+                      <span className="text-xs uppercase tracking-[0.18em] text-rose-200">Remove</span>
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-dashed border-amber-400/20 bg-amber-500/10 px-3 py-3 text-sm leading-6 text-amber-100">
+                No scientist is assigned here yet. Choose a free match or reassign someone from another lane.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-white/8 bg-slate-950/60 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Available To Add</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Start with free talent. Reassigning amber talent is allowed, but it will slow the lane they leave behind.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => store.openPanel("hiring")}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-300"
+            >
+              Need More Talent?
+            </button>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {[...availableResearchers, ...committedResearchers].slice(0, 8).map((employee) => {
+              const status = getTalentAssignmentStatus(employee, store.selectedTrack);
+
+              return (
+                <button
+                  key={`quick-available-${employee.id}`}
+                  type="button"
+                  onClick={() => store.assignPerson(employee.id, store.selectedTrack)}
+                  className={`rounded-2xl border px-3 py-3 text-left transition ${
+                    employee.assignedTrack
+                      ? "border-amber-400/18 bg-amber-500/8 hover:border-amber-300/30 hover:bg-amber-500/12"
+                      : "border-emerald-400/18 bg-emerald-500/8 hover:border-emerald-300/30 hover:bg-emerald-500/12"
+                  }`}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="flex min-w-0 items-center gap-3">
+                      <StaffAvatar researcher={employee} size="sm" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
+                        <span className="block truncate text-xs text-slate-400">{describeAssignmentScope(employee)}</span>
+                      </span>
+                    </span>
+                    <SignalChip label={status.label} tone={status.tone} />
+                  </span>
+                  <span className="mt-3 flex items-center justify-between gap-3">
+                    <span className="text-xs leading-5 text-slate-300">{status.detail}</span>
+                    <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-sky-300">
+                      {employee.assignedTrack ? "Reassign" : "Assign"}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+            {availableResearchers.length + committedResearchers.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 px-3 py-3 text-sm leading-6 text-slate-500 md:col-span-2">
+                No eligible staff can move here right now. Open Talent to hire someone who covers {trackDefinition.shortName}.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!store.hydrated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#050916] text-slate-200">
@@ -4291,7 +4411,12 @@ export function ConvergenceApp() {
                 ) : null}
               </AnimatePresence>
 
-              {store.panel === "track" ? <TrackMap state={store} onOpenTrack={store.openTrack} /> : null}
+              {store.panel === "track" ? (
+                <div className="space-y-4">
+                  <TrackMap state={store} onOpenTrack={store.openTrack} />
+                  {trackTalentAssignmentPanel}
+                </div>
+              ) : null}
 
               {store.panel === "briefing" ? (
                 <div className="space-y-4">
@@ -5044,124 +5169,6 @@ export function ConvergenceApp() {
                     <p className="mt-4 text-sm leading-6 text-slate-400">
                       Supplier choice and energy policy modify how efficiently this compute turns into progress. Live products can also reserve compute, so revenue programs and frontier research now compete for the same cluster time.
                     </p>
-                  </div>
-                </div>
-
-                <div className="rounded-[26px] border border-sky-400/18 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_32%),rgba(255,255,255,0.04)] p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Assign Talent To This Research</p>
-                      <h3 className="mt-2 text-xl font-semibold text-white">{trackDefinition.name}</h3>
-                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                        Assigning staff is immediate. Use this panel first, then fine-tune compute and posture.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <SignalChip label={`${assignedResearchers.length} assigned`} tone={assignedResearchers.length ? "good" : "bad"} />
-                      <SignalChip label={`${availableResearchers.length} free`} tone={availableResearchers.length ? "good" : "neutral"} />
-                      <SignalChip label={`${committedResearchers.length} assigned elsewhere`} tone={committedResearchers.length ? "warn" : "neutral"} />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                    <div className="rounded-[22px] border border-white/8 bg-slate-950/60 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Currently Assigned</p>
-                        <span className="text-xs text-slate-400">Click to unassign</span>
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {assignedResearchers.length ? (
-                          selectedForecast.contributors.map((contributor) => {
-                            const employee = assignedResearchers.find((entry) => entry.id === contributor.id)!;
-                            const status = getTalentAssignmentStatus(employee, store.selectedTrack);
-
-                            return (
-                              <button
-                                key={`quick-assigned-${employee.id}`}
-                                type="button"
-                                onClick={() => store.assignPerson(employee.id, null)}
-                                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-left transition hover:border-rose-400/25 hover:bg-rose-500/8"
-                              >
-                                <span className="flex min-w-0 items-center gap-3">
-                                  <StaffAvatar researcher={employee} size="sm" />
-                                  <span className="min-w-0">
-                                    <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
-                                    <span className="block truncate text-xs text-slate-400">{contributor.focus} · +{contributor.contribution} / quarter</span>
-                                    <span className="mt-1 block truncate text-[11px] text-sky-200">{status.detail}</span>
-                                  </span>
-                                </span>
-                                <span className="flex shrink-0 flex-col items-end gap-2">
-                                  <SignalChip label={status.label} tone={status.tone} />
-                                  <span className="text-xs uppercase tracking-[0.18em] text-rose-200">Remove</span>
-                                </span>
-                              </button>
-                            );
-                          })
-                        ) : (
-                          <div className="rounded-2xl border border-dashed border-amber-400/20 bg-amber-500/10 px-3 py-3 text-sm leading-6 text-amber-100">
-                            No scientist is assigned here yet. Choose a free match or reassign someone from another lane.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[22px] border border-white/8 bg-slate-950/60 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Available To Add</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            Green is free talent. Amber is already used by another research lane and will move if clicked.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => store.openPanel("hiring")}
-                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-slate-300"
-                        >
-                          Need More Talent?
-                        </button>
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-2">
-                        {[...availableResearchers, ...committedResearchers].slice(0, 8).map((employee) => {
-                          const status = getTalentAssignmentStatus(employee, store.selectedTrack);
-
-                          return (
-                            <button
-                              key={`quick-available-${employee.id}`}
-                              type="button"
-                              onClick={() => store.assignPerson(employee.id, store.selectedTrack)}
-                              className={`rounded-2xl border px-3 py-3 text-left transition ${
-                                employee.assignedTrack
-                                  ? "border-amber-400/18 bg-amber-500/8 hover:border-amber-300/30 hover:bg-amber-500/12"
-                                  : "border-emerald-400/18 bg-emerald-500/8 hover:border-emerald-300/30 hover:bg-emerald-500/12"
-                              }`}
-                            >
-                              <span className="flex items-start justify-between gap-3">
-                                <span className="flex min-w-0 items-center gap-3">
-                                  <StaffAvatar researcher={employee} size="sm" />
-                                  <span className="min-w-0">
-                                    <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
-                                    <span className="block truncate text-xs text-slate-400">{describeAssignmentScope(employee)}</span>
-                                  </span>
-                                </span>
-                                <SignalChip label={status.label} tone={status.tone} />
-                              </span>
-                              <span className="mt-3 flex items-center justify-between gap-3">
-                                <span className="text-xs leading-5 text-slate-300">{status.detail}</span>
-                                <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-sky-300">
-                                  {employee.assignedTrack ? "Reassign" : "Assign"}
-                                </span>
-                              </span>
-                            </button>
-                          );
-                        })}
-                        {availableResearchers.length + committedResearchers.length === 0 ? (
-                          <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 px-3 py-3 text-sm leading-6 text-slate-500 md:col-span-2">
-                            No eligible staff can move here right now. Open Talent to hire someone who covers {trackDefinition.shortName}.
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -6846,7 +6853,7 @@ export function ConvergenceApp() {
 
       <AnimatePresence>
         {store.activeDilemma ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/68 p-4 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/78 p-4 py-6 backdrop-blur-sm">
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }} className="w-full max-w-6xl rounded-[36px] border border-white/10 bg-[#0a1124]/95 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)]">
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
                 <div className="space-y-4">
