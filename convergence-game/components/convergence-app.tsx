@@ -91,6 +91,7 @@ import {
   CloudSaveSlotId,
   CloudSaveSummary,
   GameState,
+  PanelId,
   RivalId,
   SaveSlotId,
   StartPresetId,
@@ -389,12 +390,91 @@ function IntelSection({
   );
 }
 
+function CommandMetric({
+  label,
+  value,
+  helper,
+  icon: Icon,
+  tone = "slate",
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  icon?: typeof BrainCircuit;
+  tone?: "sky" | "emerald" | "amber" | "rose" | "slate";
+}) {
+  const toneClasses =
+    tone === "sky"
+      ? "border-sky-400/20 bg-sky-500/10 text-sky-100"
+      : tone === "emerald"
+        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"
+        : tone === "amber"
+          ? "border-amber-400/20 bg-amber-500/10 text-amber-50"
+          : tone === "rose"
+            ? "border-rose-400/20 bg-rose-500/10 text-rose-100"
+            : "border-white/8 bg-white/4 text-white";
+  const iconTone =
+    tone === "sky"
+      ? "border-sky-300/25 bg-sky-400/12 text-sky-200"
+      : tone === "emerald"
+        ? "border-emerald-300/25 bg-emerald-400/12 text-emerald-200"
+        : tone === "amber"
+          ? "border-amber-300/25 bg-amber-400/12 text-amber-100"
+          : tone === "rose"
+            ? "border-rose-300/25 bg-rose-400/12 text-rose-200"
+            : "border-white/10 bg-white/5 text-slate-200";
+
+  return (
+    <div className={`rounded-[24px] border px-4 py-4 ${toneClasses}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</p>
+          <p className="mt-3 text-2xl font-semibold">{value}</p>
+        </div>
+        {Icon ? (
+          <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${iconTone}`}>
+            <Icon className="h-4 w-4" />
+          </span>
+        ) : null}
+      </div>
+      {helper ? <p className="mt-3 text-xs leading-5 text-slate-400">{helper}</p> : null}
+    </div>
+  );
+}
+
+function SignalChip({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: "neutral" | "good" | "bad" | "focus";
+}) {
+  const classes =
+    tone === "good"
+      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"
+      : tone === "bad"
+        ? "border-rose-400/20 bg-rose-500/10 text-rose-100"
+        : tone === "focus"
+          ? "border-sky-400/20 bg-sky-500/10 text-sky-100"
+          : "border-white/10 bg-white/5 text-slate-300";
+
+  return (
+    <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${classes}`}>
+      {label}
+    </span>
+  );
+}
+
 function getTrackLabel(trackId: TrackId | null | undefined) {
   if (!trackId) {
     return "Unassigned";
   }
 
   return TRACK_DEFINITIONS.find((track) => track.id === trackId)?.shortName ?? trackId;
+}
+
+function formatSignedValue(value: number) {
+  return value > 0 ? `+${value}` : `${value}`;
 }
 
 function describeResearcherCoverage(trackIds: TrackId[]) {
@@ -454,6 +534,63 @@ function describeFacilityOutcome(project: {
         project.riskDelta >= 0 ? "+" : ""
       }${project.riskDelta}.`;
   }
+}
+
+const dilemmaEffectOrder = [
+  "capital",
+  "compute",
+  "trust",
+  "fear",
+  "board",
+  "reputation",
+  "governmentDependence",
+  "ethicsDebt",
+  "safetyCulture",
+  "morale",
+  "openness",
+  "crisisCount",
+] as const;
+
+const dilemmaInverseEffects = new Set([
+  "fear",
+  "governmentDependence",
+  "ethicsDebt",
+  "crisisCount",
+]);
+
+function formatDilemmaEffectLabel(effect: (typeof dilemmaEffectOrder)[number], value: number) {
+  switch (effect) {
+    case "capital":
+      return `${value > 0 ? "+" : ""}${formatCurrency(value)} capital`;
+    case "compute":
+      return `${formatSignedValue(value)} PFLOPS`;
+    case "governmentDependence":
+      return `${formatSignedValue(value)} dependence`;
+    case "ethicsDebt":
+      return `${formatSignedValue(value)} ethics debt`;
+    case "safetyCulture":
+      return `${formatSignedValue(value)} safety culture`;
+    case "crisisCount":
+      return `${formatSignedValue(value)} crises`;
+    default:
+      return `${formatSignedValue(value)} ${effect.replace(/([A-Z])/g, " $1").toLowerCase()}`;
+  }
+}
+
+function describeDilemmaEffectTone(effect: (typeof dilemmaEffectOrder)[number], value: number) {
+  if (value === 0) {
+    return "neutral";
+  }
+
+  const positiveDirection = dilemmaInverseEffects.has(effect) ? value < 0 : value > 0;
+  return positiveDirection ? "good" : "bad";
+}
+
+function getDilemmaEffectEntries(effects: Record<string, number | undefined>) {
+  return dilemmaEffectOrder.flatMap((effect) => {
+    const value = effects[effect];
+    return typeof value === "number" && value !== 0 ? [{ effect, value }] : [];
+  });
 }
 
 function clampMetric(value: number) {
@@ -953,10 +1090,18 @@ function TrackMap({
       })),
     );
   });
+  const selectedDefinition = TRACK_DEFINITIONS.find((track) => track.id === state.selectedTrack)!;
+  const selectedTrack = state.tracks[state.selectedTrack];
+  const selectedForecast = getTrackForecast(state, state.selectedTrack);
+  const committedCompute = Object.values(state.tracks).reduce((sum, track) => sum + track.compute, 0);
+  const researchCapacity = getResearchComputeCapacity(state);
+  const liveProgramsOnTrack = state.commercializationPrograms.filter(
+    (program) => program.trackId === state.selectedTrack && program.status === "live",
+  ).length;
 
   return (
-    <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.16),transparent_38%),linear-gradient(180deg,rgba(7,12,28,0.96),rgba(7,10,24,0.88))] p-5">
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.18),transparent_40%),linear-gradient(180deg,rgba(7,12,28,0.98),rgba(7,10,24,0.92))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Lab Map</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">Research Web</h2>
@@ -965,20 +1110,70 @@ function TrackMap({
           </p>
         </div>
         <div className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-sky-200">
-          {Math.round(
-            (Object.values(state.tracks).reduce((sum, track) => sum + track.compute, 0) /
-              Math.max(getResearchComputeCapacity(state), 1)) *
-              100,
-          )}
+          {Math.round((committedCompute / Math.max(researchCapacity, 1)) * 100)}
           % research compute committed
         </div>
+      </div>
+      <div className="mb-5 grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.6fr))]">
+        <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Selected Program</p>
+              <h3 className="mt-2 text-lg font-semibold text-white">{selectedDefinition.name}</h3>
+            </div>
+            <span
+              className="inline-flex rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em]"
+              style={{
+                borderColor: `${selectedDefinition.accent}66`,
+                backgroundColor: `${selectedDefinition.accent}18`,
+                color: selectedDefinition.accent,
+              }}
+            >
+              {selectedTrack.unlocked ? `L${selectedTrack.level}` : "Locked"}
+            </span>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            {selectedTrack.unlocked
+              ? `${selectedForecast.projectName} is the active target.`
+              : TRACK_UNLOCK_NOTES[state.selectedTrack]}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <SignalChip
+              label={selectedTrack.unlocked ? `ETA ${formatTurns(selectedForecast.turnsToLevel)}` : "Needs unlock hire"}
+              tone={selectedTrack.unlocked ? "focus" : "bad"}
+            />
+            <SignalChip label={`${selectedForecast.assignedCount} staff`} tone="neutral" />
+            <SignalChip label={`${selectedTrack.compute} PFLOPS allocated`} tone="neutral" />
+          </div>
+        </div>
+        <CommandMetric
+          label="Free Compute"
+          value={`${Math.max(researchCapacity - committedCompute, 0)} PFLOPS`}
+          helper="Uncommitted research capacity you can still place."
+          icon={Cpu}
+          tone="sky"
+        />
+        <CommandMetric
+          label="Assigned Scientists"
+          value={`${selectedForecast.assignedCount}`}
+          helper="People currently pushing this program forward."
+          icon={Users}
+          tone="slate"
+        />
+        <CommandMetric
+          label="Live Market Lines"
+          value={`${liveProgramsOnTrack}`}
+          helper="Commercial programs already drawing from this track."
+          icon={BarChart3}
+          tone="emerald"
+        />
       </div>
       <div className="overflow-hidden rounded-[28px] border border-white/6 bg-[linear-gradient(180deg,rgba(12,18,38,0.88),rgba(8,12,24,0.92))]">
         <div className="border-b border-white/6 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-500 lg:hidden">
           Scroll to inspect the full research web.
         </div>
         <div className="overflow-x-auto overflow-y-hidden">
-          <div className="relative h-[620px] min-w-[920px] lg:h-[560px] lg:min-w-0 2xl:h-[660px]">
+          <div className="relative h-[560px] min-w-[760px] md:min-w-[920px] lg:min-w-0 2xl:h-[660px]">
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
               {links.map((link) => (
                 <line
@@ -1005,15 +1200,15 @@ function TrackMap({
                   type="button"
                   onClick={() => onOpenTrack(track.id)}
                   whileHover={{ scale: 1.03 }}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[24px] border p-4 text-left shadow-[0_16px_60px_rgba(5,12,32,0.36)] transition ${
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[26px] border p-4 text-left shadow-[0_16px_60px_rgba(5,12,32,0.36)] transition ${
                     selected
-                      ? "border-sky-300/70 bg-slate-900/95"
-                      : "border-white/8 bg-slate-950/78 hover:border-white/16"
+                      ? "border-sky-300/70 bg-slate-900/96"
+                      : "border-white/8 bg-slate-950/84 hover:border-white/16"
                   } ${stateTrack.unlocked ? "" : "opacity-70"}`}
                   style={{
                     left: `${track.position.x}%`,
                     top: `${track.position.y}%`,
-                    width: selected ? 184 : 158,
+                    width: selected ? 202 : 170,
                     boxShadow: selected ? `0 0 0 1px ${track.accent}55, 0 0 28px ${track.accent}33` : undefined,
                   }}
                 >
@@ -1054,6 +1249,26 @@ function TrackMap({
             })}
           </div>
         </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <SignalChip label={`${researchCapacity} PFLOPS research capacity`} tone="neutral" />
+        <SignalChip label={`${committedCompute} PFLOPS committed`} tone="focus" />
+        <SignalChip
+          label={
+            selectedTrack.unlocked && selectedForecast.blockedReason
+              ? "Selected track blocked"
+              : selectedTrack.unlocked
+                ? "Selected track progressing"
+                : "Selected track locked"
+          }
+          tone={
+            selectedTrack.unlocked
+              ? selectedForecast.blockedReason
+                ? "bad"
+                : "good"
+              : "bad"
+          }
+        />
       </div>
     </div>
   );
@@ -1123,6 +1338,8 @@ export function ConvergenceApp() {
   });
   const [cloudBusyKey, setCloudBusyKey] = useState<string | null>(null);
   const [selectedCommercializationId, setSelectedCommercializationId] = useState<string | null>(null);
+  const [candidateFocusFilter, setCandidateFocusFilter] = useState<TrackId | "all">("all");
+  const [showContestedCandidatesOnly, setShowContestedCandidatesOnly] = useState(false);
 
   const geminiStatus =
     geminiStatusOverride ??
@@ -1233,6 +1450,7 @@ export function ConvergenceApp() {
       isPlayer: false,
     })),
   ].sort((left, right) => right.raceScore - left.raceScore);
+  const playerRank = labLeaderboard.findIndex((entry) => entry.id === "player") + 1;
   const topRivalMove = topRivals[0]?.recentMove ?? "Rival status";
   const expenseEntries = Object.entries(store.resources.expenses).sort((left, right) => right[1] - left[1]);
   const researchExpenseBreakdown = getResearchExpenseBreakdown(store);
@@ -1245,6 +1463,8 @@ export function ConvergenceApp() {
   const activeCommercialConvergences = getActiveCommercializationConvergences(store);
   const fundingOffers = getFundingOffers(store);
   const quarterlyNet = Number((store.resources.revenue - store.resources.burn).toFixed(2));
+  const assignedHeadcount = store.employees.filter((employee) => employee.assignedTrack !== null).length;
+  const liveProgramsCount = store.commercializationPrograms.filter((program) => program.status === "live").length;
   const trackRevenueStream = store.revenueStreams.find(
     (stream) => stream.id === `track-passive-${store.selectedTrack}`,
   );
@@ -1385,10 +1605,212 @@ export function ConvergenceApp() {
         .join(" / ")
     : "";
   const payrollEntries = [...store.employees].sort((left, right) => right.salary - left.salary);
+  const matchingCandidateCount = store.candidates.filter((candidate) =>
+    canResearcherSupportTrack(candidate, store.selectedTrack),
+  ).length;
+  const contestedCandidateCount = store.candidates.filter((candidate) => candidate.contestedBy).length;
+  const candidateTrackFilters = TRACK_DEFINITIONS.filter((track) =>
+    store.candidates.some(
+      (candidate) =>
+        candidate.generalist || candidate.primaryTrack === track.id || candidate.secondaryTrack === track.id,
+    ),
+  ).map((track) => track.id);
+  const candidatePriorityTrack =
+    candidateFocusFilter === "all" ? store.selectedTrack : candidateFocusFilter;
+  const filteredCandidates = [...store.candidates]
+    .filter((candidate) => {
+      if (showContestedCandidatesOnly && !candidate.contestedBy) {
+        return false;
+      }
+
+      if (candidateFocusFilter === "all") {
+        return true;
+      }
+
+      return (
+        candidate.generalist ||
+        candidate.primaryTrack === candidateFocusFilter ||
+        candidate.secondaryTrack === candidateFocusFilter
+      );
+    })
+    .sort((left, right) => {
+      const scoreCandidate = (candidate: (typeof store.candidates)[number]) =>
+        (canResearcherSupportTrack(candidate, candidatePriorityTrack) ? 40 : 0) +
+        (candidate.generalist ? 14 : 0) +
+        (candidate.contestedBy ? 10 : 0) +
+        candidate.research * 3 +
+        candidate.execution * 2 +
+        candidate.leadership +
+        candidate.ethics;
+
+      return scoreCandidate(right) - scoreCandidate(left);
+    });
+  const panelMeta: Record<
+    PanelId,
+    {
+      eyebrow: string;
+      title: string;
+      description: string;
+    }
+  > = {
+    briefing: {
+      eyebrow: "Quarterly command",
+      title: "Briefing, memory, and world signal",
+      description:
+        "Read the quarter, understand what moved, and decide what deserves focus before the next clock advance.",
+    },
+    finance: {
+      eyebrow: "Capital markets",
+      title: "Runway, burn, and control",
+      description:
+        "Judge whether this lab can keep sprinting, needs fresh capital, or should shift weight toward revenue.",
+    },
+    track: {
+      eyebrow: "Research command",
+      title: `${trackDefinition.name} operations`,
+      description: selectedTrack.unlocked
+        ? `Active target: ${selectedForecast.projectName}. Tune staffing, compute, and commercialization against the same cluster budget.`
+        : TRACK_UNLOCK_NOTES[store.selectedTrack],
+    },
+    hiring: {
+      eyebrow: "Talent market",
+      title: "Recruit for the next quarter, not this one",
+      description:
+        "Hiring is a forward-looking commitment. Compare lane coverage, close cost, and payroll before you sign anyone.",
+    },
+    facilities: {
+      eyebrow: "Infrastructure posture",
+      title: "Compute supply and expansion timing",
+      description:
+        "Suppliers, energy, and builds decide how much frontier work this lab can actually sustain a few quarters from now.",
+    },
+    dilemmas: {
+      eyebrow: "Decision theater",
+      title: "Permanent strategic choices",
+      description:
+        "Crisis choices are part of the run history. They reshape endings, legitimacy, and how future pressure lands.",
+    },
+    settings: {
+      eyebrow: "Systems and saves",
+      title: "Narration, cloud sync, and run controls",
+      description:
+        "Voice, scene art, save portability, and runtime options all live here without changing the deterministic simulation.",
+    },
+  };
+  const activePanelMeta = panelMeta[store.panel];
+  const asideQuickStats =
+    store.panel === "track"
+      ? [
+          { label: "ETA", value: formatTurns(selectedForecast.turnsToLevel) },
+          { label: "Assigned", value: `${selectedForecast.assignedCount}` },
+          { label: "Compute", value: `${selectedTrack.compute} PFLOPS` },
+          {
+            label: "Passive",
+            value: trackRevenueStream ? formatCurrency(trackRevenueStream.amount) : "$0",
+          },
+        ]
+      : store.panel === "finance"
+        ? [
+            { label: "Runway", value: `${store.resources.runwayMonths} months` },
+            { label: "Net", value: `${quarterlyNet >= 0 ? "+" : ""}${formatCurrency(quarterlyNet)}` },
+            { label: "Control", value: `${Math.round(store.flags.founderControl)}%` },
+            { label: "Offers", value: `${fundingOffers.length}` },
+          ]
+        : store.panel === "hiring"
+          ? [
+              { label: "Candidates", value: `${store.candidates.length}` },
+              { label: "Contested", value: `${contestedCandidateCount}` },
+              { label: "Signed", value: `${store.pendingHires.length}` },
+              { label: "Close Cost", value: formatCurrency(pendingHireCloseCost) },
+            ]
+          : store.panel === "facilities"
+            ? [
+                { label: "Projects", value: `${store.projects.length}` },
+                { label: "Build Options", value: `${buildOptions.length}` },
+                { label: "Capacity", value: `${store.resources.computeCapacity} PFLOPS` },
+                { label: "Reserve", value: `${reservedCommercialCompute} PFLOPS` },
+              ]
+            : store.panel === "settings"
+              ? [
+                  { label: "Gemini", value: store.aiSettings.enabled ? "On" : "Off" },
+                  { label: "Voice", value: store.openAISettings.enabled ? "On" : "Off" },
+                  { label: "Cloud", value: cloudCredentials ? "Connected" : "Offline" },
+                  { label: "Sound", value: soundEnabled ? "On" : "Off" },
+                ]
+              : [
+                  { label: "Rank", value: `#${playerRank}` },
+                  { label: "Revenue", value: formatCurrency(store.resources.revenue) },
+                  { label: "Decisions", value: `${store.decisionLog.length}` },
+                  { label: "Rivals", value: `${topRivals.length}` },
+                ];
+  const commandPriority = (() => {
+    if (store.activeDilemma) {
+      return {
+        label: "Decision required",
+        message: "The quarter is paused until you choose a dilemma response.",
+        tone: "rose" as const,
+      };
+    }
+
+    if (store.resources.runwayMonths < 10) {
+      return {
+        label: "Runway risk",
+        message: "Cash survival is now a strategic constraint. Stabilize burn or accept a funding trade.",
+        tone: "rose" as const,
+      };
+    }
+
+    if (quarterlyNet < 0) {
+      return {
+        label: "Negative net",
+        message: "This quarter still burns cash. Decide whether research speed justifies the current ledger.",
+        tone: "amber" as const,
+      };
+    }
+
+    if (store.panel === "track" && selectedForecast.blockedReason) {
+      return {
+        label: "Research blocked",
+        message: selectedForecast.blockedReason,
+        tone: "amber" as const,
+      };
+    }
+
+    if (store.panel === "track" && freeCompute >= 5) {
+      return {
+        label: "Idle compute",
+        message: `${freeCompute} PFLOPS is uncommitted. Put it to work if you want the roadmap to move faster.`,
+        tone: "sky" as const,
+      };
+    }
+
+    if (store.panel === "hiring" && matchingCandidateCount > 0) {
+      return {
+        label: "Coverage window",
+        message: `${matchingCandidateCount} candidates can support ${getTrackLabel(store.selectedTrack)} right now.`,
+        tone: "sky" as const,
+      };
+    }
+
+    if (fundingOffers.length > 0 && store.resources.runwayMonths < 18) {
+      return {
+        label: "Funding window",
+        message: "The market is open. Decide whether extra buffer is worth the control dilution.",
+        tone: "sky" as const,
+      };
+    }
+
+    return {
+      label: "World pressure",
+      message: topRivalMove,
+      tone: "slate" as const,
+    };
+  })();
   const layoutClass = intelCollapsed
     ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)]"
     : "grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]";
-  const workspaceClass = "min-w-0 space-y-4";
+  const workspaceClass =
+    "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.92fr)] 2xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.88fr)]";
   const currentNarrationText = [
     store.resolution?.headline,
     chiefMemo ?? store.resolution?.briefing,
@@ -2226,97 +2648,180 @@ export function ConvergenceApp() {
       <PixiBackground />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.12),transparent_34%),linear-gradient(180deg,rgba(5,10,22,0.85),rgba(4,8,20,0.96))]" />
       <div className="relative mx-auto flex min-h-screen max-w-[1880px] flex-col px-4 py-4 lg:px-6">
-        <header className="mb-4 flex flex-col gap-4 rounded-[28px] border border-white/10 bg-slate-950/78 px-5 py-4 backdrop-blur">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex min-w-0 items-center gap-4">
-              <div className="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-3 text-sky-200">
-                <BrainCircuit className="h-6 w-6" />
+        <header className="mb-4 rounded-[32px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur lg:p-6">
+          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
+            <div className="space-y-4">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="flex min-w-0 items-start gap-4">
+                  <div className="rounded-[24px] border border-sky-400/20 bg-sky-500/10 p-3 text-sky-200">
+                    <BrainCircuit className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Convergence</p>
+                    <h1 className="mt-1 text-2xl font-semibold text-white lg:text-3xl">
+                      {store.year} Q{store.quarterIndex + 1} Turn {store.turn}
+                    </h1>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      {store.ceo.title} {store.ceo.name}
+                      {store.ceo.fired
+                        ? " - Interim era"
+                        : ` - Founder control ${Math.round(store.flags.founderControl)}%`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <PanelButton active={store.panel === "briefing"} icon={Globe2} label="Briefing" onClick={() => store.openPanel("briefing")} />
+                  <PanelButton active={store.panel === "finance"} icon={BarChart3} label="Finance" onClick={() => store.openPanel("finance")} />
+                  <PanelButton active={store.panel === "track"} icon={BrainCircuit} label="Research" onClick={() => store.openPanel("track")} />
+                  <PanelButton active={store.panel === "hiring"} icon={Users} label="Hiring" onClick={() => store.openPanel("hiring")} />
+                  <PanelButton active={store.panel === "facilities"} icon={Building2} label="Facilities" onClick={() => store.openPanel("facilities")} />
+                  <PanelButton active={store.panel === "settings"} icon={Handshake} label="Settings" onClick={() => store.openPanel("settings")} />
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Convergence</p>
-                <h1 className="mt-1 text-2xl font-semibold text-white">
-                  {store.year} Q{store.quarterIndex + 1} Turn {store.turn}
-                </h1>
-                <p className="mt-1 text-sm text-slate-400">
-                  {store.ceo.title} {store.ceo.name}
-                  {store.ceo.fired
-                    ? " - Interim era"
-                    : ` - Control ${Math.round(store.flags.founderControl)}%`}
-                </p>
+
+              <div className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(83,166,255,0.16),transparent_36%),linear-gradient(180deg,rgba(9,16,32,0.94),rgba(8,13,26,0.82))] p-5">
+                <p className="text-xs uppercase tracking-[0.24em] text-sky-200">{activePanelMeta.eyebrow}</p>
+                <h2 className="mt-3 max-w-3xl text-3xl font-semibold text-white">{activePanelMeta.title}</h2>
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">{activePanelMeta.description}</p>
+                <div
+                  className={`mt-5 rounded-[24px] border px-4 py-4 ${
+                    commandPriority.tone === "rose"
+                      ? "border-rose-400/20 bg-rose-500/10"
+                      : commandPriority.tone === "amber"
+                        ? "border-amber-400/20 bg-amber-500/10"
+                        : commandPriority.tone === "sky"
+                          ? "border-sky-400/20 bg-sky-500/10"
+                          : "border-white/8 bg-white/4"
+                  }`}
+                >
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{commandPriority.label}</p>
+                      <p className="mt-2 text-sm leading-6 text-white">{commandPriority.message}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <SignalChip label={store.activeDilemma ? "Turn paused" : "Simulation live"} tone={store.activeDilemma ? "bad" : "good"} />
+                      <SignalChip label={`${assignedHeadcount}/${store.employees.length} staff assigned`} tone="neutral" />
+                      <SignalChip label={`${liveProgramsCount} live programs`} tone="focus" />
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <CommandMetric
+                    label="Capital"
+                    value={formatCurrency(store.resources.capital)}
+                    helper="Cash on hand after current commitments."
+                    icon={BarChart3}
+                    tone="slate"
+                  />
+                  <CommandMetric
+                    label="Quarterly Net"
+                    value={`${quarterlyNet >= 0 ? "+" : ""}${formatCurrency(quarterlyNet)}`}
+                    helper="Revenue minus burn for the current quarter."
+                    icon={quarterlyNet >= 0 ? TrendingUp : TrendingDown}
+                    tone={quarterlyNet >= 0 ? "emerald" : "rose"}
+                  />
+                  <CommandMetric
+                    label="Runway"
+                    value={`${store.resources.runwayMonths} months`}
+                    helper="If the ledger holds, this is how long the lab survives."
+                    icon={Globe2}
+                    tone={store.resources.runwayMonths < 10 ? "rose" : "amber"}
+                  />
+                  <CommandMetric
+                    label="Research Capacity"
+                    value={`${researchCapacity} PFLOPS`}
+                    helper={`${reservedCommercialCompute} PFLOPS is reserved for live products.`}
+                    icon={Cpu}
+                    tone="sky"
+                  />
+                </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <PanelButton active={store.panel === "briefing"} icon={Globe2} label="Briefing" onClick={() => store.openPanel("briefing")} />
-              <PanelButton active={store.panel === "finance"} icon={BarChart3} label="Finance" onClick={() => store.openPanel("finance")} />
-              <PanelButton active={store.panel === "track"} icon={BrainCircuit} label="Research" onClick={() => store.openPanel("track")} />
-              <PanelButton active={store.panel === "hiring"} icon={Users} label="Hiring" onClick={() => store.openPanel("hiring")} />
-              <PanelButton active={store.panel === "facilities"} icon={Building2} label="Facilities" onClick={() => store.openPanel("facilities")} />
-              <PanelButton active={store.panel === "settings"} icon={Handshake} label="Settings" onClick={() => store.openPanel("settings")} />
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Capital</p>
-                  <p className="mt-1 text-sm font-medium text-white">{formatCurrency(store.resources.capital)}</p>
-                </div>
-                <div className="rounded-2xl border border-emerald-400/18 bg-emerald-500/10 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-200/75">Quarterly Revenue</p>
-                  <p className="mt-1 text-sm font-medium text-emerald-100">{formatCurrency(store.resources.revenue)}</p>
-                </div>
-                <div className={`rounded-2xl border px-3 py-2 ${quarterlyNet >= 0 ? "border-emerald-400/18 bg-emerald-500/8" : "border-rose-400/18 bg-rose-500/8"}`}>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Quarterly Net</p>
-                  <p className={`mt-1 text-sm font-medium ${quarterlyNet >= 0 ? "text-emerald-100" : "text-rose-100"}`}>
-                    {quarterlyNet >= 0 ? "+" : ""}
-                    {formatCurrency(quarterlyNet)}
-                  </p>
+
+            <div className="flex flex-col gap-4">
+              <div className="rounded-[28px] border border-white/10 bg-white/4 p-5">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Quarter Posture</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Race Leader</p>
+                      <p className="mt-2 text-base font-medium text-white">#{playerRank} Convergence</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      Trajectory: {labLeaderboard.find((entry) => entry.id === "player")?.trajectory}
+                    </p>
+                  </div>
+                  <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Top Rival Move</p>
+                    <p className="mt-2 text-sm leading-6 text-white">{topRivalMove}</p>
+                  </div>
+                  <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Trust / Fear</p>
+                    <p className="mt-2 text-base font-medium text-white">
+                      {Math.round(store.resources.trust)} / {Math.round(store.resources.fear)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">Public legitimacy versus backlash.</p>
+                  </div>
+                  <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Board / Revenue</p>
+                    <p className="mt-2 text-base font-medium text-white">
+                      {Math.round(store.resources.boardConfidence)} / {formatCurrency(store.resources.revenue)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">Control durability and live quarterly inflow.</p>
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setTutorialOpen(true)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/8"
-              >
-                <BookOpen className="h-4 w-4" />
-                How To Play
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm("Restart this run from turn 1 with the same opening preset?")) {
-                    playSynthTone(soundEnabled, "click");
-                    store.newGame(store.preset);
-                  }
-                }}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/8"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Restart
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  playSynthTone(soundEnabled, "click");
-                  openSaveAndQuitDialog();
-                }}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/8"
-              >
-                <Save className="h-4 w-4" />
-                Save & Quit
-              </button>
-              <button
-                type="button"
-                disabled={isPending || Boolean(store.activeDilemma)}
-                onClick={() =>
-                  startTransition(() => {
-                    playSynthTone(soundEnabled, "click");
-                    store.nextTurn();
-                  })
-                }
-                className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/45 bg-sky-500/15 px-4 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
-              >
-                <Play className="h-4 w-4" />
-                End Turn
-              </button>
+
+              <div className="rounded-[28px] border border-white/10 bg-white/4 p-5">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Run Controls</p>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setTutorialOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/8"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    How To Play
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Restart this run from turn 1 with the same opening preset?")) {
+                        playSynthTone(soundEnabled, "click");
+                        store.newGame(store.preset);
+                      }
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/8"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Restart
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playSynthTone(soundEnabled, "click");
+                      openSaveAndQuitDialog();
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/8"
+                  >
+                    <Save className="h-4 w-4" />
+                    Save & Quit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPending || Boolean(store.activeDilemma)}
+                    onClick={() =>
+                      startTransition(() => {
+                        playSynthTone(soundEnabled, "click");
+                        store.nextTurn();
+                      })
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-sky-400/45 bg-sky-500/15 px-4 py-3 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
+                  >
+                    <Play className="h-4 w-4" />
+                    End Turn
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </header>
@@ -2492,160 +2997,479 @@ export function ConvergenceApp() {
           </aside>
 
           <div className={workspaceClass}>
-          <section className="min-w-0 space-y-4">
-            <AnimatePresence>
-              {store.tutorialStep < tutorialNotes.length ? (
-                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="flex flex-col gap-3 rounded-[24px] border border-sky-400/20 bg-sky-500/10 px-4 py-4 text-sm text-sky-100 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0">
-                    <span className="mr-2 inline-flex rounded-full border border-sky-300/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-sky-200">Tutorial</span>
-                    <span>{tutorialNotes[store.tutorialStep]}</span>
-                  </div>
-                  <button type="button" onClick={() => setTutorialOpen(true)} className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-2 text-sm text-white">
-                    <BookOpen className="h-4 w-4" />
-                    Full Guide
-                  </button>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
+            <section className="min-w-0 space-y-4">
+              <AnimatePresence>
+                {store.tutorialStep < tutorialNotes.length ? (
+                  <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="flex flex-col gap-3 rounded-[24px] border border-sky-400/20 bg-sky-500/10 px-4 py-4 text-sm text-sky-100 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <span className="mr-2 inline-flex rounded-full border border-sky-300/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] text-sky-200">Tutorial</span>
+                      <span>{tutorialNotes[store.tutorialStep]}</span>
+                    </div>
+                    <button type="button" onClick={() => setTutorialOpen(true)} className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-2 text-sm text-white">
+                      <BookOpen className="h-4 w-4" />
+                      Full Guide
+                    </button>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
 
-            {store.panel === "track" ? <TrackMap state={store} onOpenTrack={store.openTrack} /> : null}
+              {store.panel === "track" ? <TrackMap state={store} onOpenTrack={store.openTrack} /> : null}
 
-            {store.panel === "briefing" ? (
-              <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Event Feed</p>
-                    <p className="mt-2 text-sm text-slate-400">
-                      Quarter-by-quarter news, breakthroughs, and scandals.
-                    </p>
-                  </div>
-                  <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    Latest {deferredFeed.length}
-                  </span>
-                </div>
-                <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-                  {deferredFeed.map((item) => (
-                    <div key={item.id} className="min-w-[280px] rounded-[22px] border border-white/8 bg-white/4 p-4">
-                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
-                        <span className={`h-2 w-2 rounded-full ${item.severity === "critical" ? "bg-rose-400" : item.severity === "warning" ? "bg-amber-400" : "bg-sky-400"}`} />
-                        {item.kind}
+              {store.panel === "briefing" ? (
+                <div className="space-y-4">
+                  <div className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(83,166,255,0.14),transparent_34%),linear-gradient(180deg,rgba(9,16,32,0.94),rgba(8,13,26,0.84))] p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Quarterly Briefing</p>
+                        <h3 className="mt-3 text-2xl font-semibold text-white">
+                          {chiefMemo ? "Chief of Staff memo ready" : store.resolution?.headline ?? "Lab status update"}
+                        </h3>
+                        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+                          {store.resolution?.worldEvents[0] ??
+                            "Read the quarter carefully before advancing the simulation clock."}
+                        </p>
                       </div>
-                      <p className="mt-3 text-sm font-medium text-white">{item.title}</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-400">{item.body}</p>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <button type="button" onClick={() => void narrateTurnSummary()} disabled={isNarrationLoading} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
+                          <AudioLines className="h-4 w-4" />
+                          {isNarrationLoading ? "Generating Voice..." : "Read Summary"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void generateSceneArt("briefing")}
+                          disabled={sceneArtStatus.tone === "checking"}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          {sceneArtStatus.tone === "checking" ? "Generating..." : "Generate Scene Art"}
+                        </button>
+                        {isNarrating ? (
+                          <button type="button" onClick={stopNarration} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
+                            <Pause className="h-4 w-4" />
+                            Stop
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
+                      <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                        <RichText text={chiefMemo ?? store.resolution?.briefing} />
+                      </div>
+                      <div className="grid gap-3">
+                        <CommandMetric
+                          label="Quarter Delta"
+                          value={`${store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? "+" : ""}${formatCurrency(store.resolution?.financeDelta ?? 0)}`}
+                          helper="Net swing recorded when the quarter resolved."
+                          icon={store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? TrendingUp : TrendingDown}
+                          tone={store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? "emerald" : "rose"}
+                        />
+                        <CommandMetric
+                          label="Breakthroughs"
+                          value={`${store.resolution?.breakthroughs.length ?? 0}`}
+                          helper="Major discoveries or milestones from this quarter."
+                          icon={Sparkles}
+                          tone="sky"
+                        />
+                        <CommandMetric
+                          label="Revenue Live"
+                          value={formatCurrency(store.resources.revenue)}
+                          helper="Current live quarterly revenue across all lines."
+                          icon={BarChart3}
+                          tone="emerald"
+                        />
+                      </div>
+                    </div>
+
+                    {(sceneArtScope === "briefing" || sceneArtStatus.tone !== "idle") ? (
+                      <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(sceneArtStatus.tone)}`}>
+                        {sceneArtStatus.message}
+                      </div>
+                    ) : null}
+                    {sceneArtScope === "briefing" && sceneArtUrl ? (
+                      <div className="mt-4 overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={sceneArtUrl} alt="Gemini-generated quarterly briefing scene art" className="h-auto w-full object-cover" />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
+                    <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Event Feed</p>
+                          <p className="mt-2 text-sm text-slate-400">
+                            Quarter-by-quarter news, breakthroughs, and scandals.
+                          </p>
+                        </div>
+                        <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          Latest {deferredFeed.length}
+                        </span>
+                      </div>
+                      <div className="mt-4 grid gap-3">
+                        {deferredFeed.slice(0, 5).map((item) => (
+                          <div key={item.id} className="rounded-[22px] border border-white/8 bg-white/4 p-4">
+                            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-400">
+                              <span className={`h-2 w-2 rounded-full ${item.severity === "critical" ? "bg-rose-400" : item.severity === "warning" ? "bg-amber-400" : "bg-sky-400"}`} />
+                              {item.kind}
+                            </div>
+                            <p className="mt-3 text-sm font-medium text-white">{item.title}</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">{item.body}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">World Pulse</p>
+                        <RichText text={worldLead ?? store.resolution?.worldEvents[0] ?? "No major event yet."} className="mt-3" />
+                      </div>
+                      <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Decision Memory</p>
+                        <div className="mt-3 space-y-2">
+                          {store.decisionLog.length ? (
+                            store.decisionLog.slice(0, 3).map((entry) => (
+                              <div key={entry.id} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-sm font-medium text-white">{entry.title}</p>
+                                  <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Turn {entry.turn}</span>
+                                </div>
+                                <p className="mt-2 text-sm text-slate-300">{entry.choice}</p>
+                                <p className="mt-1 text-xs leading-5 text-slate-400">{entry.outcome} · {entry.impact}</p>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-slate-500">No major decisions are logged yet.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {store.panel === "hiring" ? (
+                <div className="space-y-4">
+                  <div className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(83,166,255,0.12),transparent_30%),linear-gradient(180deg,rgba(9,16,32,0.92),rgba(8,13,26,0.82))] p-5">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Talent Market</p>
+                        <h3 className="mt-3 text-2xl font-semibold text-white">Compare next-quarter hires by lane, cost, and pressure</h3>
+                        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+                          Candidates do not fix this turn instantly. They arrive next quarter, change payroll permanently, and only work in the lanes they can actually cover.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <SignalChip label={`${matchingCandidateCount} can support ${getTrackLabel(store.selectedTrack)}`} tone="focus" />
+                        <SignalChip label={`${contestedCandidateCount} contested`} tone={contestedCandidateCount ? "bad" : "neutral"} />
+                      </div>
+                    </div>
+                    <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <CommandMetric
+                        label="Open Candidates"
+                        value={`${store.candidates.length}`}
+                        helper="Available to sign right now."
+                        icon={Users}
+                        tone="slate"
+                      />
+                      <CommandMetric
+                        label="Active Track Fits"
+                        value={`${matchingCandidateCount}`}
+                        helper={`Candidates who can work on ${getTrackLabel(store.selectedTrack)}.`}
+                        icon={BrainCircuit}
+                        tone="sky"
+                      />
+                      <CommandMetric
+                        label="Signed Queue"
+                        value={`${store.pendingHires.length}`}
+                        helper="Already committed and arriving next quarter."
+                        icon={BookOpen}
+                        tone="amber"
+                      />
+                      <CommandMetric
+                        label="Payroll Next Turn"
+                        value={`+${formatCurrency(pendingHirePayroll)}`}
+                        helper="Additional quarterly payroll once pending hires arrive."
+                        icon={TrendingUp}
+                        tone="emerald"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Filter Market</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Narrow candidates by research lane or focus on those rivals are also trying to land.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowContestedCandidatesOnly((value) => !value)}
+                        className={`inline-flex rounded-full border px-4 py-2 text-sm ${
+                          showContestedCandidatesOnly
+                            ? "border-rose-400/25 bg-rose-500/10 text-rose-100"
+                            : "border-white/10 bg-white/5 text-slate-300"
+                        }`}
+                      >
+                        {showContestedCandidatesOnly ? "Showing Contested Only" : "Show Contested Only"}
+                      </button>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCandidateFocusFilter("all")}
+                        className={`rounded-full border px-3 py-2 text-sm ${
+                          candidateFocusFilter === "all"
+                            ? "border-sky-400/35 bg-sky-500/10 text-white"
+                            : "border-white/10 bg-white/5 text-slate-300"
+                        }`}
+                      >
+                        All Lanes
+                      </button>
+                      {candidateTrackFilters.map((trackId) => (
+                        <button
+                          key={trackId}
+                          type="button"
+                          onClick={() => setCandidateFocusFilter(trackId)}
+                          className={`rounded-full border px-3 py-2 text-sm ${
+                            candidateFocusFilter === trackId
+                              ? "border-sky-400/35 bg-sky-500/10 text-white"
+                              : "border-white/10 bg-white/5 text-slate-300"
+                          }`}
+                        >
+                          {getTrackLabel(trackId)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {filteredCandidates.length ? (
+                    <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                      {filteredCandidates.map((candidate) => (
+                        <div key={candidate.id} className="rounded-[28px] border border-white/10 bg-slate-950/78 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="text-lg font-semibold text-white">{candidate.name}</h3>
+                              <p className="mt-1 text-sm text-slate-400">{candidate.role}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playSynthTone(soundEnabled, "click");
+                                store.hire(candidate.id);
+                              }}
+                              className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200"
+                            >
+                              Hire
+                            </button>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <SignalChip label={getTrackLabel(candidate.primaryTrack)} tone="focus" />
+                            {candidate.secondaryTrack ? <SignalChip label={getTrackLabel(candidate.secondaryTrack)} tone="neutral" /> : null}
+                            {candidate.generalist ? <SignalChip label="Generalist" tone="good" /> : null}
+                            <SignalChip
+                              label={candidate.contestedBy ? `Contested by ${store.rivals[candidate.contestedBy].name}` : "Uncontested"}
+                              tone={candidate.contestedBy ? "bad" : "neutral"}
+                            />
+                          </div>
+
+                          <p className="mt-4 text-sm italic leading-6 text-slate-300">&ldquo;{candidate.ask}&rdquo;</p>
+                          <p className="mt-3 text-sm leading-6 text-slate-400">{candidate.bio}</p>
+
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Research</p>
+                              <p className="mt-2 text-sm font-medium text-white">{candidate.research}</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Execution</p>
+                              <p className="mt-2 text-sm font-medium text-white">{candidate.execution}</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Leadership</p>
+                              <p className="mt-2 text-sm font-medium text-white">{candidate.leadership}</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Ethics</p>
+                              <p className="mt-2 text-sm font-medium text-white">{candidate.ethics}</p>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {candidate.traits.slice(0, 4).map((trait) => (
+                              <span key={`${candidate.id}-${trait}`} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                                {trait}
+                              </span>
+                            ))}
+                          </div>
+
+                          <div className="mt-4 rounded-[22px] border border-white/8 bg-white/4 p-4">
+                            <div className="grid gap-2 text-sm text-slate-300">
+                              <div className="flex items-center justify-between gap-3">
+                                <span>Close Cost Today</span>
+                                <span className="font-medium text-white">{formatCurrency(candidate.signingBonus + candidate.salary / 4)}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <span>Quarterly Payroll Next Turn</span>
+                                <span className="font-medium text-white">{formatCurrency(candidate.salary / 4)}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <span>Location</span>
+                                <span className="text-slate-400">{candidate.location}</span>
+                              </div>
+                            </div>
+                            <p className="mt-3 text-xs leading-5 text-slate-500">{describeAssignmentScope(candidate)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-[28px] border border-dashed border-white/10 bg-slate-950/65 px-4 py-8 text-center text-sm text-slate-500">
+                      No candidates match the current filter. Try widening the lane selection or turning off the contested-only view.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {store.panel !== "track" && store.panel !== "briefing" && store.panel !== "hiring" ? (
+                <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-5">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Operations Snapshot</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">
+                        {store.panel === "finance"
+                          ? "Capital markets and operating load"
+                          : store.panel === "facilities"
+                            ? "Compute posture and infrastructure load"
+                            : "Narrative and systems controls"}
+                      </h3>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                        {store.panel === "finance"
+                          ? "Use this view to judge whether runway should go into research, commercialization, or a fresh raise."
+                          : store.panel === "facilities"
+                            ? "Suppliers, energy, and build projects set the ceiling for what the lab can support."
+                            : "AI flavor systems stay optional. The deterministic simulation underneath keeps running either way."}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <SignalChip label={`Founder control ${Math.round(store.flags.founderControl)}%`} tone="focus" />
+                      <SignalChip label={`${reservedCommercialCompute} PFLOPS reserved`} tone="neutral" />
+                    </div>
+                  </div>
+                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <CommandMetric
+                      label="Founder Control"
+                      value={`${Math.round(store.flags.founderControl)}%`}
+                      helper="Lower control makes board pressure land faster."
+                      icon={Handshake}
+                      tone="slate"
+                    />
+                    <CommandMetric
+                      label="Reserved Compute"
+                      value={`${reservedCommercialCompute} PFLOPS`}
+                      helper="Compute already spoken for by live products."
+                      icon={Cpu}
+                      tone="sky"
+                    />
+                    <CommandMetric
+                      label="Funding Offers"
+                      value={`${fundingOffers.length}`}
+                      helper="Current live capital windows."
+                      icon={BarChart3}
+                      tone="amber"
+                    />
+                    <CommandMetric
+                      label="Live Programs"
+                      value={`${liveProgramsCount}`}
+                      helper="Programs already contributing or reserving capacity."
+                      icon={Sparkles}
+                      tone="emerald"
+                    />
+                  </div>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                    <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Live Programs</p>
+                      <div className="mt-3 space-y-2">
+                        {store.commercializationPrograms.length ? (
+                          store.commercializationPrograms.slice(0, 4).map((program) => (
+                            <div key={program.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                              <p className="text-sm font-medium text-white">{program.name}</p>
+                              <p className="mt-1 text-xs text-slate-400">
+                                {program.status === "live" ? "Live" : `Launching · ${program.turnsRemaining}Q`}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500">No commercialization lines are active yet.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Funding Window</p>
+                      <div className="mt-3 space-y-2">
+                        {fundingOffers.length ? (
+                          fundingOffers.slice(0, 2).map((offer) => (
+                            <div key={offer.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                              <p className="text-sm font-medium text-white">{offer.name}</p>
+                              <p className="mt-1 text-xs text-slate-400">{offer.summary}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-500">No fresh funding window right now.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest Feed</p>
+                      <div className="mt-3 space-y-2">
+                        {deferredFeed.slice(0, 3).map((item) => (
+                          <div key={item.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                            <p className="text-sm font-medium text-white">{item.title}</p>
+                            <p className="mt-1 text-xs text-slate-400">{item.body}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+
+            <aside className="min-w-0 self-start space-y-4 rounded-[28px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur xl:sticky xl:top-4">
+              <div className="rounded-[26px] border border-white/8 bg-white/4 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">{activePanelMeta.eyebrow}</p>
+                    <h2 className="mt-2 text-2xl font-semibold text-white">
+                      {store.panel === "track" ? trackDefinition.name : activePanelMeta.title}
+                    </h2>
+                    <p className="mt-3 text-sm leading-6 text-slate-400">{activePanelMeta.description}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {store.panel === "track" ? (
+                      <SignalChip
+                        label={selectedTrack.unlocked ? `${selectedForecast.projectName} / L${selectedTrack.level}` : "Locked track"}
+                        tone={selectedTrack.unlocked ? "focus" : "bad"}
+                      />
+                    ) : (
+                      <SignalChip label={commandPriority.label} tone={commandPriority.tone === "rose" ? "bad" : commandPriority.tone === "sky" ? "focus" : "neutral"} />
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {asideQuickStats.map((stat) => (
+                    <div key={`${store.panel}-${stat.label}`} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{stat.label}</p>
+                      <p className="mt-2 text-sm font-medium text-white">{stat.value}</p>
                     </div>
                   ))}
                 </div>
               </div>
-            ) : null}
-
-            {store.panel !== "track" && store.panel !== "briefing" ? (
-              <div className="rounded-[28px] border border-white/10 bg-slate-950/78 p-5">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Operations Snapshot</p>
-                    <h3 className="mt-2 text-xl font-semibold text-white">
-                      {store.panel === "finance"
-                        ? "Capital markets and operating load"
-                        : store.panel === "hiring"
-                          ? "Coverage, arrivals, and payroll pressure"
-                          : store.panel === "facilities"
-                            ? "Compute posture and infrastructure load"
-                            : "Narrative and systems controls"}
-                    </h3>
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                      {store.panel === "finance"
-                        ? "Use this view to judge whether runway should go into research, commercialization, or a fresh raise."
-                        : store.panel === "hiring"
-                          ? "Specialists arrive next turn, so hiring is a forecast decision instead of an instant fix."
-                          : store.panel === "facilities"
-                            ? "Suppliers, energy, and build projects set the ceiling for what the lab can support."
-                            : "AI flavor systems stay optional. The deterministic simulation underneath keeps running either way."}
-                    </p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Founder Control</p>
-                      <p className="mt-2 text-lg font-medium text-white">{Math.round(store.flags.founderControl)}</p>
-                    </div>
-                    <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Reserved Compute</p>
-                      <p className="mt-2 text-lg font-medium text-white">{reservedCommercialCompute} PFLOPS</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                  <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Live Programs</p>
-                    <div className="mt-3 space-y-2">
-                      {store.commercializationPrograms.length ? (
-                        store.commercializationPrograms.slice(0, 4).map((program) => (
-                          <div key={program.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
-                            <p className="text-sm font-medium text-white">{program.name}</p>
-                            <p className="mt-1 text-xs text-slate-400">
-                              {program.status === "live" ? "Live" : `Launching · ${program.turnsRemaining}Q`}
-                            </p>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-slate-500">No commercialization lines are active yet.</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Funding Window</p>
-                    <div className="mt-3 space-y-2">
-                      {fundingOffers.length ? (
-                        fundingOffers.slice(0, 2).map((offer) => (
-                          <div key={offer.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
-                            <p className="text-sm font-medium text-white">{offer.name}</p>
-                            <p className="mt-1 text-xs text-slate-400">{offer.summary}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-slate-500">No fresh funding window right now.</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="rounded-[22px] border border-white/8 bg-white/4 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Latest Feed</p>
-                    <div className="mt-3 space-y-2">
-                      {deferredFeed.slice(0, 3).map((item) => (
-                        <div key={item.id} className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
-                          <p className="text-sm font-medium text-white">{item.title}</p>
-                          <p className="mt-1 text-xs text-slate-400">{item.body}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </section>
-
-          <aside className="min-w-0 space-y-4 rounded-[28px] border border-white/10 bg-slate-950/78 p-5 backdrop-blur">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Detail Panel</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  {store.panel === "track"
-                    ? trackDefinition.name
-                    : store.panel === "finance"
-                      ? "Finance and Revenue"
-                    : store.panel === "hiring"
-                      ? "Talent Market"
-                      : store.panel === "facilities"
-                        ? "Compute and Facilities"
-                        : store.panel === "settings"
-                          ? "Settings"
-                          : "Quarterly Briefing"}
-                </h2>
-              </div>
-              {store.panel === "track" ? (
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-300">
-                  {selectedTrack.unlocked ? `${selectedForecast.projectName} / L${selectedTrack.level}` : "Locked track"}
-                </div>
-              ) : null}
-            </div>
 
             {store.panel === "track" ? (
               <div className="space-y-4 text-sm text-slate-300">
@@ -3420,48 +4244,6 @@ export function ConvergenceApp() {
             {store.panel === "briefing" ? (
               <div className="space-y-4 text-sm leading-6 text-slate-300">
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Chief of Staff</p>
-                      <p className="mt-3 text-base font-medium text-white">{chiefMemo ? "AI Memo" : store.resolution?.headline}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <button type="button" onClick={() => void narrateTurnSummary()} disabled={isNarrationLoading} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
-                        <AudioLines className="h-4 w-4" />
-                        {isNarrationLoading ? "Generating Voice..." : "Read Summary"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void generateSceneArt("briefing")}
-                        disabled={sceneArtStatus.tone === "checking"}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        {sceneArtStatus.tone === "checking" ? "Generating..." : "Generate Scene Art"}
-                      </button>
-                      {isNarrating ? (
-                        <button type="button" onClick={stopNarration} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
-                          <Pause className="h-4 w-4" />
-                          Stop
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                  <RichText text={chiefMemo ?? store.resolution?.briefing} className="mt-4" />
-                  {(sceneArtScope === "briefing" || sceneArtStatus.tone !== "idle") ? (
-                    <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(sceneArtStatus.tone)}`}>
-                      {sceneArtStatus.message}
-                    </div>
-                  ) : null}
-                  {sceneArtScope === "briefing" && sceneArtUrl ? (
-                    <div className="mt-4 overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={sceneArtUrl} alt="Gemini-generated quarterly briefing scene art" className="h-auto w-full object-cover" />
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Quarterly Result</p>
                     <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${store.resolution?.financeDelta && store.resolution.financeDelta >= 0 ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200" : "border-rose-400/30 bg-rose-500/10 text-rose-200"}`}>
@@ -3491,33 +4273,10 @@ export function ConvergenceApp() {
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-400">World Pulse</p>
-                  <RichText text={worldLead ?? store.resolution?.worldEvents[0] ?? "No major event yet."} className="mt-3" />
-                </div>
-
                 {rivalColor ? (
                   <div className="rounded-[24px] border border-violet-400/18 bg-violet-500/10 p-4">
                     <p className="text-xs uppercase tracking-[0.22em] text-violet-200">Rival Assessment</p>
                     <RichText text={rivalColor} className="mt-3 text-violet-50" />
-                  </div>
-                ) : null}
-
-                {store.decisionLog.length ? (
-                  <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Decision Memory</p>
-                    <div className="mt-3 space-y-2">
-                      {store.decisionLog.slice(0, 4).map((entry) => (
-                        <div key={entry.id} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-medium text-white">{entry.title}</p>
-                            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Turn {entry.turn}</span>
-                          </div>
-                          <p className="mt-2 text-sm text-slate-300">{entry.choice}</p>
-                          <p className="mt-1 text-xs text-slate-400">{entry.outcome} · {entry.impact}</p>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 ) : null}
 
@@ -3813,6 +4572,34 @@ export function ConvergenceApp() {
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                   <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Active Track Coverage</p>
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{getTrackLabel(store.selectedTrack)}</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Assigned Now</p>
+                      <p className="mt-2 text-sm font-medium text-white">{assignedResearchers.length}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Free Matches</p>
+                      <p className="mt-2 text-sm font-medium text-white">{availableResearchers.length}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Committed Elsewhere</p>
+                      <p className="mt-2 text-sm font-medium text-white">{committedResearchers.length}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Ineligible</p>
+                      <p className="mt-2 text-sm font-medium text-white">{ineligibleResearchers.length}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Use this as the context for why a hire matters: coverage gaps, not just headcount, decide which lanes can actually move.
+                  </p>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <div className="flex items-center justify-between gap-3">
                     <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Arrival Queue</p>
                     <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{store.pendingHires.length} signed</span>
                   </div>
@@ -3833,40 +4620,10 @@ export function ConvergenceApp() {
                       <p className="text-sm text-slate-500">No one is currently signed and waiting to arrive.</p>
                     )}
                   </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Close cost already committed this quarter: {formatCurrency(pendingHireCloseCost)}.
+                  </p>
                 </div>
-
-                {store.candidates.map((candidate) => (
-                  <div key={candidate.id} className="rounded-[24px] border border-white/8 bg-white/4 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="text-base font-medium text-white">{candidate.name}</h3>
-                        <p className="text-sm text-slate-400">{candidate.role}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          playSynthTone(soundEnabled, "click");
-                          store.hire(candidate.id);
-                        }}
-                        className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200"
-                      >
-                        Hire
-                      </button>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-300">{candidate.bio}</p>
-                    <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
-                      <span>Salary {formatCurrency(candidate.salary)}</span>
-                      <span>Signing bonus {formatCurrency(candidate.signingBonus)}</span>
-                      <span>Unlocks {TRACK_DEFINITIONS.find((track) => track.id === candidate.primaryTrack)?.name} on arrival</span>
-                      <span>{describeAssignmentScope(candidate)}</span>
-                      <span>Quarterly payroll next turn +{formatCurrency(candidate.salary / 4)}</span>
-                      <span>Close cost today {formatCurrency(candidate.signingBonus + candidate.salary / 4)}</span>
-                      <span>{candidate.contestedBy ? `Contested by ${store.rivals[candidate.contestedBy].name}` : "Uncontested"}</span>
-                      <span>{candidate.location}</span>
-                    </div>
-                    <p className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">{candidate.ask}</p>
-                  </div>
-                ))}
               </div>
             ) : null}
 
@@ -4099,75 +4856,151 @@ export function ConvergenceApp() {
       <AnimatePresence>
         {store.activeDilemma ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/68 p-4 backdrop-blur-sm">
-            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }} className="w-full max-w-5xl rounded-[32px] border border-white/10 bg-[#0a1124]/95 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)]">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="rounded-2xl border border-amber-400/20 bg-amber-500/12 p-3 text-amber-200">
-                    <AlertTriangle className="h-6 w-6" />
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }} className="w-full max-w-6xl rounded-[36px] border border-white/10 bg-[#0a1124]/95 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)]">
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+                <div className="space-y-4">
+                  <div className="rounded-[30px] border border-amber-400/18 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.12),transparent_38%),linear-gradient(180deg,rgba(24,16,10,0.18),rgba(255,255,255,0.02))] p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="rounded-2xl border border-amber-400/20 bg-amber-500/12 p-3 text-amber-200">
+                          <AlertTriangle className="h-6 w-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs uppercase tracking-[0.24em] text-amber-200">{store.activeDilemma.source}</p>
+                          <h2 className="mt-2 text-3xl font-semibold text-white">{store.activeDilemma.title}</h2>
+                          <RichText text={store.activeDilemma.brief} className="mt-3" />
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <button type="button" onClick={() => void narrateDilemmaSummary()} disabled={isNarrationLoading} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
+                          <AudioLines className="h-4 w-4" />
+                          {isNarrationLoading ? "Generating Voice..." : "Read Context"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void generateSceneArt("dilemma")}
+                          disabled={sceneArtStatus.tone === "checking"}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          {sceneArtStatus.tone === "checking" ? "Generating..." : "Generate Scene Art"}
+                        </button>
+                        {isNarrating ? (
+                          <button type="button" onClick={stopNarration} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
+                            <Pause className="h-4 w-4" />
+                            Stop
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <SignalChip label="Permanent history" tone="bad" />
+                      <SignalChip label={`${store.decisionLog.length} decisions already logged`} tone="neutral" />
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs uppercase tracking-[0.24em] text-amber-200">{store.activeDilemma.source}</p>
-                    <h2 className="mt-2 text-3xl font-semibold text-white">{store.activeDilemma.title}</h2>
-                    <RichText text={store.activeDilemma.brief} className="mt-3" />
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button type="button" onClick={() => void narrateDilemmaSummary()} disabled={isNarrationLoading} className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60">
-                    <AudioLines className="h-4 w-4" />
-                    {isNarrationLoading ? "Generating Voice..." : "Read Context"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void generateSceneArt("dilemma")}
-                    disabled={sceneArtStatus.tone === "checking"}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    {sceneArtStatus.tone === "checking" ? "Generating..." : "Generate Scene Art"}
-                  </button>
-                  {isNarrating ? (
-                    <button type="button" onClick={stopNarration} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
-                      <Pause className="h-4 w-4" />
-                      Stop
-                    </button>
+
+                  {dilemmaFlavor ? (
+                    <div className="rounded-[24px] border border-violet-400/18 bg-violet-500/10 p-4">
+                      <p className="text-xs uppercase tracking-[0.22em] text-violet-200">AI Context Note</p>
+                      <RichText text={dilemmaFlavor} className="mt-3 text-violet-50" />
+                    </div>
+                  ) : null}
+
+                  {(sceneArtScope === "dilemma" || sceneArtStatus.tone !== "idle") ? (
+                    <div className={`rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(sceneArtStatus.tone)}`}>
+                      {sceneArtStatus.message}
+                    </div>
+                  ) : null}
+                  {sceneArtScope === "dilemma" && sceneArtUrl ? (
+                    <div className="overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={sceneArtUrl} alt="Gemini-generated dilemma scene art" className="h-auto w-full object-cover" />
+                    </div>
                   ) : null}
                 </div>
-              </div>
-              {dilemmaFlavor ? (
-                <div className="mt-4 rounded-[24px] border border-violet-400/18 bg-violet-500/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-violet-200">AI Context Note</p>
-                  <RichText text={dilemmaFlavor} className="mt-3 text-violet-50" />
-                </div>
-              ) : null}
-              {(sceneArtScope === "dilemma" || sceneArtStatus.tone !== "idle") ? (
-                <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(sceneArtStatus.tone)}`}>
-                  {sceneArtStatus.message}
-                </div>
-              ) : null}
-              {sceneArtScope === "dilemma" && sceneArtUrl ? (
-                <div className="mt-4 overflow-hidden rounded-[24px] border border-white/8 bg-slate-950/65">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={sceneArtUrl} alt="Gemini-generated dilemma scene art" className="h-auto w-full object-cover" />
-                </div>
-              ) : null}
-              <div className="mt-6 grid gap-4 lg:grid-cols-3">
-                {store.activeDilemma.options.map((option) => (
-                  <button key={option.id} type="button" onClick={() => { playSynthTone(soundEnabled, "warning"); store.resolveDilemma(option); }} className="rounded-[24px] border border-white/10 bg-white/4 p-4 text-left transition hover:border-sky-400/35 hover:bg-sky-500/8">
-                    <h3 className="text-base font-medium text-white">{option.label}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">{option.summary}</p>
-                    <div className="mt-4 space-y-2">
-                      {option.outcomes.map((outcome) => (
-                        <div key={outcome.id}>
-                          <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                            <span>{outcome.label}</span>
-                            <span>{Math.round(outcome.chance * 100)}%</span>
-                          </div>
-                          <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/6">
-                            <div className="h-full rounded-full bg-gradient-to-r from-sky-300 to-violet-400" style={{ width: `${outcome.chance * 100}%` }} />
-                          </div>
-                        </div>
-                      ))}
+
+                <div className="space-y-4">
+                  <div className="rounded-[28px] border border-white/10 bg-white/4 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Current Stakes</p>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Trust</p>
+                        <p className="mt-2 text-sm font-medium text-white">{Math.round(store.resources.trust)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Fear</p>
+                        <p className="mt-2 text-sm font-medium text-white">{Math.round(store.resources.fear)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Board</p>
+                        <p className="mt-2 text-sm font-medium text-white">{Math.round(store.resources.boardConfidence)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Gov Dependence</p>
+                        <p className="mt-2 text-sm font-medium text-white">{store.flags.governmentDependence}</p>
+                      </div>
                     </div>
+                  </div>
+                  <div className="rounded-[28px] border border-white/10 bg-white/4 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Decision Rule</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">
+                      Choose one path. The outcome becomes part of the lab&apos;s permanent memory and can shift endings, legitimacy, and future pressure.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-3">
+                {store.activeDilemma.options.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      playSynthTone(soundEnabled, "warning");
+                      store.resolveDilemma(option);
+                    }}
+                    className="rounded-[28px] border border-white/10 bg-white/4 p-5 text-left transition hover:border-sky-400/35 hover:bg-sky-500/8"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-lg font-semibold text-white">{option.label}</h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">{option.summary}</p>
+                      </div>
+                      <SignalChip label="Commit" tone="focus" />
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {option.outcomes.map((outcome) => {
+                        const effectEntries = getDilemmaEffectEntries(outcome.effects);
+
+                        return (
+                          <div key={outcome.id} className="rounded-[22px] border border-white/8 bg-slate-950/65 p-3">
+                            <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                              <span>{outcome.label}</span>
+                              <span>{Math.round(outcome.chance * 100)}%</span>
+                            </div>
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/6">
+                              <div className="h-full rounded-full bg-gradient-to-r from-sky-300 to-violet-400" style={{ width: `${outcome.chance * 100}%` }} />
+                            </div>
+                            <p className="mt-3 text-xs leading-5 text-slate-400">{outcome.narrative}</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {effectEntries.length ? (
+                                effectEntries.slice(0, 4).map(({ effect, value }) => (
+                                  <SignalChip
+                                    key={`${outcome.id}-${effect}`}
+                                    label={formatDilemmaEffectLabel(effect, value)}
+                                    tone={describeDilemmaEffectTone(effect, value)}
+                                  />
+                                ))
+                              ) : (
+                                <SignalChip label="Narrative swing only" tone="neutral" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-4 text-[11px] uppercase tracking-[0.18em] text-sky-100">Commit to this path</p>
                   </button>
                 ))}
               </div>
@@ -4312,4 +5145,3 @@ export function ConvergenceApp() {
     </main>
   );
 }
-
