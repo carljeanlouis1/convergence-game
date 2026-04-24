@@ -3784,7 +3784,7 @@ export function ConvergenceApp() {
             <div className="max-w-3xl">
               <div className="flex flex-wrap items-center gap-3">
                 <p className="mission-eyebrow">Convergence Mission Control</p>
-                <SignalChip label="V4 preview branch" tone="warn" />
+                <SignalChip label="Production command room" tone="good" />
               </div>
               <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight text-white lg:text-6xl">
                 Run the AI lab that decides what the century becomes.
@@ -3971,7 +3971,7 @@ export function ConvergenceApp() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Convergence</p>
-                      <SignalChip label="V4 preview" tone="warn" />
+                      <SignalChip label="Mission Control" tone="focus" />
                     </div>
                     <h1 className="mt-1 text-2xl font-semibold text-white lg:text-3xl">
                       {store.year} Q{store.quarterIndex + 1} Turn {store.turn}
