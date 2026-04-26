@@ -52,12 +52,14 @@ export async function onRequestGet({ request, env }: PagesContext) {
     status?: string;
     logs?: Array<{ message?: string }>;
     queue_position?: number;
+    response_url?: string;
   };
 
   return json({
     ok: true,
     status: payload.status ?? "UNKNOWN",
     queuePosition: payload.queue_position,
+    responseUrl: payload.response_url,
     logs: payload.logs?.map((entry) => entry.message).filter(Boolean).slice(-5) ?? [],
     message:
       payload.status === "COMPLETED"

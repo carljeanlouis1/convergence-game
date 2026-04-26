@@ -621,6 +621,7 @@ export interface CinematicStatusResult {
   ok: boolean;
   status?: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "UNKNOWN" | string;
   queuePosition?: number;
+  responseUrl?: string;
   logs?: string[];
   message: string;
 }
@@ -700,12 +701,22 @@ export const fetchCinematicStatus = async ({
 export const fetchCinematicResult = async ({
   requestId,
   model,
+  resultUrl,
 }: {
   requestId: string;
   model: string;
+  resultUrl?: string;
 }): Promise<CinematicResult> => {
+  const params = new URLSearchParams({
+    requestId,
+    model,
+  });
+  if (resultUrl) {
+    params.set("resultUrl", resultUrl);
+  }
+
   const response = await fetch(
-    `${SERVER_AI_CINEMATIC_RESULT_ENDPOINT}?requestId=${encodeURIComponent(requestId)}&model=${encodeURIComponent(model)}`,
+    `${SERVER_AI_CINEMATIC_RESULT_ENDPOINT}?${params.toString()}`,
     {
       cache: "no-store",
     },

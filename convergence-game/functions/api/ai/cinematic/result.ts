@@ -13,6 +13,23 @@ const normalizeQueueModelPath = (model: string) =>
     .replace(/^\/+|\/+$/g, "")
     .replace(/\/(?:image-to-video|text-to-video)$/u, "");
 
+const normalizeFalResultUrl = (value: string | null) => {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" || parsed.hostname !== "queue.fal.run") {
+      return null;
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
 const extractVideo = (payload: unknown) => {
   const response = payload as {
     video?: {
@@ -46,13 +63,14 @@ export async function onRequestGet({ request, env }: PagesContext) {
   const url = new URL(request.url);
   const requestId = url.searchParams.get("requestId")?.trim();
   const model = normalizeQueueModelPath(url.searchParams.get("model") ?? envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL));
+  const resultUrl = normalizeFalResultUrl(url.searchParams.get("resultUrl"));
 
   if (!requestId) {
     return json({ ok: false, message: "Missing fal request id." }, 400);
   }
 
   const requestPath = `https://queue.fal.run/${model}/requests/${encodeURIComponent(requestId)}`;
-  let response = await fetch(requestPath, {
+  let response = await fetch(resultUrl ?? requestPath, {
     headers: {
       Authorization: `Key ${falKey}`,
     },

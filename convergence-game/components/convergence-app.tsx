@@ -3424,6 +3424,7 @@ export function ConvergenceApp() {
         const result = await fetchCinematicResult({
           requestId: cinematicJob.requestId,
           model: cinematicJob.model,
+          resultUrl: status.responseUrl,
         });
 
         if (cancelled) {
