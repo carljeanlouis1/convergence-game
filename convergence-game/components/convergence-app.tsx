@@ -5525,8 +5525,8 @@ export function ConvergenceApp() {
                                         Commercial Coverage Needed
                                       </p>
                                       <p className="mt-2 text-sm leading-6 text-amber-50/90">
-                                        Assign {missingCommercializationRoleLabels} to {trackDefinition.name} in the Research staffing panel.
-                                        Market programs do not use a separate staff slot yet; they read coverage from the science lane.
+                                        You need {missingCommercializationRoleLabels} somewhere on your roster from a person who can support {trackDefinition.name}.
+                                        Market programs do not use separate product assignments or consume research staff.
                                       </p>
                                       <p className="mt-2 text-xs leading-5 text-amber-100/70">
                                         Roster matches: {rosterCommercializationCoverage.length}. Market matches this quarter: {marketCommercializationCoverage.length}.
@@ -5535,10 +5535,10 @@ export function ConvergenceApp() {
                                     <div className="flex shrink-0 flex-wrap gap-2">
                                       <button
                                         type="button"
-                                        onClick={() => store.openPanel("track")}
+                                        onClick={() => store.openPanel("hiring")}
                                         className="rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-amber-50"
                                       >
-                                        Assign Staff
+                                        Open Talent
                                       </button>
                                       <button
                                         type="button"

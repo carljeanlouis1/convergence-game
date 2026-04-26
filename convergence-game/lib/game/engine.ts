@@ -206,7 +206,7 @@ const ROLE_KEYWORD_ALIASES: Record<string, string[]> = {
   orbital: ["orbital", "launch", "mission operations", "space"],
   platform: ["platform", "infrastructure", "systems engineer", "stack", "developer platform"],
   policy: ["policy", "counsel", "governance", "regulator", "public sector"],
-  product: ["product", "monetization", "go-to-market", "commercial"],
+  product: ["product", "monetization", "go-to-market", "commercial", "customer", "enterprise", "market", "sold", "buyer", "revenue"],
   quantum: ["quantum"],
   robotics: ["robotic", "robotics", "embodied"],
   satellite: ["satellite", "ground network", "remote sensing"],
@@ -849,7 +849,6 @@ const getCommercializationDefinition = (definitionId: string) => {
 const hasRoleCoverage = (state: GameState, trackId: TrackId, keyword: string) =>
   state.employees.some(
     (employee) =>
-      employee.assignedTrack === trackId &&
       canResearcherSupportTrack(employee, trackId) &&
       canResearcherCoverCommercializationRole(employee, keyword),
   );
@@ -1701,7 +1700,7 @@ export const getCommercializationOptions = (state: GameState, trackId?: TrackId)
       } else if (inactivePrerequisites.length) {
         blockedReason = `Requires live predecessor program${inactivePrerequisites.length > 1 ? "s" : ""}: ${inactivePrerequisites.join(", ")}.`;
       } else if (missingRoles.length) {
-        blockedReason = `Assign ${missingRoles.join(", ")} coverage to ${trackById(definition.trackId).name} in Research. Product staff cover the lane, not this product card.`;
+        blockedReason = `Need ${missingRoles.join(", ")}-capable talent who can support ${trackById(definition.trackId).name}. Commercial programs use roster coverage, not separate product assignments.`;
       } else if (existingProgram) {
         blockedReason = existingProgram.status === "live" ? "Already live." : "Currently launching.";
       } else if (state.resources.capital < definition.upfrontCost) {
