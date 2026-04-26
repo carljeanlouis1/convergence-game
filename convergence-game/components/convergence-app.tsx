@@ -2556,7 +2556,8 @@ export function ConvergenceApp() {
   const layoutClass = intelCollapsed
     ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)]"
     : "grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]";
-  const workspaceClass = detailCollapsed
+  const detailRailInMainFlow = store.panel === "track" || store.panel === "facilities";
+  const workspaceClass = detailCollapsed || detailRailInMainFlow
     ? "grid min-w-0 gap-4"
     : "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.92fr)] 2xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.88fr)]";
   const currentNarrationText = [
@@ -5041,7 +5042,7 @@ export function ConvergenceApp() {
             </section>
 
             {!detailCollapsed ? (
-            <aside className="mission-panel min-w-0 self-start space-y-4 rounded-[28px] p-5 xl:sticky xl:top-4">
+            <aside className={`mission-panel min-w-0 self-start space-y-4 rounded-[28px] p-5 ${detailRailInMainFlow ? "" : "xl:sticky xl:top-4"}`}>
               <div className="rounded-[26px] border border-white/8 bg-white/4 p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
