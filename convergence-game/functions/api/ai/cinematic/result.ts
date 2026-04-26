@@ -30,23 +30,23 @@ const normalizeFalResultUrl = (value: string | null) => {
   }
 };
 
-const extractVideo = (payload: unknown) => {
+type FalVideo = {
+  url?: string;
+  content_type?: string;
+  file_name?: string;
+  file_size?: number;
+};
+
+const extractVideo = (payload: unknown): FalVideo | null => {
   const response = payload as {
-    video?: {
-      url?: string;
-      content_type?: string;
-      file_name?: string;
-      file_size?: number;
-    };
-    videos?: Array<{
-      url?: string;
-      content_type?: string;
-      file_name?: string;
-      file_size?: number;
-    }>;
+    video?: FalVideo;
+    videos?: FalVideo[];
+    response?: unknown;
+    data?: unknown;
+    output?: unknown;
   };
 
-  return response.video ?? response.videos?.[0] ?? null;
+  return response.video ?? response.videos?.[0] ?? extractVideo(response.response) ?? extractVideo(response.data) ?? extractVideo(response.output) ?? null;
 };
 
 export async function onRequestGet({ request, env }: PagesContext) {
@@ -79,6 +79,10 @@ export async function onRequestGet({ request, env }: PagesContext) {
     `https://queue.fal.run/${model}/requests/${encodedRequestId}/response`,
     rawModel !== model ? `https://queue.fal.run/${rawModel}/requests/${encodedRequestId}` : null,
     rawModel !== model ? `https://queue.fal.run/${rawModel}/requests/${encodedRequestId}/response` : null,
+    `https://queue.fal.run/${model}/image-to-video/requests/${encodedRequestId}`,
+    `https://queue.fal.run/${model}/image-to-video/requests/${encodedRequestId}/response`,
+    `https://queue.fal.run/${model}/text-to-video/requests/${encodedRequestId}`,
+    `https://queue.fal.run/${model}/text-to-video/requests/${encodedRequestId}/response`,
   ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
 
   let response: Response | null = null;
@@ -89,7 +93,7 @@ export async function onRequestGet({ request, env }: PagesContext) {
       },
     });
 
-    if (response.ok || ![404, 405].includes(response.status)) {
+    if (response.ok || ![404, 405, 422].includes(response.status)) {
       break;
     }
   }
