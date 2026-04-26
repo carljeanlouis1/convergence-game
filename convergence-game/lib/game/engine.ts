@@ -186,6 +186,42 @@ export const canResearcherSupportTrack = (employee: Researcher, trackId: TrackId
       employee.secondaryTrack === trackId,
   );
 
+const COMMERCIALIZATION_ROLE_KEYWORDS = Array.from(
+  new Set([
+    ...COMMERCIALIZATION_DEFINITIONS.flatMap((definition) => definition.requiredRoleKeywords ?? []),
+    ...Object.values(COMMERCIALIZATION_GRAPH_RULES).flatMap((rule) => rule.requiredRoleKeywords ?? []),
+  ]),
+);
+
+const ROLE_KEYWORD_ALIASES: Record<string, string[]> = {
+  alignment: ["alignment", "interpretability", "safety"],
+  autonomy: ["autonomy", "autonomous", "agent", "robot"],
+  biolog: ["biolog", "biotech", "clinical", "pharma", "therapeutic"],
+  biosecurity: ["biosecurity", "biosafety", "public health", "preparedness"],
+  climate: ["climate", "grid", "energy systems"],
+  economist: ["economist", "economics", "market", "forecast"],
+  energy: ["energy", "data center", "datacenter", "grid"],
+  field: ["field", "operator", "operations", "deployment"],
+  materials: ["material", "metamaterial", "manufacturing", "chemistry"],
+  orbital: ["orbital", "launch", "mission operations", "space"],
+  platform: ["platform", "infrastructure", "systems engineer", "stack", "developer platform"],
+  policy: ["policy", "counsel", "governance", "regulator", "public sector"],
+  product: ["product", "monetization", "go-to-market", "commercial"],
+  quantum: ["quantum"],
+  robotics: ["robotic", "robotics", "embodied"],
+  satellite: ["satellite", "ground network", "remote sensing"],
+  security: ["security", "cryptographic", "cryptography", "red team", "red-team"],
+  trust: ["trust", "safety", "red team", "red-team", "assurance"],
+};
+
+export const canResearcherCoverCommercializationRole = (employee: Researcher, keyword: string) => {
+  const loweredKeyword = keyword.toLowerCase();
+  const aliases = ROLE_KEYWORD_ALIASES[loweredKeyword] ?? [loweredKeyword];
+  const profile = `${employee.role} ${employee.traits.join(" ")} ${employee.bio}`.toLowerCase();
+
+  return aliases.some((alias) => profile.includes(alias));
+};
+
 const cloneResearcher = (researcher: Researcher): Researcher => ({ ...researcher });
 
 const defaultExpenses = (): ExpenseBreakdown => ({
@@ -466,6 +502,14 @@ export const buildCandidatePool = (
   );
   const guaranteedChoices: Researcher[] = [];
   const seenIds = new Set<string>();
+  const addGuaranteedChoice = (candidate: Researcher | undefined) => {
+    if (!candidate || seenIds.has(candidate.id)) {
+      return;
+    }
+
+    guaranteedChoices.push(candidate);
+    seenIds.add(candidate.id);
+  };
 
   undercoveredTracks.forEach((trackId) => {
     const candidate = availableCatalog.find(
@@ -474,36 +518,47 @@ export const buildCandidatePool = (
         (researcher.primaryTrack === trackId || researcher.secondaryTrack === trackId),
     );
 
-    if (!candidate) {
-      return;
-    }
+    addGuaranteedChoice(candidate);
+  });
 
-    guaranteedChoices.push(candidate);
-    seenIds.add(candidate.id);
+  const keywordCoverage = (keyword: string) =>
+    currentEmployees.filter((employee) => canResearcherCoverCommercializationRole(employee, keyword)).length;
+  const prioritizedRoleKeywords = [...COMMERCIALIZATION_ROLE_KEYWORDS].sort(
+    (left, right) => keywordCoverage(left) - keywordCoverage(right),
+  );
+
+  prioritizedRoleKeywords.forEach((keyword) => {
+    const candidate = availableCatalog.find(
+      (researcher) => !seenIds.has(researcher.id) && canResearcherCoverCommercializationRole(researcher, keyword),
+    );
+
+    addGuaranteedChoice(candidate);
   });
 
   const generalists = availableCatalog.filter(
     (researcher) => researcher.generalist && !seenIds.has(researcher.id),
   );
-  generalists.slice(0, 2).forEach((candidate) => {
-    guaranteedChoices.push(candidate);
-    seenIds.add(candidate.id);
-  });
+  generalists.slice(0, 3).forEach(addGuaranteedChoice);
 
   const overflowChoices = availableCatalog.filter((researcher) => !seenIds.has(researcher.id));
-  const choices = [...guaranteedChoices, ...overflowChoices].slice(0, 8);
+  const choices = [...guaranteedChoices, ...overflowChoices].slice(0, 14);
   const rivalIds: RivalId[] = ["velocity", "prometheus", "zhongguancun", "opencollective"];
 
-  return choices.map((researcher) => ({
-    ...cloneResearcher(researcher),
-    contestedBy: rng() > 0.48 ? rivalIds[Math.floor(rng() * rivalIds.length)] : null,
-    ask:
-      researcher.research >= 8
-        ? "Wants autonomy, a named charter, and budget protection."
-        : researcher.execution >= 8
-          ? "Wants operational influence and a real team to build with."
-          : "Wants stability, scope, and visible leadership support.",
-  }));
+  return choices.map((researcher) => {
+    const contestedBy = rng() > 0.48 ? rivalIds[Math.floor(rng() * rivalIds.length)] : null;
+
+    return {
+      ...cloneResearcher(researcher),
+      contestedBy,
+      ask: contestedBy
+        ? "Has another lab circling this quarter and wants a decisive offer."
+        : researcher.research >= 8
+          ? "Wants autonomy, a named charter, and budget protection."
+          : researcher.execution >= 8
+            ? "Wants operational influence and a real team to build with."
+            : "Wants stability, scope, and visible leadership support.",
+    };
+  });
 };
 
 export const createNewGame = (preset: StartPresetId = "founder"): GameState => {
@@ -791,13 +846,16 @@ const getCommercializationDefinition = (definitionId: string) => {
   };
 };
 
-const hasRoleCoverage = (state: GameState, keyword: string) => {
-  const loweredKeyword = keyword.toLowerCase();
-  return state.employees.some((employee) => employee.role.toLowerCase().includes(loweredKeyword));
-};
+const hasRoleCoverage = (state: GameState, trackId: TrackId, keyword: string) =>
+  state.employees.some(
+    (employee) =>
+      employee.assignedTrack === trackId &&
+      canResearcherSupportTrack(employee, trackId) &&
+      canResearcherCoverCommercializationRole(employee, keyword),
+  );
 
-const missingCommercializationRoles = (state: GameState, keywords: string[]) =>
-  keywords.filter((keyword) => !hasRoleCoverage(state, keyword));
+const missingCommercializationRoles = (state: GameState, trackId: TrackId, keywords: string[]) =>
+  keywords.filter((keyword) => !hasRoleCoverage(state, trackId, keyword));
 
 const getReservedCommercialCompute = (state: GameState) =>
   state.commercializationPrograms.reduce(
@@ -1152,6 +1210,40 @@ const updateRivals = (state: GameState, worldEvents: string[]) => {
     rival.recentMove = move;
     rival.decisionHistory = [move, ...rival.decisionHistory].slice(0, 4);
     worldEvents.push(move);
+  });
+};
+
+const resolveContestedTalentMarket = (state: GameState, worldEvents: string[]) => {
+  const rng = makeTurnRng(state.seed, state.turn, "talent-contest");
+  const contestedCandidates = shuffle(
+    state.candidates.filter((candidate) => candidate.contestedBy),
+    rng,
+  )
+    .filter(() => rng() > 0.56)
+    .slice(0, 2);
+
+  return contestedCandidates.map((candidate, index) => {
+    const rivalId = candidate.contestedBy!;
+    const rival = state.rivals[rivalId];
+    const capabilityGain = 0.45 + (candidate.research + candidate.execution) / 28;
+    const safetyGain =
+      candidate.ethics >= 8 ? 0.55 : candidate.ethics <= 4 ? -0.35 : 0.1;
+    const move = `${rival.name} signed ${candidate.name}, strengthening ${trackById(candidate.primaryTrack).shortName}.`;
+
+    rival.capability = clamp(rival.capability + capabilityGain, 0, 100);
+    rival.safety = clamp(rival.safety + safetyGain, 0, 100);
+    rival.recentMove = move;
+    rival.decisionHistory = [move, ...rival.decisionHistory].slice(0, 4);
+    worldEvents.push(move);
+
+    return {
+      id: `talent-contest-${state.turn}-${index}`,
+      turn: state.turn,
+      title: `${candidate.name} joined ${rival.name}`,
+      body: `${candidate.role} was contested in the market and accepted a rival offer. Contested candidates can disappear when the quarter ends.`,
+      severity: "warning" as const,
+      kind: "rival" as const,
+    };
   });
 };
 
@@ -1593,7 +1685,11 @@ export const getCommercializationOptions = (state: GameState, trackId?: TrackId)
           return track.level < (requiredLevel ?? 0);
         })
         .map(([requiredTrackId, requiredLevel]) => `${trackById(requiredTrackId as TrackId).name} L${requiredLevel}`);
-      const missingRoles = missingCommercializationRoles(state, definition.requiredRoleKeywords ?? []);
+      const missingRoles = missingCommercializationRoles(
+        state,
+        definition.trackId,
+        definition.requiredRoleKeywords ?? [],
+      );
 
       let blockedReason: string | null = null;
       if (!currentTrack.unlocked) {
@@ -1605,7 +1701,7 @@ export const getCommercializationOptions = (state: GameState, trackId?: TrackId)
       } else if (inactivePrerequisites.length) {
         blockedReason = `Requires live predecessor program${inactivePrerequisites.length > 1 ? "s" : ""}: ${inactivePrerequisites.join(", ")}.`;
       } else if (missingRoles.length) {
-        blockedReason = `Needs staff coverage for ${missingRoles.join(", ")}.`;
+        blockedReason = `Assign ${missingRoles.join(", ")} coverage to ${trackById(definition.trackId).name} in Research. Product staff cover the lane, not this product card.`;
       } else if (existingProgram) {
         blockedReason = existingProgram.status === "live" ? "Already live." : "Currently launching.";
       } else if (state.resources.capital < definition.upfrontCost) {
@@ -2167,6 +2263,7 @@ export const advanceTurn = (current: GameState) => {
   const breakthroughs = applyResearch(state);
   const triggeredConvergences = triggerConvergences(state);
   updateRivals(state, worldEvents);
+  const talentMarketNews = resolveContestedTalentMarket(state, worldEvents);
   const worldNews = buildWorldNews(state);
   worldEvents.push(...worldNews.map((item) => item.title));
   const postureDrift = researchPostureDrift(state);
@@ -2206,6 +2303,7 @@ export const advanceTurn = (current: GameState) => {
       severity: "critical" as const,
       kind: "research" as const,
     })),
+    ...talentMarketNews,
     ...worldNews,
     ...breakthroughs.map((breakthrough, index) => ({
       id: `breakthrough-${state.turn}-${index}`,

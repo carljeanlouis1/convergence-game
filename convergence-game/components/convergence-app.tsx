@@ -78,6 +78,7 @@ import {
 } from "@/lib/game/data";
 import {
   availableBuildOptions,
+  canResearcherCoverCommercializationRole,
   canResearcherSupportTrack,
   describeGovernmentRelation,
   formatCurrency,
@@ -2146,6 +2147,26 @@ export function ConvergenceApp() {
         .filter(Boolean)
         .join(" / ")
     : "";
+  const missingCommercializationRoleLabels =
+    selectedCommercializationOption?.missingRoleKeywords.map(formatRoleKeyword).join(", ") ?? "";
+  const rosterCommercializationCoverage = selectedCommercializationOption
+    ? store.employees.filter(
+        (employee) =>
+          canResearcherSupportTrack(employee, selectedCommercializationOption.trackId) &&
+          selectedCommercializationOption.missingRoleKeywords.some((keyword) =>
+            canResearcherCoverCommercializationRole(employee, keyword),
+          ),
+      )
+    : [];
+  const marketCommercializationCoverage = selectedCommercializationOption
+    ? store.candidates.filter(
+        (candidate) =>
+          canResearcherSupportTrack(candidate, selectedCommercializationOption.trackId) &&
+          selectedCommercializationOption.missingRoleKeywords.some((keyword) =>
+            canResearcherCoverCommercializationRole(candidate, keyword),
+          ),
+      )
+    : [];
   const payrollEntries = [...store.employees].sort((left, right) => right.salary - left.salary);
   const assignedTalent = store.employees.filter((employee) => employee.assignedTrack !== null);
   const idleTalent = store.employees.filter((employee) => employee.assignedTrack === null);
@@ -4772,9 +4793,11 @@ export function ConvergenceApp() {
                         <h3 className="mt-3 text-2xl font-semibold text-white">Hire more people only when the roster has a gap</h3>
                         <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
                           Candidates arrive next quarter, change payroll permanently, and only work in lanes they can actually cover.
+                          This market slate refreshes at quarter end; contested people may sign with rivals if you wait.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
+                        <SignalChip label={`${store.candidates.length} visible this quarter`} tone="neutral" />
                         <SignalChip label={`${matchingCandidateCount} can support ${getTrackLabel(store.selectedTrack)}`} tone="focus" />
                         <SignalChip label={`${contestedCandidateCount} contested`} tone={contestedCandidateCount ? "bad" : "neutral"} />
                       </div>
@@ -4867,6 +4890,10 @@ export function ConvergenceApp() {
                             <SignalChip
                               label={candidate.contestedBy ? `Contested by ${store.rivals[candidate.contestedBy].name}` : "Uncontested"}
                               tone={candidate.contestedBy ? "bad" : "neutral"}
+                            />
+                            <SignalChip
+                              label={candidate.contestedBy ? "Can be lost EoQ" : "Refreshes EoQ"}
+                              tone={candidate.contestedBy ? "warn" : "neutral"}
                             />
                           </div>
 
@@ -5489,6 +5516,44 @@ export function ConvergenceApp() {
                                   ? selectedCommercializationOption.blockedReason
                                   : selectedCommercializationImpactSummary || "No immediate trust, fear, or board swing beyond the economics."}
                               </div>
+
+                              {selectedCommercializationOption.missingRoleKeywords.length ? (
+                                <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-3">
+                                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                    <div>
+                                      <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100">
+                                        Commercial Coverage Needed
+                                      </p>
+                                      <p className="mt-2 text-sm leading-6 text-amber-50/90">
+                                        Assign {missingCommercializationRoleLabels} to {trackDefinition.name} in the Research staffing panel.
+                                        Market programs do not use a separate staff slot yet; they read coverage from the science lane.
+                                      </p>
+                                      <p className="mt-2 text-xs leading-5 text-amber-100/70">
+                                        Roster matches: {rosterCommercializationCoverage.length}. Market matches this quarter: {marketCommercializationCoverage.length}.
+                                      </p>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => store.openPanel("track")}
+                                        className="rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-amber-50"
+                                      >
+                                        Assign Staff
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCandidateFocusFilter(selectedCommercializationOption.trackId);
+                                          store.openPanel("hiring");
+                                        }}
+                                        className="rounded-2xl border border-sky-300/25 bg-sky-300/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-sky-50"
+                                      >
+                                        Find Talent
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
 
                               {selectedCommercializationProgram ? (
                                 <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-100">
