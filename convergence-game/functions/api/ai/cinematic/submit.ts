@@ -36,6 +36,72 @@ const normalizeEndpointPath = (model: string, useImageToVideo: boolean) => {
 const readPayload = async (request: Request) =>
   (await request.json().catch(() => null)) as CinematicPayload | null;
 
+const parseDataImage = (value: string) => {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/iu.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const bytes = Uint8Array.from(atob(match[2]), (character) => character.charCodeAt(0));
+  return {
+    bytes,
+    mimeType: match[1],
+    extension: match[1].split("/")[1]?.split(/[+;-]/u)[0] || "png",
+  };
+};
+
+const uploadImageToFal = async ({
+  falKey,
+  imageDataUri,
+}: {
+  falKey: string;
+  imageDataUri: string;
+}) => {
+  const parsed = parseDataImage(imageDataUri);
+  if (!parsed) {
+    throw new Error("Cinematic image must be a base64 data:image URI.");
+  }
+
+  const initiate = await fetch("https://rest.fal.ai/storage/upload/initiate?storage_type=fal-cdn-v3", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Key ${falKey}`,
+    },
+    body: JSON.stringify({
+      content_type: parsed.mimeType,
+      file_name: `convergence-scene-${Date.now()}.${parsed.extension}`,
+    }),
+  });
+
+  if (!initiate.ok) {
+    throw new Error(await parseApiError(initiate, "fal.ai image upload could not be initialized."));
+  }
+
+  const upload = (await initiate.json()) as {
+    upload_url?: string;
+    file_url?: string;
+  };
+
+  if (!upload.upload_url || !upload.file_url) {
+    throw new Error("fal.ai did not return an upload URL.");
+  }
+
+  const uploaded = await fetch(upload.upload_url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": parsed.mimeType,
+    },
+    body: new Blob([parsed.bytes], { type: parsed.mimeType }),
+  });
+
+  if (!uploaded.ok) {
+    throw new Error(await parseApiError(uploaded, "fal.ai image upload failed."));
+  }
+
+  return upload.file_url;
+};
+
 export async function onRequestPost({ request, env }: PagesContext) {
   const blocked = sameOriginGuard(request);
   if (blocked) {
@@ -70,7 +136,6 @@ export async function onRequestPost({ request, env }: PagesContext) {
   }
 
   const imageDataUri = payload?.imageDataUri?.trim();
-  const useImageToVideo = Boolean(imageDataUri);
 
   if (imageDataUri && !imageDataUri.startsWith("data:image/")) {
     return json({ ok: false, message: "Cinematic image must be a data:image URI." }, 400);
@@ -80,9 +145,19 @@ export async function onRequestPost({ request, env }: PagesContext) {
     return json({ ok: false, message: "Cinematic image is too large for video generation." }, 413);
   }
 
+  let imageUrl: string | null = null;
+  let uploadWarning: string | null = null;
+  if (imageDataUri) {
+    try {
+      imageUrl = await uploadImageToFal({ falKey, imageDataUri });
+    } catch (error) {
+      uploadWarning = error instanceof Error ? error.message : "Scene image upload failed.";
+    }
+  }
+
   const model = envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL);
   const queueModel = normalizeModelPath(model);
-  const endpointPath = normalizeEndpointPath(model, useImageToVideo);
+  const endpointPath = normalizeEndpointPath(model, Boolean(imageUrl));
   const endpoint = `https://queue.fal.run/${endpointPath}`;
 
   const input = {
@@ -91,7 +166,7 @@ export async function onRequestPost({ request, env }: PagesContext) {
     resolution: payload?.resolution ?? "720p",
     aspect_ratio: payload?.aspectRatio ?? "16:9",
     generate_audio: Boolean(payload?.generateAudio),
-    ...(imageDataUri ? { image_url: imageDataUri } : {}),
+    ...(imageUrl ? { image_url: imageUrl } : {}),
   };
 
   const response = await fetch(endpoint, {
@@ -127,10 +202,12 @@ export async function onRequestPost({ request, env }: PagesContext) {
     ok: true,
     provider: "fal",
     model: queueModel,
-    mode: useImageToVideo ? "image-to-video" : "text-to-video",
+    mode: imageUrl ? "image-to-video" : "text-to-video",
     requestId: result.request_id,
     statusUrl: result.status_url,
     resultUrl: result.response_url,
-    message: "Cinematic render submitted to fal.ai. You can keep playing while it renders.",
+    message: uploadWarning
+      ? `Scene image upload failed, so text-to-video was submitted instead. ${uploadWarning}`
+      : "Cinematic render submitted to fal.ai. You can keep playing while it renders.",
   });
 }

@@ -119,12 +119,21 @@ export const parseApiError = async (response: Response, fallback: string) => {
   try {
     const payload = (await response.json()) as {
       message?: string;
+      detail?: string | Array<{ msg?: string }>;
       error?: {
         message?: string;
       };
     };
 
-    return payload.message ?? payload.error?.message ?? fallback;
+    if (payload.message) return payload.message;
+    if (payload.error?.message) return payload.error.message;
+    if (typeof payload.detail === "string") return payload.detail;
+    if (Array.isArray(payload.detail)) {
+      const details = payload.detail.map((entry) => entry.msg).filter(Boolean);
+      if (details.length) return details.join(" ");
+    }
+
+    return fallback;
   } catch {
     return fallback;
   }
