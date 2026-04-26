@@ -276,6 +276,10 @@ function playSynthTone(enabled: boolean, kind: "click" | "breakthrough" | "warni
     return;
   }
 
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) {
+    return;
+  }
+
   const AudioContextCtor =
     window.AudioContext ||
     (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -3417,6 +3421,15 @@ export function ConvergenceApp() {
         setCinematicStatus({
           tone: "error",
           message: status.message,
+        });
+        setCinematicJob(null);
+        return;
+      }
+
+      if (status.error) {
+        setCinematicStatus({
+          tone: "error",
+          message: `fal.ai render failed: ${status.message}`,
         });
         setCinematicJob(null);
         return;

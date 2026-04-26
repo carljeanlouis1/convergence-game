@@ -53,6 +53,8 @@ export async function onRequestGet({ request, env }: PagesContext) {
     logs?: Array<{ message?: string }>;
     queue_position?: number;
     response_url?: string;
+    error?: string;
+    error_type?: string;
   };
 
   return json({
@@ -60,9 +62,13 @@ export async function onRequestGet({ request, env }: PagesContext) {
     status: payload.status ?? "UNKNOWN",
     queuePosition: payload.queue_position,
     responseUrl: payload.response_url,
+    error: payload.error,
+    errorType: payload.error_type,
     logs: payload.logs?.map((entry) => entry.message).filter(Boolean).slice(-5) ?? [],
     message:
-      payload.status === "COMPLETED"
+      payload.error
+        ? payload.error
+        : payload.status === "COMPLETED"
         ? "Cinematic render is ready."
         : payload.status === "IN_PROGRESS"
           ? "Cinematic render is in progress."

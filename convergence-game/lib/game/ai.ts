@@ -624,6 +624,8 @@ export interface CinematicStatusResult {
   status?: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "UNKNOWN" | string;
   queuePosition?: number;
   responseUrl?: string;
+  error?: string;
+  errorType?: string;
   logs?: string[];
   message: string;
 }
