@@ -62,26 +62,40 @@ export async function onRequestGet({ request, env }: PagesContext) {
 
   const url = new URL(request.url);
   const requestId = url.searchParams.get("requestId")?.trim();
-  const model = normalizeQueueModelPath(url.searchParams.get("model") ?? envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL));
+  const rawModel = (url.searchParams.get("model") ?? envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL))
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+  const model = normalizeQueueModelPath(rawModel);
   const resultUrl = normalizeFalResultUrl(url.searchParams.get("resultUrl"));
 
   if (!requestId) {
     return json({ ok: false, message: "Missing fal request id." }, 400);
   }
 
-  const requestPath = `https://queue.fal.run/${model}/requests/${encodeURIComponent(requestId)}`;
-  let response = await fetch(resultUrl ?? requestPath, {
-    headers: {
-      Authorization: `Key ${falKey}`,
-    },
-  });
+  const encodedRequestId = encodeURIComponent(requestId);
+  const candidateUrls = [
+    resultUrl,
+    `https://queue.fal.run/${model}/requests/${encodedRequestId}`,
+    `https://queue.fal.run/${model}/requests/${encodedRequestId}/response`,
+    rawModel !== model ? `https://queue.fal.run/${rawModel}/requests/${encodedRequestId}` : null,
+    rawModel !== model ? `https://queue.fal.run/${rawModel}/requests/${encodedRequestId}/response` : null,
+  ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
 
-  if (!response.ok && [404, 405].includes(response.status)) {
-    response = await fetch(`${requestPath}/response`, {
+  let response: Response | null = null;
+  for (const candidate of candidateUrls) {
+    response = await fetch(candidate, {
       headers: {
         Authorization: `Key ${falKey}`,
       },
     });
+
+    if (response.ok || ![404, 405].includes(response.status)) {
+      break;
+    }
+  }
+
+  if (!response) {
+    return json({ ok: false, message: "Unable to locate cinematic result URL." }, 502);
   }
 
   if (!response.ok) {

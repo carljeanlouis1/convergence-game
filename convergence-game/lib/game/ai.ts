@@ -615,6 +615,8 @@ export interface CinematicSubmitResult {
   requestId?: string;
   model?: string;
   mode?: "image-to-video" | "text-to-video";
+  statusUrl?: string;
+  resultUrl?: string;
 }
 
 export interface CinematicStatusResult {

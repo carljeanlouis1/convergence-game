@@ -1768,6 +1768,7 @@ export function ConvergenceApp() {
   const [cinematicJob, setCinematicJob] = useState<{
     requestId: string;
     model: string;
+    resultUrl?: string;
     scope: "briefing" | "dilemma";
   } | null>(null);
   const [cinematicVideoUrl, setCinematicVideoUrl] = useState<string | null>(null);
@@ -2970,6 +2971,7 @@ export function ConvergenceApp() {
     setCinematicJob({
       requestId: result.requestId,
       model: result.model,
+      resultUrl: result.resultUrl,
       scope,
     });
     setCinematicStatus({
@@ -3424,7 +3426,7 @@ export function ConvergenceApp() {
         const result = await fetchCinematicResult({
           requestId: cinematicJob.requestId,
           model: cinematicJob.model,
-          resultUrl: status.responseUrl,
+          resultUrl: status.responseUrl ?? cinematicJob.resultUrl,
         });
 
         if (cancelled) {
