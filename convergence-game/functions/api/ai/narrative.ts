@@ -20,6 +20,7 @@ const NARRATIVE_SYSTEMS = new Set([
   "discovery",
   "dilemma-writer",
   "chief-of-staff",
+  "cinematic-director",
 ]);
 
 const readPayload = async (request: Request) =>

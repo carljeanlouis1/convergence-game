@@ -51,7 +51,8 @@ export type NarrativeSystemId =
   | "rival-labs"
   | "discovery"
   | "dilemma-writer"
-  | "chief-of-staff";
+  | "chief-of-staff"
+  | "cinematic-director";
 
 export type CommercializationLane =
   | "commercial"
@@ -323,6 +324,32 @@ export interface DilemmaOption {
   outcomes: DilemmaOutcome[];
 }
 
+export interface DilemmaResolutionMetric {
+  id: string;
+  label: string;
+  before: number;
+  after: number;
+  delta: number;
+  format: "number" | "currency" | "percent" | "compute";
+}
+
+export interface DilemmaResolutionSummary {
+  id: string;
+  turn: number;
+  title: string;
+  source: string;
+  optionLabel: string;
+  optionSummary: string;
+  outcomeLabel: string;
+  outcomeNarrative: string;
+  outcomeChance: number;
+  roll: number;
+  cumulativeChanceStart: number;
+  cumulativeChanceEnd: number;
+  metrics: DilemmaResolutionMetric[];
+  impact: string;
+}
+
 export interface DilemmaDefinition {
   id: string;
   minTurn: number;
@@ -493,6 +520,7 @@ export interface GameState {
   usedDilemmas: string[];
   activeDilemma: DilemmaDefinition | null;
   activeDilemmaSource: string | null;
+  lastDilemmaResolution: DilemmaResolutionSummary | null;
   resolution: ResolutionSummary | null;
   flags: GameFlags;
   tutorialStep: number;

@@ -100,6 +100,7 @@ import { useConvergenceStore } from "@/lib/game/store";
 import {
   CloudCredentials,
   CloudSaveSlotId,
+  DilemmaResolutionMetric,
   CloudSaveSummary,
   GameState,
   PanelId,
@@ -863,6 +864,41 @@ function getDilemmaEffectEntries(effects: Record<string, number | undefined>) {
     const value = effects[effect];
     return typeof value === "number" && value !== 0 ? [{ effect, value }] : [];
   });
+}
+
+function formatDilemmaMetricValue(metric: DilemmaResolutionMetric, value: number) {
+  switch (metric.format) {
+    case "currency":
+      return formatCurrency(value);
+    case "compute":
+      return `${Math.round(value)} PFLOPS`;
+    case "percent":
+      return `${Math.round(value)}%`;
+    default:
+      return `${Math.round(value)}`;
+  }
+}
+
+function formatDilemmaMetricDelta(metric: DilemmaResolutionMetric) {
+  if (metric.format === "currency") {
+    return `${metric.delta > 0 ? "+" : ""}${formatCurrency(metric.delta)}`;
+  }
+
+  if (metric.format === "compute") {
+    return `${formatSignedValue(Math.round(metric.delta))} PFLOPS`;
+  }
+
+  if (metric.format === "percent") {
+    return `${formatSignedValue(Math.round(metric.delta))}%`;
+  }
+
+  return formatSignedValue(Math.round(metric.delta));
+}
+
+function dilemmaMetricTone(metric: DilemmaResolutionMetric) {
+  if (metric.delta === 0) return "neutral";
+  const risky = ["fear", "gov-dependence", "ethics-debt"].includes(metric.id);
+  return risky ? (metric.delta < 0 ? "good" : "bad") : metric.delta > 0 ? "good" : "bad";
 }
 
 function clampMetric(value: number) {
@@ -1778,6 +1814,7 @@ export function ConvergenceApp() {
   } | null>(null);
   const [cinematicVideoUrl, setCinematicVideoUrl] = useState<string | null>(null);
   const [cinematicGenerateAudio, setCinematicGenerateAudio] = useState(false);
+  const [cinematicDuration, setCinematicDuration] = useState<"5" | "10" | "15">("5");
   const [isPending, startTransition] = useTransition();
   const [isNarrating, setIsNarrating] = useState(false);
   const [isNarrationLoading, setIsNarrationLoading] = useState(false);
@@ -2926,9 +2963,46 @@ export function ConvergenceApp() {
     }
   };
 
-  const buildCinematicPrompt = (scope: "briefing" | "dilemma") => {
+  const buildCinematicMomentContext = (scope: "briefing" | "dilemma") => {
+    if (scope === "dilemma") {
+      return [
+        `Moment type: ${store.lastDilemmaResolution ? "resolved dilemma" : "active dilemma"}.`,
+        `Title: ${store.activeDilemma?.title ?? store.lastDilemmaResolution?.title ?? "Executive AI crisis"}.`,
+        store.activeDilemma?.brief ? `Brief: ${store.activeDilemma.brief}` : "",
+        store.lastDilemmaResolution
+          ? [
+              `Decision chosen: ${store.lastDilemmaResolution.optionLabel}.`,
+              `Outcome realized: ${store.lastDilemmaResolution.outcomeLabel}.`,
+              `Outcome odds: ${Math.round(store.lastDilemmaResolution.outcomeChance * 100)}%.`,
+              `Roll: ${Math.round(store.lastDilemmaResolution.roll * 100)}%, inside ${Math.round(store.lastDilemmaResolution.cumulativeChanceStart * 100)}-${Math.round(store.lastDilemmaResolution.cumulativeChanceEnd * 100)}%.`,
+              `Impact: ${store.lastDilemmaResolution.impact}.`,
+              `Narrative: ${store.lastDilemmaResolution.outcomeNarrative}`,
+            ].join(" ")
+          : "",
+        dilemmaFlavor ? `Advisor context: ${dilemmaFlavor}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    return [
+      `Moment type: quarterly briefing.`,
+      `Scene beat: ${sceneBeat.label}. ${sceneBeat.detail}`,
+      `Quarter headline: ${store.resolution?.headline ?? "Quarterly command briefing"}.`,
+      chiefMemo ?? store.resolution?.briefing ?? "",
+      store.resolution?.breakthroughs?.length
+        ? `Breakthroughs: ${store.resolution.breakthroughs.join(" | ")}`
+        : "",
+      store.resolution?.worldEvents?.length ? `World events: ${store.resolution.worldEvents.join(" | ")}` : "",
+      worldLead ?? "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  };
+
+  const buildCinematicPrompt = (scope: "briefing" | "dilemma", duration: "5" | "10" | "15") => {
     const sharedDirection = [
-      "Create a short cinematic video for the strategy game Convergence.",
+      `Create a ${duration}-second cinematic video for the strategy game Convergence.`,
       "Style: premium near-future AI lab mission-control drama, grounded, no visible text, no logos, no subtitles.",
       "Camera: slow dolly, subtle parallax, restrained cinematic lighting, realistic human motion, high-stakes but not melodramatic.",
     ];
@@ -2936,10 +3010,7 @@ export function ConvergenceApp() {
     if (scope === "dilemma") {
       return [
         ...sharedDirection,
-        `Scene beat: ${sceneBeat.label}. ${sceneBeat.detail}`,
-        `Crisis: ${store.activeDilemma?.title ?? "Executive AI crisis"}.`,
-        store.activeDilemma?.brief ?? "",
-        dilemmaFlavor ? `Advisor context: ${dilemmaFlavor}` : "",
+        buildCinematicMomentContext(scope),
         "Show tense executives and researchers reacting to the decision pressure. If audio is enabled, use calm mission-control narration, not direct celebrity voices.",
       ]
         .filter(Boolean)
@@ -2948,14 +3019,50 @@ export function ConvergenceApp() {
 
     return [
       ...sharedDirection,
-      `Scene beat: ${sceneBeat.label}. ${sceneBeat.detail}`,
-      `Quarter headline: ${store.resolution?.headline ?? "Quarterly command briefing"}.`,
-      chiefMemo ?? store.resolution?.briefing ?? "",
-      worldLead ?? "",
+      buildCinematicMomentContext(scope),
       "Show the command room, data wall, lab staff, and the strategic pressure of the quarter. If audio is enabled, use calm briefing narration.",
     ]
       .filter(Boolean)
       .join(" ");
+  };
+
+  const createCinematicPrompt = async (scope: "briefing" | "dilemma") => {
+    const fallback = buildCinematicPrompt(scope, cinematicDuration);
+    const aiPromptState =
+      store.aiSettings.enabled && store.aiSettings.apiKey
+        ? store
+        : serverNarrativeReady
+          ? {
+              ...store,
+              aiSettings: {
+                ...store.aiSettings,
+                enabled: true,
+                apiKey: SERVER_AI_KEY,
+              },
+            }
+          : store;
+
+    if (!aiPromptState.aiSettings.enabled || !aiPromptState.aiSettings.apiKey) {
+      return fallback;
+    }
+
+    const director = await fetchGeminiNarrative(
+      aiPromptState,
+      "cinematic-director",
+      [
+        `Target duration: ${cinematicDuration} seconds.`,
+        `Audio/dialogue requested: ${cinematicGenerateAudio ? "yes" : "no"}.`,
+        `Use image-to-video continuity: ${sceneArtUrl ? "yes" : "no"}.`,
+        buildCinematicMomentContext(scope),
+        "Return the final video-generation prompt only.",
+      ].join("\n"),
+    );
+
+    if (director?.cacheKey) {
+      store.cacheNarrative(director.cacheKey, director.text);
+    }
+
+    return director?.text ?? fallback;
   };
 
   const generateCinematic = async (scope: "briefing" | "dilemma") => {
@@ -2977,9 +3084,9 @@ export function ConvergenceApp() {
 
     const imageDataUri = await sceneArtToDataUri();
     const result = await submitCinematicVideo({
-      prompt: buildCinematicPrompt(scope),
+      prompt: await createCinematicPrompt(scope),
       imageDataUri,
-      duration: "5",
+      duration: cinematicDuration,
       resolution: "720p",
       aspectRatio: "16:9",
       generateAudio: cinematicGenerateAudio,
@@ -3644,12 +3751,13 @@ export function ConvergenceApp() {
           <p className="text-xs uppercase tracking-[0.22em] text-amber-100">Cinematic Mode</p>
           <h3 className="mt-2 text-lg font-semibold text-white">Optional fal.ai Seedance render</h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Uses image-to-video when scene art is visible, otherwise text-to-video. It renders in the background and never blocks the turn.
+            Uses image-to-video when scene art is visible, otherwise text-to-video. An efficient narrative model first distills the current turn, breakthrough, or dilemma result into a video prompt.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <SignalChip label={serverCinematicReady ? "fal.ai ready" : "FAL standby"} tone={serverCinematicReady ? "good" : "neutral"} />
           <SignalChip label={sceneArtUrl ? "image-to-video" : "text-to-video"} tone={sceneArtUrl ? "focus" : "neutral"} />
+          <SignalChip label={`${cinematicDuration}s clip`} tone="neutral" />
         </div>
       </div>
 
@@ -3660,6 +3768,26 @@ export function ConvergenceApp() {
       ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="inline-flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-slate-950/55 p-1">
+          {[
+            { value: "5", label: "Short 5s" },
+            { value: "10", label: "Medium 10s" },
+            { value: "15", label: "Long 15s" },
+          ].map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setCinematicDuration(option.value as "5" | "10" | "15")}
+              className={`rounded-xl px-3 py-2 text-xs uppercase tracking-[0.16em] ${
+                cinematicDuration === option.value
+                  ? "bg-amber-300/18 text-amber-50"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           onClick={() => void generateCinematic(scope)}
@@ -7114,6 +7242,139 @@ export function ConvergenceApp() {
                     <p className="mt-4 text-[11px] uppercase tracking-[0.18em] text-sky-100">Commit to this path</p>
                   </button>
                 ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {store.lastDilemmaResolution ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 overflow-y-auto bg-slate-950/82 p-4 backdrop-blur-xl"
+          >
+            <motion.div
+              initial={{ y: 28, opacity: 0, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 16, opacity: 0, scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 180, damping: 22 }}
+              className="mx-auto my-6 w-full max-w-6xl rounded-[34px] border border-amber-300/18 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_30%),linear-gradient(180deg,rgba(9,16,32,0.98),rgba(5,10,22,0.96))] p-5 shadow-[0_34px_140px_rgba(0,0,0,0.62)] md:p-7"
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.26em] text-amber-200">Decision Result</p>
+                  <h2 className="mt-3 text-3xl font-semibold text-white">{store.lastDilemmaResolution.title}</h2>
+                  <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+                    You chose <span className="font-medium text-white">{store.lastDilemmaResolution.optionLabel}</span>. The game rolled the outcome table below, landed on the realized branch, and applied the numbers immediately.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <SignalChip label={store.lastDilemmaResolution.source} tone="warn" />
+                  <SignalChip label={`${Math.round(store.lastDilemmaResolution.outcomeChance * 100)}% branch hit`} tone="focus" />
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.55fr)]">
+                <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Odds Roll</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-white">{store.lastDilemmaResolution.outcomeLabel}</h3>
+                      <p className="mt-3 text-sm leading-7 text-slate-300">{store.lastDilemmaResolution.outcomeNarrative}</p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-right">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100">Hidden Roll</p>
+                      <p className="mt-1 text-2xl font-semibold text-white">{Math.round(store.lastDilemmaResolution.roll * 100)}%</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-white/8 bg-slate-950/65 p-4">
+                    <div className="relative h-5 overflow-hidden rounded-full bg-white/8">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${store.lastDilemmaResolution.cumulativeChanceEnd * 100}%` }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                        className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-sky-300 via-violet-300 to-amber-300"
+                      />
+                      <motion.div
+                        initial={{ left: "0%" }}
+                        animate={{ left: `${store.lastDilemmaResolution.roll * 100}%` }}
+                        transition={{ duration: 0.9, ease: "easeOut" }}
+                        className="absolute top-1/2 h-8 w-1 -translate-y-1/2 rounded-full bg-white shadow-[0_0_18px_rgba(255,255,255,0.85)]"
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap justify-between gap-3 text-xs text-slate-400">
+                      <span>
+                        Winning band: {Math.round(store.lastDilemmaResolution.cumulativeChanceStart * 100)}%-{Math.round(store.lastDilemmaResolution.cumulativeChanceEnd * 100)}%
+                      </span>
+                      <span>Rolled {Math.round(store.lastDilemmaResolution.roll * 100)}%</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Choice Summary</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">{store.lastDilemmaResolution.optionSummary}</p>
+                    <p className="mt-3 text-sm leading-6 text-amber-100">{store.lastDilemmaResolution.impact}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-white/10 bg-slate-950/70 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Lab Readout</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">Numbers changed</h3>
+                    </div>
+                    <SignalChip label={`${store.lastDilemmaResolution.metrics.length} signals`} tone={store.lastDilemmaResolution.metrics.length ? "focus" : "neutral"} />
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {store.lastDilemmaResolution.metrics.length ? (
+                      store.lastDilemmaResolution.metrics.map((metric, index) => (
+                        <motion.div
+                          key={metric.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.06 }}
+                          className="rounded-2xl border border-white/8 bg-white/5 p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-white">{metric.label}</p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatDilemmaMetricValue(metric, metric.before)} to {formatDilemmaMetricValue(metric, metric.after)}
+                              </p>
+                            </div>
+                            <SignalChip label={formatDilemmaMetricDelta(metric)} tone={dilemmaMetricTone(metric)} />
+                          </div>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <p className="rounded-2xl border border-dashed border-white/10 bg-white/4 px-4 py-5 text-sm leading-6 text-slate-400">
+                        This branch had narrative consequences only. It is still saved in decision memory for future story context.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {renderCinematicControls("dilemma")}
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-slate-400">
+                  The decision is now part of permanent lab memory and can influence future briefings, AI flavor, and endings.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playSynthTone(soundEnabled, "click");
+                    store.clearDilemmaResult();
+                  }}
+                  className="rounded-2xl border border-sky-300/35 bg-sky-500/12 px-5 py-3 text-sm font-medium text-sky-50"
+                >
+                  Continue Command
+                </button>
               </div>
             </motion.div>
           </motion.div>

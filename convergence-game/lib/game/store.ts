@@ -7,6 +7,7 @@ import {
   assignResearcher,
   buildFacility,
   createNewGame,
+  dismissDilemmaResolution,
   dismissResolution,
   hireCandidate,
   launchCommercializationProgram,
@@ -42,6 +43,7 @@ interface ConvergenceStore extends GameState {
   saveAndQuit: () => void;
   nextTurn: () => void;
   resolveDilemma: (option: DilemmaOption) => void;
+  clearDilemmaResult: () => void;
   adjustCompute: (trackId: TrackId, delta: number) => void;
   setTrackPosture: (trackId: TrackId, posture: TrackPostureId) => void;
   assignPerson: (researcherId: string, trackId: TrackId | null) => void;
@@ -72,6 +74,7 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
     saveAndQuit,
     nextTurn,
     resolveDilemma,
+    clearDilemmaResult,
     adjustCompute,
     setTrackPosture,
     assignPerson,
@@ -101,6 +104,7 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
   void saveAndQuit;
   void nextTurn;
   void resolveDilemma;
+  void clearDilemmaResult;
   void adjustCompute;
   void setTrackPosture;
   void assignPerson;
@@ -226,6 +230,12 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
     resolveDilemmaOption(state, option);
     persistIfPlaying(state);
     set({ ...state, slotSummaries: loadSaveSummaries() });
+  },
+  clearDilemmaResult: () => {
+    const state = cloneGameState(get());
+    dismissDilemmaResolution(state);
+    persistIfPlaying(state);
+    set({ ...state });
   },
   adjustCompute: (trackId, delta) => {
     const state = cloneGameState(get());

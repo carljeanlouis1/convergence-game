@@ -51,6 +51,8 @@ const SYSTEM_PROMPTS: Record<NarrativeSystemId, string> = {
     "You write strategy game context notes for an existing dilemma. You must stay faithful to the supplied title, brief, and exact option labels. Do not invent new options or contradict the listed choices. Frame the stakes so the available options feel like natural responses. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
   "chief-of-staff":
     "You write internal chief-of-staff briefings for an AI lab CEO. Sound crisp, candid, and strategically literate. When referencing money, always format it as USD with scale markers like $8M, $250K, or $1.2B. Never use bare numerals for money.",
+  "cinematic-director":
+    "You are a concise video prompt director for a strategy game about an AI lab. Turn the supplied game moment into one cinematic generation prompt plus, only if audio is requested, a short mission-control narration line. Stay faithful to the game state. Do not invent outcomes, brands, logos, UI text, or named real people. Prefer concrete visual action, camera movement, emotional tone, and scene continuity. Keep it under 180 words.",
 };
 
 const formatMoney = (value: number) => {

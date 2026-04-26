@@ -22,6 +22,7 @@ import {
   CommercializationProgram,
   DecisionLogEntry,
   DilemmaOption,
+  DilemmaResolutionMetric,
   EndingResult,
   ExpenseBreakdown,
   FacilityProject,
@@ -167,13 +168,25 @@ const rollFromOptions = <T extends { chance: number }>(rng: () => number, option
   let threshold = 0;
 
   for (const option of options) {
+    const cumulativeChanceStart = threshold;
     threshold += option.chance;
     if (roll <= threshold + 1e-9) {
-      return option;
+      return {
+        option,
+        roll,
+        cumulativeChanceStart,
+        cumulativeChanceEnd: threshold,
+      };
     }
   }
 
-  return options[options.length - 1];
+  const fallback = options[options.length - 1];
+  return {
+    option: fallback,
+    roll,
+    cumulativeChanceStart: Math.max(0, 1 - fallback.chance),
+    cumulativeChanceEnd: 1,
+  };
 };
 
 const computeTrackThreshold = (trackId: TrackId, level: number) =>
@@ -624,6 +637,7 @@ export const createNewGame = (preset: StartPresetId = "founder"): GameState => {
     usedDilemmas: [],
     activeDilemma: null,
     activeDilemmaSource: null,
+    lastDilemmaResolution: null,
     resolution: {
       turn: startTurn,
       year,
@@ -675,6 +689,7 @@ export const normalizeGameState = (input: GameState): GameState => {
   state.revenueStreams = state.revenueStreams ?? [];
   state.decisionLog = state.decisionLog ?? [];
   state.commercializationPrograms = state.commercializationPrograms ?? [];
+  state.lastDilemmaResolution = state.lastDilemmaResolution ?? null;
   state.openAISettings = state.openAISettings ?? defaultOpenAISettings();
   state.flags = {
     ...baseFlags(state.preset),
@@ -1367,6 +1382,51 @@ const applyMorale = (employees: Researcher[], delta: number) =>
     morale: clamp(employee.morale + delta, 35, 95),
   }));
 
+const averageMorale = (state: GameState) =>
+  state.employees.reduce((sum, employee) => sum + employee.morale, 0) /
+  Math.max(state.employees.length, 1);
+
+const DILEMMA_RESULT_METRICS: Array<{
+  id: string;
+  label: string;
+  format: DilemmaResolutionMetric["format"];
+  read: (state: GameState) => number;
+}> = [
+  { id: "capital", label: "Capital", format: "currency", read: (state) => state.resources.capital },
+  { id: "runway", label: "Runway", format: "number", read: (state) => state.resources.runwayMonths },
+  { id: "trust", label: "Public Trust", format: "number", read: (state) => state.resources.trust },
+  { id: "fear", label: "Public Fear", format: "number", read: (state) => state.resources.fear },
+  { id: "board", label: "Board Confidence", format: "number", read: (state) => state.resources.boardConfidence },
+  { id: "reputation", label: "Reputation", format: "number", read: (state) => state.resources.reputation },
+  { id: "compute", label: "Compute Capacity", format: "compute", read: (state) => state.resources.computeCapacity },
+  { id: "gov-dependence", label: "Gov Dependence", format: "number", read: (state) => state.flags.governmentDependence },
+  { id: "ethics-debt", label: "Ethics Debt", format: "number", read: (state) => state.flags.ethicsDebt },
+  { id: "safety-culture", label: "Safety Culture", format: "number", read: (state) => state.flags.safetyCulture },
+  { id: "openness", label: "Openness", format: "number", read: (state) => state.flags.openness },
+  { id: "morale", label: "Team Morale", format: "number", read: averageMorale },
+];
+
+const captureDilemmaMetricValues = (state: GameState) =>
+  Object.fromEntries(DILEMMA_RESULT_METRICS.map((metric) => [metric.id, metric.read(state)]));
+
+const buildDilemmaMetrics = (
+  before: Record<string, number>,
+  afterState: GameState,
+): DilemmaResolutionMetric[] =>
+  DILEMMA_RESULT_METRICS.map((metric) => {
+    const beforeValue = before[metric.id] ?? metric.read(afterState);
+    const afterValue = metric.read(afterState);
+
+    return {
+      id: metric.id,
+      label: metric.label,
+      before: Number(beforeValue.toFixed(2)),
+      after: Number(afterValue.toFixed(2)),
+      delta: Number((afterValue - beforeValue).toFixed(2)),
+      format: metric.format,
+    };
+  }).filter((metric) => Math.abs(metric.delta) >= 0.01);
+
 const selectDilemma = (state: GameState) => {
   if (state.activeDilemma || state.turn === 1 || state.turn % 2 !== 0) {
     return null;
@@ -1406,8 +1466,16 @@ const selectDilemma = (state: GameState) => {
 
 export const resolveDilemmaOption = (state: GameState, option: DilemmaOption) => {
   const rng = makeTurnRng(state.seed, state.turn, option.id);
-  const outcome = rollFromOptions(rng, option.outcomes);
+  const beforeMetrics = captureDilemmaMetricValues(state);
+  const {
+    option: outcome,
+    roll,
+    cumulativeChanceStart,
+    cumulativeChanceEnd,
+  } = rollFromOptions(rng, option.outcomes);
   const impactParts: string[] = [];
+  const dilemmaTitle = state.activeDilemma?.title ?? "Dilemma resolved";
+  const dilemmaSource = state.activeDilemma?.source ?? "Command";
 
   if (outcome.effects.capital) impactParts.push(`${outcome.effects.capital > 0 ? "+" : ""}${formatCurrency(outcome.effects.capital)} capital`);
   if (outcome.effects.trust) impactParts.push(`${outcome.effects.trust > 0 ? "+" : ""}${Math.round(outcome.effects.trust)} trust`);
@@ -1457,7 +1525,7 @@ export const resolveDilemmaOption = (state: GameState, option: DilemmaOption) =>
     {
       id: `dilemma-${state.turn}-${option.id}`,
       turn: state.turn,
-      title: state.activeDilemma?.title ?? "Dilemma resolved",
+      title: dilemmaTitle,
       body: outcome.narrative,
       severity: "warning" as const,
       kind: "dilemma" as const,
@@ -1467,6 +1535,27 @@ export const resolveDilemmaOption = (state: GameState, option: DilemmaOption) =>
   state.activeDilemmaSource = outcome.narrative;
   state.activeDilemma = null;
   recalculateState(state);
+  const metrics = buildDilemmaMetrics(beforeMetrics, state);
+  state.lastDilemmaResolution = {
+    id: `dilemma-result-${state.turn}-${option.id}`,
+    turn: state.turn,
+    title: dilemmaTitle,
+    source: dilemmaSource,
+    optionLabel: option.label,
+    optionSummary: option.summary,
+    outcomeLabel: outcome.label,
+    outcomeNarrative: outcome.narrative,
+    outcomeChance: outcome.chance,
+    roll,
+    cumulativeChanceStart,
+    cumulativeChanceEnd,
+    metrics,
+    impact: impactParts.length ? impactParts.join(", ") : "Narrative impact only.",
+  };
+};
+
+export const dismissDilemmaResolution = (state: GameState) => {
+  state.lastDilemmaResolution = null;
 };
 
 const applyQuarterlyBoardPressure = (state: GameState) => {
