@@ -2556,7 +2556,7 @@ export function ConvergenceApp() {
   const layoutClass = intelCollapsed
     ? "grid flex-1 gap-4 xl:grid-cols-[88px_minmax(0,1fr)]"
     : "grid flex-1 gap-4 xl:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]";
-  const detailRailInMainFlow = store.panel === "track" || store.panel === "facilities";
+  const detailRailInMainFlow = store.panel === "track" || store.panel === "finance" || store.panel === "facilities";
   const workspaceClass = detailCollapsed || detailRailInMainFlow
     ? "grid min-w-0 gap-4"
     : "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.92fr)] 2xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.88fr)]";

@@ -7,7 +7,11 @@ import {
   sameOriginGuard,
 } from "../_shared";
 
-const normalizeEndpointPath = (model: string) => model.trim().replace(/^\/+|\/+$/g, "");
+const normalizeQueueModelPath = (model: string) =>
+  model
+    .trim()
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\/(?:image-to-video|text-to-video)$/u, "");
 
 export async function onRequestGet({ request, env }: PagesContext) {
   const blocked = sameOriginGuard(request);
@@ -22,7 +26,7 @@ export async function onRequestGet({ request, env }: PagesContext) {
 
   const url = new URL(request.url);
   const requestId = url.searchParams.get("requestId")?.trim();
-  const model = normalizeEndpointPath(url.searchParams.get("model") ?? envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL));
+  const model = normalizeQueueModelPath(url.searchParams.get("model") ?? envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL));
 
   if (!requestId) {
     return json({ ok: false, message: "Missing fal request id." }, 400);

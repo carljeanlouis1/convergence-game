@@ -17,6 +17,12 @@ type CinematicPayload = {
   generateAudio?: boolean;
 };
 
+const normalizeModelPath = (model: string) =>
+  model
+    .trim()
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\/(?:image-to-video|text-to-video)$/u, "");
+
 const normalizeEndpointPath = (model: string, useImageToVideo: boolean) => {
   const clean = model.trim().replace(/^\/+|\/+$/g, "");
 
@@ -75,6 +81,7 @@ export async function onRequestPost({ request, env }: PagesContext) {
   }
 
   const model = envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL);
+  const queueModel = normalizeModelPath(model);
   const endpointPath = normalizeEndpointPath(model, useImageToVideo);
   const endpoint = `https://queue.fal.run/${endpointPath}`;
 
@@ -119,7 +126,7 @@ export async function onRequestPost({ request, env }: PagesContext) {
   return json({
     ok: true,
     provider: "fal",
-    model: endpointPath,
+    model: queueModel,
     mode: useImageToVideo ? "image-to-video" : "text-to-video",
     requestId: result.request_id,
     statusUrl: result.status_url,
