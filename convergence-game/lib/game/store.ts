@@ -39,6 +39,7 @@ interface ConvergenceStore extends GameState {
   loadSlot: (slot: SaveSlotId) => void;
   loadSnapshot: (snapshot: GameSnapshot) => void;
   exportCloudSnapshot: () => GameSnapshot;
+  refreshAutosave: () => void;
   saveSlot: (slot: SaveSlotId) => void;
   saveAndQuit: () => void;
   nextTurn: () => void;
@@ -70,6 +71,7 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
     loadSlot,
     loadSnapshot,
     exportCloudSnapshot,
+    refreshAutosave,
     saveSlot,
     saveAndQuit,
     nextTurn,
@@ -100,6 +102,7 @@ const cloneGameState = (state: ConvergenceStore): GameState => {
   void loadSlot;
   void loadSnapshot;
   void exportCloudSnapshot;
+  void refreshAutosave;
   void saveSlot;
   void saveAndQuit;
   void nextTurn;
@@ -202,13 +205,18 @@ export const useConvergenceStore = create<ConvergenceStore>((set, get) => ({
     const state = cloneGameState(get());
     return snapshotStateForCloud(state);
   },
+  refreshAutosave: () => {
+    const state = cloneGameState(get());
+    persistIfPlaying(state);
+    set({ slotSummaries: loadSaveSummaries() });
+  },
   saveSlot: (slot) => {
-    const state = get();
+    const state = cloneGameState(get());
     saveToSlot(state, slot);
     set({ slotSummaries: loadSaveSummaries() });
   },
   saveAndQuit: () => {
-    const state = get();
+    const state = cloneGameState(get());
     persistIfPlaying(state);
     set({
       mode: "menu",

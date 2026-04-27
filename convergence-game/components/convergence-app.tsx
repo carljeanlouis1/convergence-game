@@ -2840,8 +2840,19 @@ export function ConvergenceApp() {
         : "Saving local autosave and returning to menu...",
     });
 
+    store.refreshAutosave();
+
     if (cloudCredentials) {
-      await pushCloudSave("autosave");
+      const cloudSaved = await pushCloudSave("autosave");
+      if (!cloudSaved) {
+        setSaveQuitBusy(false);
+        setSaveQuitStatus({
+          tone: "error",
+          message:
+            "Local autosave updated, but cloud continue did not sync. Try again, save a local slot, or disconnect cloud saves if you want to quit without cloud sync.",
+        });
+        return;
+      }
     }
 
     finalizeSaveAndQuit();
