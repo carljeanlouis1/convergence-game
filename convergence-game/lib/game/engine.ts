@@ -873,16 +873,18 @@ const missingCommercializationRoles = (state: GameState, trackId: TrackId, keywo
 
 const getReservedCommercialCompute = (state: GameState) =>
   state.commercializationPrograms.reduce(
-    (sum, program) =>
-      sum +
-      (program.status === "live"
-        ? program.computeDemand
-        : Math.max(2, Math.ceil(program.computeDemand * 0.5))),
+    (sum, program) => sum + program.computeDemand,
     0,
   );
 
 const getAvailableResearchCompute = (state: GameState, rawCapacity: number) =>
   Math.max(rawCapacity - getReservedCommercialCompute(state), 0);
+
+export const getCommercializationComputeHeadroom = (state: GameState) =>
+  Math.max(
+    state.resources.computeCapacity - getReservedCommercialCompute(state) - totalAllocatedCompute(state),
+    0,
+  );
 
 const nextFundingRound = (round: FundingRoundId): FundingRoundId =>
   fundingRoundOrder[Math.min(fundingRoundOrder.indexOf(round) + 1, fundingRoundOrder.length - 1)] ??
@@ -1759,6 +1761,10 @@ export const getCommercializationOptions = (state: GameState, trackId?: TrackId)
       const existingProgram = state.commercializationPrograms.find(
         (program) => program.definitionId === definition.id,
       );
+      const availableCommercialCompute = getCommercializationComputeHeadroom(state);
+      const missingServiceCompute = existingProgram
+        ? 0
+        : Math.max(definition.computeDemand - availableCommercialCompute, 0);
       const prerequisitePrograms = definition.prerequisitePrograms ?? [];
       const inactivePrerequisites = prerequisitePrograms
         .filter((prerequisiteId) =>
@@ -1792,6 +1798,8 @@ export const getCommercializationOptions = (state: GameState, trackId?: TrackId)
         blockedReason = `Need ${missingRoles.join(", ")}-capable talent who can support ${trackById(definition.trackId).name}. Commercial programs use roster coverage, not separate product assignments.`;
       } else if (existingProgram) {
         blockedReason = existingProgram.status === "live" ? "Already live." : "Currently launching.";
+      } else if (missingServiceCompute > 0) {
+        blockedReason = `Need ${missingServiceCompute} uncommitted PFLOPS to serve this product. Free compute from research or build capacity.`;
       } else if (state.resources.capital < definition.upfrontCost) {
         blockedReason = `Need ${formatCurrency(definition.upfrontCost)} capital to launch.`;
       }
@@ -1804,6 +1812,11 @@ export const getCommercializationOptions = (state: GameState, trackId?: TrackId)
         missingPrerequisitePrograms: inactivePrerequisites,
         missingTrackRequirements: missingRequirements,
         missingRoleKeywords: missingRoles,
+        availableCommercialCompute,
+        missingServiceCompute,
+        computeBlocked: missingServiceCompute > 0,
+        reservedComputeAfterLaunch:
+          getReservedCommercialCompute(state) + (existingProgram ? 0 : definition.computeDemand),
         existingStatus: existingProgram?.status ?? null,
         isLive: existingProgram?.status === "live",
         isLaunching: existingProgram?.status === "launching",
@@ -1855,10 +1868,7 @@ export const getCommercializationExpenseBreakdown = (state: GameState) =>
             : Math.max(0.12, program.quarterlyExpense * 0.45)
         ).toFixed(2),
       ),
-      computeDemand:
-        program.status === "live"
-          ? program.computeDemand
-          : Math.max(2, Math.ceil(program.computeDemand * 0.5)),
+      computeDemand: program.computeDemand,
       status: program.status,
       source: program.source,
     }))

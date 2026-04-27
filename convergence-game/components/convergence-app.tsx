@@ -1169,7 +1169,9 @@ function CommercializationGraph({
                 <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] text-slate-400">
                   <span>Upfront {formatCurrency(option.upfrontCost)}</span>
                   <span>Net {formatCurrency(option.netRevenue)}</span>
-                  <span>{option.computeDemand} PFLOPS</span>
+                  <span className={option.computeBlocked ? "text-amber-200" : ""}>
+                    {option.computeBlocked ? `${option.missingServiceCompute} PFLOPS short` : `${option.computeDemand} PFLOPS`}
+                  </span>
                   <span>{option.setupTurns}Q setup</span>
                 </div>
               </button>
@@ -5560,9 +5562,20 @@ export function ConvergenceApp() {
                                 </p>
                               </div>
                               <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Compute Reserve</p>
+                                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Service Compute</p>
                                 <p className="mt-2 text-sm font-medium text-white">
                                   {selectedCommercializationOption.computeDemand} PFLOPS
+                                </p>
+                                <p
+                                  className={`mt-1 text-xs leading-5 ${
+                                    selectedCommercializationOption.computeBlocked
+                                      ? "text-amber-200"
+                                      : "text-slate-500"
+                                  }`}
+                                >
+                                  {selectedCommercializationOption.computeBlocked
+                                    ? `Need ${selectedCommercializationOption.missingServiceCompute} more uncommitted PFLOPS.`
+                                    : "Reserved every quarter once authorized."}
                                 </p>
                               </div>
                               <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
@@ -5694,11 +5707,46 @@ export function ConvergenceApp() {
                                 </div>
                               ) : null}
 
+                              {selectedCommercializationOption.computeBlocked ? (
+                                <div className="rounded-2xl border border-sky-300/20 bg-sky-500/10 px-3 py-3">
+                                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                    <div>
+                                      <p className="text-[11px] uppercase tracking-[0.18em] text-sky-100">
+                                        Service Compute Needed
+                                      </p>
+                                      <p className="mt-2 text-sm leading-6 text-sky-50/90">
+                                        This product needs {selectedCommercializationOption.computeDemand} uncommitted PFLOPS
+                                        before it can launch. You have {selectedCommercializationOption.availableCommercialCompute} free for new market programs after research and existing product reserves.
+                                      </p>
+                                      <p className="mt-2 text-xs leading-5 text-sky-100/70">
+                                        Reduce research allocation, wait for active facility builds, or add capacity before authorizing this path.
+                                      </p>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => store.openPanel("track")}
+                                        className="rounded-2xl border border-sky-300/25 bg-sky-300/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-sky-50"
+                                      >
+                                        Free Research Compute
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => store.openPanel("facilities")}
+                                        className="rounded-2xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-emerald-50"
+                                      >
+                                        Build Capacity
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
+
                               {selectedCommercializationProgram ? (
                                 <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-3 text-sm text-emerald-100">
                                   {selectedCommercializationProgram.status === "live"
                                     ? `${selectedCommercializationProgram.name} is already live and reserving ${selectedCommercializationProgram.computeDemand} PFLOPS each quarter.`
-                                    : `${selectedCommercializationProgram.name} is in flight with ${selectedCommercializationProgram.turnsRemaining}Q remaining before revenue turns on.`}
+                                    : `${selectedCommercializationProgram.name} is in flight with ${selectedCommercializationProgram.turnsRemaining}Q remaining before revenue turns on, and reserving ${selectedCommercializationProgram.computeDemand} PFLOPS for service readiness.`}
                                 </div>
                               ) : null}
                             </div>
