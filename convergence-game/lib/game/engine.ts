@@ -235,6 +235,11 @@ export const canResearcherCoverCommercializationRole = (employee: Researcher, ke
   return aliases.some((alias) => profile.includes(alias));
 };
 
+export const getResearcherCommercializationRoles = (employee: Researcher) =>
+  COMMERCIALIZATION_ROLE_KEYWORDS.filter((keyword) =>
+    canResearcherCoverCommercializationRole(employee, keyword),
+  );
+
 const cloneResearcher = (researcher: Researcher): Researcher => ({ ...researcher });
 
 const defaultExpenses = (): ExpenseBreakdown => ({

@@ -91,6 +91,7 @@ import {
   getFundingOffers,
   getResearchComputeCapacity,
   getResearchExpenseBreakdown,
+  getResearcherCommercializationRoles,
   getTrackForecast,
   getTrackRevenueBreakdown,
   TRACK_POSTURES,
@@ -959,6 +960,35 @@ function formatRoleKeyword(keyword: string) {
   if (lowered.includes("material")) return "Materials coverage";
 
   return `${keyword} coverage`;
+}
+
+function CommercialCoverageBadges({
+  researcher,
+  highlight,
+  max = 4,
+}: {
+  researcher: Researcher;
+  highlight?: string;
+  max?: number;
+}) {
+  const roles = getResearcherCommercializationRoles(researcher);
+
+  if (!roles.length) {
+    return <SignalChip label="No product coverage" tone="neutral" />;
+  }
+
+  return (
+    <>
+      {roles.slice(0, max).map((role) => (
+        <SignalChip
+          key={`${researcher.id}-${role}`}
+          label={formatRoleKeyword(role)}
+          tone={highlight === role ? "warn" : "focus"}
+        />
+      ))}
+      {roles.length > max ? <SignalChip label={`+${roles.length - max} more`} tone="neutral" /> : null}
+    </>
+  );
 }
 
 function commercializationNodeStatus(option: ReturnType<typeof getCommercializationOptions>[number]) {
@@ -1842,6 +1872,7 @@ export function ConvergenceApp() {
   const [cloudBusyKey, setCloudBusyKey] = useState<string | null>(null);
   const [selectedCommercializationId, setSelectedCommercializationId] = useState<string | null>(null);
   const [candidateFocusFilter, setCandidateFocusFilter] = useState<TrackId | "all">("all");
+  const [candidateCoverageFilter, setCandidateCoverageFilter] = useState<string | "all">("all");
   const [showContestedCandidatesOnly, setShowContestedCandidatesOnly] = useState(false);
 
   const serverNarrativeReady = Boolean(serverAIStatus?.narrative.available);
@@ -2206,6 +2237,10 @@ export function ConvergenceApp() {
           ),
       )
     : [];
+  const highlightedCommercializationRole =
+    candidateCoverageFilter === "all"
+      ? (selectedCommercializationOption?.missingRoleKeywords[0] ?? undefined)
+      : candidateCoverageFilter;
   const payrollEntries = [...store.employees].sort((left, right) => right.salary - left.salary);
   const assignedTalent = store.employees.filter((employee) => employee.assignedTrack !== null);
   const idleTalent = store.employees.filter((employee) => employee.assignedTrack === null);
@@ -2230,6 +2265,9 @@ export function ConvergenceApp() {
         candidate.generalist || candidate.primaryTrack === track.id || candidate.secondaryTrack === track.id,
     ),
   ).map((track) => track.id);
+  const candidateCoverageFilters = Array.from(
+    new Set(store.candidates.flatMap((candidate) => getResearcherCommercializationRoles(candidate))),
+  ).sort((left, right) => formatRoleKeyword(left).localeCompare(formatRoleKeyword(right)));
   const candidatePriorityTrack =
     candidateFocusFilter === "all" ? store.selectedTrack : candidateFocusFilter;
   const filteredCandidates = [...store.candidates]
@@ -2239,18 +2277,30 @@ export function ConvergenceApp() {
       }
 
       if (candidateFocusFilter === "all") {
-        return true;
+        return (
+          candidateCoverageFilter === "all" ||
+          canResearcherCoverCommercializationRole(candidate, candidateCoverageFilter)
+        );
       }
 
-      return (
+      const laneMatch =
         candidate.generalist ||
         candidate.primaryTrack === candidateFocusFilter ||
-        candidate.secondaryTrack === candidateFocusFilter
+        candidate.secondaryTrack === candidateFocusFilter;
+
+      return (
+        laneMatch &&
+        (candidateCoverageFilter === "all" ||
+          canResearcherCoverCommercializationRole(candidate, candidateCoverageFilter))
       );
     })
     .sort((left, right) => {
       const scoreCandidate = (candidate: (typeof store.candidates)[number]) =>
         (canResearcherSupportTrack(candidate, candidatePriorityTrack) ? 40 : 0) +
+        (candidateCoverageFilter !== "all" &&
+        canResearcherCoverCommercializationRole(candidate, candidateCoverageFilter)
+          ? 30
+          : 0) +
         (candidate.generalist ? 14 : 0) +
         (candidate.contestedBy ? 10 : 0) +
         candidate.research * 3 +
@@ -4876,11 +4926,18 @@ export function ConvergenceApp() {
                           <div className="mt-3 space-y-2">
                             {assigned.length ? (
                               assigned.slice(0, 3).map((employee) => (
-                                <div key={`${track.id}-${employee.id}`} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-slate-950/65 px-2 py-2">
+                                <div key={`${track.id}-${employee.id}`} className="flex items-start gap-2 rounded-2xl border border-white/8 bg-slate-950/65 px-2 py-2">
                                   <StaffAvatar researcher={employee} size="sm" />
                                   <span className="min-w-0">
                                     <span className="block truncate text-xs font-medium text-white">{employee.name}</span>
                                     <span className="block truncate text-[11px] text-slate-500">{employee.role}</span>
+                                    <span className="mt-2 flex flex-wrap gap-1">
+                                      <CommercialCoverageBadges
+                                        researcher={employee}
+                                        highlight={highlightedCommercializationRole}
+                                        max={2}
+                                      />
+                                    </span>
                                   </span>
                                 </div>
                               ))
@@ -4915,6 +4972,13 @@ export function ConvergenceApp() {
                                 <span className="min-w-0">
                                   <span className="block truncate text-sm font-medium text-white">{employee.name}</span>
                                   <span className="block truncate text-xs text-slate-400">{describeAssignmentScope(employee)}</span>
+                                  <span className="mt-2 flex flex-wrap gap-1">
+                                    <CommercialCoverageBadges
+                                      researcher={employee}
+                                      highlight={highlightedCommercializationRole}
+                                      max={2}
+                                    />
+                                  </span>
                                 </span>
                               </span>
                               <span className="shrink-0 text-xs uppercase tracking-[0.18em] text-sky-300">Assign</span>
@@ -4992,6 +5056,43 @@ export function ConvergenceApp() {
                         </button>
                       ))}
                     </div>
+                    <div className="mt-5 border-t border-white/8 pt-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                          Product Coverage
+                        </p>
+                        <span className="text-xs text-slate-500">
+                          Use this when commercialization asks for field ops, policy, product, or other coverage.
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCandidateCoverageFilter("all")}
+                          className={`rounded-full border px-3 py-2 text-sm ${
+                            candidateCoverageFilter === "all"
+                              ? "border-sky-400/35 bg-sky-500/10 text-white"
+                              : "border-white/10 bg-white/5 text-slate-300"
+                          }`}
+                        >
+                          All Coverage
+                        </button>
+                        {candidateCoverageFilters.map((keyword) => (
+                          <button
+                            key={keyword}
+                            type="button"
+                            onClick={() => setCandidateCoverageFilter(keyword)}
+                            className={`rounded-full border px-3 py-2 text-sm ${
+                              candidateCoverageFilter === keyword
+                                ? "border-amber-300/35 bg-amber-400/10 text-amber-50"
+                                : "border-white/10 bg-white/5 text-slate-300"
+                            }`}
+                          >
+                            {formatRoleKeyword(keyword)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
                   {filteredCandidates.length ? (
@@ -5035,6 +5136,11 @@ export function ConvergenceApp() {
                             <SignalChip
                               label={candidate.contestedBy ? "Can be lost EoQ" : "Refreshes EoQ"}
                               tone={candidate.contestedBy ? "warn" : "neutral"}
+                            />
+                            <CommercialCoverageBadges
+                              researcher={candidate}
+                              highlight={highlightedCommercializationRole}
+                              max={3}
                             />
                           </div>
 
@@ -5683,24 +5789,56 @@ export function ConvergenceApp() {
                                       <p className="mt-2 text-xs leading-5 text-amber-100/70">
                                         Roster matches: {rosterCommercializationCoverage.length}. Market matches this quarter: {marketCommercializationCoverage.length}.
                                       </p>
+                                      {marketCommercializationCoverage.length ? (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                          {marketCommercializationCoverage.slice(0, 4).map((candidate) => (
+                                            <span
+                                              key={`${selectedCommercializationOption.id}-${candidate.id}`}
+                                              className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-slate-950/55 px-3 py-1 text-xs text-amber-50"
+                                            >
+                                              <StaffAvatar researcher={candidate} size="sm" />
+                                              {candidate.name}
+                                              <span className="text-amber-200/70">
+                                                {getResearcherCommercializationRoles(candidate)
+                                                  .filter((role) =>
+                                                    selectedCommercializationOption.missingRoleKeywords.some(
+                                                      (keyword) => keyword === role,
+                                                    ),
+                                                  )
+                                                  .map(formatRoleKeyword)
+                                                  .join(", ")}
+                                              </span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : null}
                                     </div>
                                     <div className="flex shrink-0 flex-wrap gap-2">
                                       <button
                                         type="button"
-                                        onClick={() => store.openPanel("hiring")}
+                                        onClick={() => {
+                                          setCandidateFocusFilter(selectedCommercializationOption.trackId);
+                                          setCandidateCoverageFilter(
+                                            selectedCommercializationOption.missingRoleKeywords[0] ?? "all",
+                                          );
+                                          store.openPanel("hiring");
+                                        }}
                                         className="rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-amber-50"
                                       >
-                                        Open Talent
+                                        Show Matching Talent
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => {
                                           setCandidateFocusFilter(selectedCommercializationOption.trackId);
+                                          setCandidateCoverageFilter(
+                                            selectedCommercializationOption.missingRoleKeywords[0] ?? "all",
+                                          );
                                           store.openPanel("hiring");
                                         }}
                                         className="rounded-2xl border border-sky-300/25 bg-sky-300/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-sky-50"
                                       >
-                                        Find Talent
+                                        Filter Market
                                       </button>
                                     </div>
                                   </div>
