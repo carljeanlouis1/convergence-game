@@ -1827,7 +1827,7 @@ export function ConvergenceApp() {
     message: string;
   }>({
     tone: "idle",
-    message: "Scene art will auto-generate for new briefings and dilemmas when production AI is connected.",
+    message: "Scene art is optional. Click Generate Scene Art when you want a visual.",
   });
   const [sceneArtUrl, setSceneArtUrl] = useState<string | null>(null);
   const [sceneArtScope, setSceneArtScope] = useState<"briefing" | "dilemma" | null>(null);
@@ -1855,7 +1855,6 @@ export function ConvergenceApp() {
   const audioUrlRef = useRef<string | null>(null);
   const sceneArtUrlRef = useRef<string | null>(null);
   const autoNarratedTurnRef = useRef<number | null>(null);
-  const autoSceneArtKeyRef = useRef<string | null>(null);
   const hasAutosave =
     typeof window !== "undefined" && Boolean(window.localStorage.getItem("convergence-autosave"));
   const [cloudCredentials, setCloudCredentials] = useState<CloudCredentials | null>(null);
@@ -2599,8 +2598,8 @@ export function ConvergenceApp() {
   }>;
   const oneMoreTurnReady = !store.activeDilemma && priorityObjectives.every((objective) => objective.tone !== "bad");
   const sceneArtModeSummary = serverSceneArtReady
-    ? "Auto scenes use the fast image lane first; manual premium generation uses GPT Image 2 when available."
-    : "Connect production AI to unlock automatic briefing and crisis art.";
+    ? "Scene art is ready, but only generates when you click the button."
+    : "Connect production AI to unlock optional briefing and crisis art.";
   const latestFacilityBeat = store.resolution?.worldEvents.find((event) => event.includes("comes online"));
   const latestConvergenceBeat = store.resolution?.breakthroughs.find((breakthrough) =>
     store.convergences.some((convergence) => breakthrough.startsWith(convergence.name)),
@@ -3381,36 +3380,6 @@ export function ConvergenceApp() {
     await narrateTurnSummary();
   });
 
-  const autoGenerateSceneArt = useEffectEvent(async () => {
-    if (!store.aiSettings.enabled || !store.aiSettings.apiKey || store.mode === "menu") {
-      return;
-    }
-
-    const scope = store.activeDilemma ? "dilemma" : store.resolution ? "briefing" : null;
-    if (!scope || sceneArtStatus.tone === "checking") {
-      return;
-    }
-
-    const waitingForNarrative =
-      scope === "dilemma" ? Boolean(store.activeDilemma && !dilemmaFlavor) : Boolean(store.resolution && !chiefMemo && !worldLead);
-
-    if (waitingForNarrative) {
-      return;
-    }
-
-    const key =
-      scope === "dilemma"
-        ? `dilemma:${store.activeDilemma?.id}:${dilemmaFlavor ?? "base"}`
-        : `briefing:${sceneBeat.key}:${chiefMemo ?? worldLead ?? "base"}`;
-
-    if (autoSceneArtKeyRef.current === key) {
-      return;
-    }
-
-    autoSceneArtKeyRef.current = key;
-    await generateSceneArt(scope, "fast");
-  });
-
   const connectProductionAI = useEffectEvent(async () => {
     const status = await fetchAIStatus();
     setServerAIStatus(status);
@@ -3563,26 +3532,13 @@ export function ConvergenceApp() {
     setCinematicVideoUrl(null);
     setSceneArtStatus({
       tone: "idle",
-      message: "Scene art will auto-generate for this moment if AI scene art is active.",
+      message: "Scene art is optional. Click Generate Scene Art when you want a visual for this moment.",
     });
     setCinematicStatus({
       tone: "idle",
       message: "Cinematic Mode is optional. Generate video only for story moments you want to preserve.",
     });
   }, [store.resolution?.turn, store.activeDilemma?.id]);
-
-  useEffect(() => {
-    void autoGenerateSceneArt();
-  }, [
-    store.aiSettings.enabled,
-    store.aiSettings.apiKey,
-    store.mode,
-    store.resolution?.turn,
-    store.activeDilemma?.id,
-    chiefMemo,
-    worldLead,
-    dilemmaFlavor,
-  ]);
 
   useEffect(() => {
     if (store.resolution?.breakthroughs.length) {
@@ -4698,7 +4654,7 @@ export function ConvergenceApp() {
                         ) : (
                           <div className="relative z-10 flex h-full min-h-[320px] flex-col justify-between p-5">
                             <div>
-                              <SignalChip label={serverSceneArtReady ? "Fast auto art ready" : "Scene art standby"} tone={serverSceneArtReady ? "focus" : "neutral"} />
+                              <SignalChip label={serverSceneArtReady ? "Manual art ready" : "Scene art standby"} tone={serverSceneArtReady ? "focus" : "neutral"} />
                               <h3 className="mt-5 text-2xl font-semibold text-white">Command-room visual feed</h3>
                               <p className="mt-3 max-w-md text-sm leading-6 text-slate-300">
                                 {sceneArtModeSummary} The frame stays text-free so it feels like a live intelligence wall instead of a poster.
@@ -4756,14 +4712,14 @@ export function ConvergenceApp() {
                           <p className="mt-2 text-sm leading-6 text-slate-300">{sceneBeat.detail}</p>
                         </div>
                         <div className="flex shrink-0 flex-wrap gap-2">
-                          <SignalChip label={sceneArtScope === "briefing" && sceneArtUrl ? "Visualized" : serverSceneArtReady ? "Auto eligible" : "AI standby"} tone={sceneArtScope === "briefing" && sceneArtUrl ? "good" : sceneBeat.tone} />
+                          <SignalChip label={sceneArtScope === "briefing" && sceneArtUrl ? "Visualized" : serverSceneArtReady ? "Manual ready" : "AI standby"} tone={sceneArtScope === "briefing" && sceneArtUrl ? "good" : sceneBeat.tone} />
                           <button
                             type="button"
                             onClick={() => void generateSceneArt("briefing", "premium")}
                             disabled={sceneArtStatus.tone === "checking"}
                             className="rounded-2xl border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            Regenerate Premium
+                            {sceneArtScope === "briefing" && sceneArtUrl ? "Regenerate Premium" : "Generate Premium"}
                           </button>
                         </div>
                       </div>
@@ -7309,7 +7265,7 @@ export function ConvergenceApp() {
                           <p className="mt-2 text-base font-semibold text-white">{sceneBeat.label}</p>
                           <p className="mt-2 text-sm leading-6 text-slate-300">{sceneBeat.detail}</p>
                         </div>
-                        <SignalChip label={sceneArtScope === "dilemma" && sceneArtUrl ? "Visualized" : serverSceneArtReady ? "Auto eligible" : "AI standby"} tone={sceneArtScope === "dilemma" && sceneArtUrl ? "good" : "focus"} />
+                        <SignalChip label={sceneArtScope === "dilemma" && sceneArtUrl ? "Visualized" : serverSceneArtReady ? "Manual ready" : "AI standby"} tone={sceneArtScope === "dilemma" && sceneArtUrl ? "good" : "focus"} />
                       </div>
                     </div>
                   </div>
