@@ -320,6 +320,11 @@ function formatTurns(turns: number | null) {
   return `${turns}Q`;
 }
 
+function formatExactTurns(turns: number | null | undefined) {
+  if (turns === null || turns === undefined) return "Awaiting staff";
+  return `${turns.toFixed(2)}Q pace`;
+}
+
 function formatExpenseLabel(label: string) {
   if (label === "commercialization") return "Commercialization";
   return label.charAt(0).toUpperCase() + label.slice(1);
@@ -5349,6 +5354,13 @@ export function ConvergenceApp() {
                       <span>ETA {formatTurns(selectedForecast.turnsToLevel)}</span>
                     </div>
                     <div className="mt-3 flex items-center justify-between text-sm text-slate-300"><span>Quarterly progress</span><span className="font-medium text-white">+{selectedForecast.progressPerTurn}</span></div>
+                    <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Forecast pace</span><span className="text-white">{formatExactTurns(selectedForecast.exactTurnsToLevel)}</span></div>
+                    {selectedForecast.progressNeededToReduceEta > 0 ? (
+                      <div className="mt-2 flex items-center justify-between gap-4 text-sm text-slate-300">
+                        <span>To cut ETA by 1Q</span>
+                        <span className="text-right text-amber-100">+{selectedForecast.progressNeededToReduceEta}/Q needed</span>
+                      </div>
+                    ) : null}
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Assigned scientists</span><span className="text-white">{selectedForecast.assignedCount}</span></div>
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Recommended compute</span><span className="text-white">{selectedForecast.recommendedCompute} PFLOPS</span></div>
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Compute readiness</span><span className="text-white">{Math.round((selectedForecast.computeReadiness ?? 1) * 100)}%</span></div>
@@ -5414,7 +5426,7 @@ export function ConvergenceApp() {
                       </div>
                     </div>
                     <p className="mt-4 text-sm leading-6 text-slate-400">
-                      Supplier choice and energy policy modify how efficiently this compute turns into progress. Live products can also reserve compute, so revenue programs and frontier research now compete for the same cluster time.
+                      Supplier choice and energy policy modify how efficiently this compute turns into progress. Live products can also reserve compute, so revenue programs and frontier research now compete for the same cluster time. Whole-quarter ETA only changes when the precise forecast pace crosses the next threshold.
                     </p>
                   </div>
                 </div>

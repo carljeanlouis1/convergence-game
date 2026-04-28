@@ -1007,18 +1007,19 @@ export const getTrackForecast = (state: GameState, trackId: TrackId) => {
     ? clamp(track.compute / Math.max(activeStage.recommendedCompute, 1), 0.4, 1.2)
     : 1;
   const computeFactor =
-    (track.compute / 7.4) *
+    (track.compute / 6.4) *
     state.supplier.computeMultiplier *
     supplierBonus *
     energyBonus *
     energyUtilizationMultiplier(state) *
     (trackId === "foundation" ? 1.04 : 1) *
-    computeReadiness;
+    (0.6 + computeReadiness * 0.45);
+  const teamComputeSupport = clamp(0.28 + computeReadiness * 1.05, 0.56, 1.22);
   const teamFactor =
     contributors.reduce((sum, contributor) => sum + contributor.contribution, 0) *
     0.34 *
     staffCoverage *
-    Math.max(0.72, computeReadiness);
+    teamComputeSupport;
   const synergy = trackSynergy(trackId, state) * 0.95;
   const governancePenalty =
     trackId === "foundation" || trackId === "quantum"
@@ -1030,9 +1031,15 @@ export const getTrackForecast = (state: GameState, trackId: TrackId) => {
   const progressPerTurn = specialistGaps.length
     ? 0
     : baseProgressPerTurn * posture.progressMultiplier;
+  const roundedProgressPerTurn = Number(progressPerTurn.toFixed(1));
   const remaining = Math.max(0, target - track.progress);
-  const turnsToLevel =
-    !track.unlocked || track.level >= maxLevel || progressPerTurn <= 0 ? null : Math.ceil(remaining / progressPerTurn);
+  const canProgress = track.unlocked && track.level < maxLevel && roundedProgressPerTurn > 0;
+  const exactTurnsToLevel = canProgress ? remaining / roundedProgressPerTurn : null;
+  const turnsToLevel = canProgress ? Math.ceil(exactTurnsToLevel ?? 0) : null;
+  const progressNeededToReduceEta =
+    turnsToLevel && turnsToLevel > 1
+      ? Math.max(0, remaining / (turnsToLevel - 1) - roundedProgressPerTurn)
+      : 0;
   const blockedReason = !track.unlocked
     ? trackUnlockHints[trackId]
     : specialistGaps.length
@@ -1046,8 +1053,10 @@ export const getTrackForecast = (state: GameState, trackId: TrackId) => {
     target,
     currentProgress: Number(track.progress.toFixed(1)),
     progressPercent: target > 0 ? Math.min(100, (track.progress / target) * 100) : 100,
-    progressPerTurn: Number(progressPerTurn.toFixed(1)),
+    progressPerTurn: roundedProgressPerTurn,
+    exactTurnsToLevel: exactTurnsToLevel === null ? null : Number(exactTurnsToLevel.toFixed(2)),
     turnsToLevel,
+    progressNeededToReduceEta: Number(progressNeededToReduceEta.toFixed(1)),
     assignedCount: assigned.length,
     contributors,
     projectName: track.level >= maxLevel ? "Completed" : activeStage?.name ?? "Completed",
