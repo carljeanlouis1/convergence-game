@@ -201,76 +201,103 @@ const defaultLayoutPreferences = (): LayoutPreferences => ({
 
 const tutorialSlides = [
   {
-    title: "The Quarterly Loop",
-    summary: "Every turn is one quarter. You survive by balancing research speed, credibility, and cash.",
+    title: "Your First Objective",
+    summary: "Every turn is one quarter. Your job is to keep the lab alive long enough for capability, safety, and revenue to compound.",
     points: [
-      "End Turn advances research, resolves construction, updates rivals, and rolls new world pressure.",
-      "The briefing tells you what moved, what is threatening you, and what should matter next.",
-      "Dilemmas are permanent history. They feed endings, trust, dependence, and ethics debt.",
+      "Before ending a quarter, ask: Is someone assigned, is compute allocated, and can runway survive the next bill?",
+      "The briefing after each turn tells you what moved: research progress, money, rivals, world events, and dilemmas.",
+      "The game is won by building momentum without letting fear, board pressure, or cash collapse break the lab.",
     ],
+    action: "Turn 1: assign talent to Foundation, Alignment, or Simulation, then put enough compute on the selected track to make the ETA move.",
+    watch: "The left rail is your heartbeat: runway, trust, fear, board confidence, and free compute.",
   },
   {
-    title: "Reading the Bars",
-    summary: "The left rail is your command board. Those bars are not flavor.",
+    title: "The One-More-Turn Loop",
+    summary: "A good quarter leaves you with one clear thing you want to see resolve next.",
     points: [
-      "Runway is months until cash-out if the current revenue and expense mix holds.",
-      "Government relation bars show how cooperative each bloc is. Higher scores mean easier contracts, lower scores mean scrutiny or pressure.",
-      "Rival cards track capability, safety, and goodwill so you can see who is fast, reckless, or politically dangerous.",
+      "Start the quarter by reading Command Guidance. It points at the most urgent blocker without forcing your hand.",
+      "Make one meaningful commitment: a research push, a hire, a product launch, a funding move, or a facility build.",
+      "End Turn, then read the consequences. If a breakthrough, dilemma, or rival move appears, that becomes the next hook.",
     ],
+    action: "Use Command Guidance as a checklist, not a command. Ignore it only when you understand the tradeoff.",
+    watch: "The strongest hook is usually the thing with a timer: low runway, ETA near completion, active dilemma, or contested talent.",
   },
   {
     title: "Research Like XCOM",
-    summary: "Each track behaves like an active research program with scientists, throughput, and ETA.",
+    summary: "Each track is an active program with staff, compute, posture, bottlenecks, and a visible ETA.",
     points: [
       "Assign people to a track and give it compute. Specialists only work in their primary or secondary lanes unless they are marked as generalists.",
-      "Each track panel shows the current project, stage technology, revenue programs, research load, and estimated turns to finish the next level.",
-      "Unlocked levels create revenue streams, new dilemmas, and convergence paths with other tracks.",
+      "Compute changes the forecast pace. Whole-quarter ETA drops only when the precise pace crosses the next threshold.",
+      "Unlocked levels create passive revenue, new dilemmas, commercialization options, and convergence paths with other tracks.",
     ],
+    action: "If ETA feels stuck, check Forecast Pace and 'To cut ETA by 1Q'. You may need more compute, better staff, or a sprint posture.",
+    watch: "Bottleneck Scan explains why a track is slow: missing specialist, compute shortfall, governance pressure, or commercialization readiness.",
   },
   {
-    title: "Money and Burn",
-    summary: "Talent does not just cost a signing bonus. Every hire permanently changes payroll and quarterly burn.",
+    title: "Money Is Time",
+    summary: "Cash is not a score. It is the number of experiments you can afford before the board loses patience.",
     points: [
-      "Research levels now create passive baseline revenue, but the bigger money comes from track-specific commercialization programs you choose to launch.",
-      "Expenses are broken into payroll, compute, facilities, research overhead, commercialization opex, and expansion projects.",
-      "A beautiful lab that cannot pay for its clusters still dies.",
+      "Runway tells you how many months the current ledger can survive if nothing improves.",
+      "Hiring, facilities, research posture, and commercialization all change burn in different ways.",
+      "Funding can save the lab, but it can cost founder control, trust, or government independence.",
     ],
+    action: "If runway falls under 12 months, open Finance before ending the turn. If it falls under 8, treat cash as the main crisis.",
+    watch: "Quarterly ledger, payroll, commercialization opex, and compute upkeep are the four numbers that explain most surprises.",
   },
   {
     title: "Commercialize Deliberately",
-    summary: "A breakthrough is capability. A business line is a separate branching decision tree.",
+    summary: "A breakthrough is capability. A product is a separate strategic commitment.",
     points: [
       "Each track now has a commercialization graph with multiple entry plays, scale paths, and frontier plays instead of a single straight revenue ladder.",
-      "Programs cost upfront capital, take time to launch, reserve compute after they go live, and can require specific staff coverage such as product, policy, orbital, or quantum roles.",
+      "Programs cost upfront capital, take time to launch, reserve service compute immediately, and can require staff coverage such as product, field ops, policy, orbital, or quantum roles.",
       "Some product choices combine across tracks to create market convergences with their own revenue, fear, trust, and geopolitical consequences.",
     ],
+    action: "When a program is locked, read the blocker literally: hire coverage, free compute, finish a prerequisite, or raise capital.",
+    watch: "Product compute competes with research compute. A profitable launch can still slow science if the cluster is overcommitted.",
   },
   {
-    title: "Suppliers and Facilities",
-    summary: "Vendors and energy policy create real tradeoffs instead of flat upgrades.",
+    title: "Build Like A Tycoon",
+    summary: "Facilities are not just upgrades. They are timing bets against demand, upkeep, and political risk.",
     points: [
       "Different chip suppliers favor different research styles: raw model scale, simulation throughput, or balanced deployment.",
       "Energy choices affect cost, reputation, and sustained high-utilization performance.",
-      "Facility projects take quarters to finish, just like XCOM infrastructure. Commit only when the timing works.",
+      "Facility projects take quarters to finish. Commit when the build will arrive before your compute bottleneck becomes a crisis.",
     ],
+    action: "Build when free compute is consistently low, product reserves are blocking launches, or a key research ETA needs acceleration.",
+    watch: "Projected capacity, active projects, supplier multiplier, energy policy, and commercial reserve tell you whether expansion is worth it.",
   },
   {
-    title: "Winning the Race",
+    title: "Talent Is Strategy",
+    summary: "People unlock tracks, speed research, cover products, and create the shape of your lab.",
+    points: [
+      "Current Talent shows where every person is assigned and which commercial coverage badges they provide.",
+      "Talent Market candidates arrive next quarter, add payroll, and may be contested by rivals.",
+      "Some candidates unlock whole departments. Others are the missing coverage that turns a product from blocked to launchable.",
+    ],
+    action: "Hire when the candidate solves a named bottleneck: unlocks a track, covers a product, or replaces a critical missing specialist.",
+    watch: "Coverage badges like Field-ops, Product, Policy, Security, and Orbital explain why a hire matters beyond raw stats.",
+  },
+  {
+    title: "Dilemmas Are Memory",
+    summary: "Dilemmas are not popups. They are permanent history that can tilt endings and future pressure.",
+    points: [
+      "Each option shows possible outcome branches and odds. When you commit, the game rolls one branch and applies its effects.",
+      "Trust, fear, board confidence, ethics debt, and government dependence can all move because of decisions.",
+      "AI narrative, scene art, voice, and optional cinematics add atmosphere, but deterministic rules still decide the game.",
+    ],
+    action: "Before choosing, compare both the likely branch and the worst branch. A 'safe' option may still have strategic cost.",
+    watch: "After a decision, read the result modal. It shows the hidden roll, the realized branch, and the numbers that changed.",
+  },
+  {
+    title: "Winning The Race",
     summary: "The game ends through trajectories, not a single score target.",
     points: [
       "Beneficial ASI now means reaching Foundation L6: Artificial Superintelligence with strong alignment, trust, and enough public legitimacy to keep control.",
       "Other endings include catastrophic misalignment, regulatory capture, irrelevance, corporate dystopia, transcendence, simulation revelation, and open future.",
       "Finance now also tracks founder control and funding rounds, because raising money can save the lab while changing who really steers it. Different endings unlock new starting conditions back on the main menu.",
     ],
-  },
-  {
-    title: "Dilemmas and Voice",
-    summary: "Decisions are logged, can shift endings, and can now be narrated out loud.",
-    points: [
-      "The decision log in the briefing panel remembers your calls and impact lines.",
-      "Production AI adds narrative flavor and scene art only. The deterministic simulation runs with or without it.",
-      "OpenAI voice can read your quarterly summary using a high-quality narration voice if you activate it in Settings.",
-    ],
+    action: "Pick a strategic identity: safety-first steward, revenue machine, state partner, open-science lab, or accelerationist frontier shop.",
+    watch: "Rival trajectories show who might beat you to capability, public trust, or catastrophic recklessness.",
   },
 ];
 
@@ -1329,13 +1356,13 @@ function TutorialOverlay({ open, onClose }: { open: boolean; onClose: () => void
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/78 p-4 backdrop-blur-sm"
+          className="absolute inset-0 z-30 overflow-y-auto bg-slate-950/78 p-4 py-6 backdrop-blur-sm"
         >
           <motion.div
             initial={{ y: 18, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 12, opacity: 0 }}
-            className="w-full max-w-5xl rounded-[32px] border border-white/10 bg-[#081021]/96 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)]"
+            className="mx-auto w-full max-w-5xl rounded-[32px] border border-white/10 bg-[#081021]/96 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)]"
           >
             <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
               <div className="rounded-[28px] border border-white/10 bg-white/4 p-4">
@@ -1383,6 +1410,16 @@ function TutorialOverlay({ open, onClose }: { open: boolean; onClose: () => void
                       {point}
                     </div>
                   ))}
+                </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-[22px] border border-emerald-400/18 bg-emerald-500/10 px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200">Do This</p>
+                    <p className="mt-2 text-sm leading-6 text-emerald-50">{slide.action}</p>
+                  </div>
+                  <div className="rounded-[22px] border border-amber-400/18 bg-amber-500/10 px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-amber-200">Watch This</p>
+                    <p className="mt-2 text-sm leading-6 text-amber-50">{slide.watch}</p>
+                  </div>
                 </div>
                 <div className="mt-6 flex items-center justify-between gap-3">
                   <button

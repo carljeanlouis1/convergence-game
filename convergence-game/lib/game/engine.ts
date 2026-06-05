@@ -2450,7 +2450,7 @@ export const advanceTurn = (current: GameState) => {
     financeDelta: Number((state.resources.capital - financeBefore).toFixed(2)),
   };
   state.panel = "briefing";
-  state.tutorialStep = clamp(state.tutorialStep + 1, 0, 4);
+  state.tutorialStep = clamp(state.tutorialStep + 1, 0, tutorialNotes.length);
   state.activeDilemma = selectDilemma(state);
   state.activeDilemmaSource = state.activeDilemma?.brief ?? null;
   state.ending = evaluateEnding(state);
@@ -2726,8 +2726,12 @@ export const availableBuildOptions = (state: GameState) =>
   );
 
 export const tutorialNotes = [
-  "Start by stabilizing runway. Simulation Modeling is your safest early revenue engine.",
-  "Hire to unlock tracks. Robotics, biology, materials, quantum, and space stay dark until you bring in the right people.",
-  "Capability without alignment will move faster, but it will also spike AI Fear and board risk.",
-  "Use facilities sparingly in the first ten turns. Overbuilding data centers can kill a good opening.",
+  "First quarter: assign eligible talent, allocate compute, and make sure at least one research ETA is moving.",
+  "Before ending a turn, read Command Guidance. It highlights blockers, but you can override it when you understand the tradeoff.",
+  "If an ETA looks flat, check Forecast Pace and the progress needed to cut the ETA by one quarter.",
+  "Your safest early revenue usually comes from Simulation or the first commercialization path your roster can actually cover.",
+  "Hiring is strategic: look for track unlocks, product coverage badges, or specialists needed by the next research stage.",
+  "Products reserve service compute immediately. Launching revenue can slow research if the cluster is overcommitted.",
+  "Build facilities when compute is repeatedly bottlenecking research or product launches, not just because cash is available.",
+  "Dilemmas are permanent memory. Read the odds, then read the result modal to see which branch actually landed.",
 ];
