@@ -2638,6 +2638,118 @@ export function ConvergenceApp() {
     panel: PanelId;
     tone: "bad" | "focus" | "good" | "neutral";
   }>;
+  const researchDueNextQuarter = TRACK_DEFINITIONS.map((track) => {
+    const trackState = store.tracks[track.id];
+    const forecast = getTrackForecast(store, track.id);
+
+    return {
+      track,
+      forecast,
+      due:
+        trackState.unlocked &&
+        !forecast.blockedReason &&
+        forecast.turnsToLevel === 1 &&
+        forecast.projectName !== "Completed",
+    };
+  }).filter((entry) => entry.due);
+  const buildsDueNextQuarter = store.projects.filter((project) => project.turnsRemaining <= 1);
+  const productsDueNextQuarter = store.commercializationPrograms.filter(
+    (program) => program.status === "launching" && program.turnsRemaining <= 1,
+  );
+  const projectedCapitalAfterQuarter = Number((store.resources.capital + quarterlyNet).toFixed(1));
+  const nextQuarterPreview = [
+    store.activeDilemma
+      ? {
+          label: "Clock Paused",
+          value: "Resolve crisis first",
+          detail: "The quarter cannot advance until the active dilemma has a committed answer.",
+          tone: "bad" as const,
+        }
+      : null,
+    researchDueNextQuarter.length
+      ? {
+          label: "Breakthrough Watch",
+          value:
+            researchDueNextQuarter.length === 1
+              ? `${researchDueNextQuarter[0].track.shortName} may level`
+              : `${researchDueNextQuarter.length} research payoffs`,
+          detail:
+            researchDueNextQuarter.length === 1
+              ? `${researchDueNextQuarter[0].forecast.projectName} should finish if staffing and compute hold.`
+              : researchDueNextQuarter
+                  .slice(0, 3)
+                  .map((entry) => entry.track.shortName)
+                  .join(", "),
+          tone: "good" as const,
+        }
+      : null,
+    productsDueNextQuarter.length
+      ? {
+          label: "Revenue Watch",
+          value:
+            productsDueNextQuarter.length === 1
+              ? `${productsDueNextQuarter[0].name} goes live`
+              : `${productsDueNextQuarter.length} products go live`,
+          detail: `Expected new quarterly revenue: ${formatCurrency(
+            productsDueNextQuarter.reduce((sum, program) => sum + program.quarterlyRevenue, 0),
+          )}.`,
+          tone: "good" as const,
+        }
+      : null,
+    store.pendingHires.length
+      ? {
+          label: "Talent Arrival",
+          value:
+            store.pendingHires.length === 1
+              ? `${store.pendingHires[0].name} arrives`
+              : `${store.pendingHires.length} hires arrive`,
+          detail: `New payroll starts next quarter: ${formatCurrency(pendingHirePayroll)}.`,
+          tone: "focus" as const,
+        }
+      : null,
+    buildsDueNextQuarter.length
+      ? {
+          label: "Build Completion",
+          value:
+            buildsDueNextQuarter.length === 1
+              ? `${buildsDueNextQuarter[0].name} online`
+              : `${buildsDueNextQuarter.length} facilities online`,
+          detail: `Capacity increase: +${buildsDueNextQuarter.reduce(
+            (sum, project) => sum + project.computeDelta,
+            0,
+          )} PFLOPS.`,
+          tone: "focus" as const,
+        }
+      : null,
+    quarterlyNet < 0
+      ? {
+          label: "Cash Burn",
+          value: `${formatCurrency(Math.abs(quarterlyNet))} burn`,
+          detail: `Projected capital after next quarter: ${formatCurrency(projectedCapitalAfterQuarter)}.`,
+          tone: store.resources.runwayMonths < 10 ? ("bad" as const) : ("neutral" as const),
+        }
+      : null,
+    !researchDueNextQuarter.length &&
+    !productsDueNextQuarter.length &&
+    !store.pendingHires.length &&
+    !buildsDueNextQuarter.length &&
+    quarterlyNet >= 0 &&
+    !store.activeDilemma
+      ? {
+          label: "Steady Quarter",
+          value: "Progress advances",
+          detail: "Research, rivals, and world pressure will tick forward. Set up a payoff before ending the turn if you want a stronger hook.",
+          tone: "neutral" as const,
+        }
+      : null,
+  ]
+    .filter(Boolean)
+    .slice(0, 5) as Array<{
+    label: string;
+    value: string;
+    detail: string;
+    tone: "bad" | "focus" | "good" | "neutral";
+  }>;
   const oneMoreTurnReady = !store.activeDilemma && priorityObjectives.every((objective) => objective.tone !== "bad");
   const sceneArtModeSummary = serverSceneArtReady
     ? "Scene art is ready, but only generates when you click the button."
@@ -4355,6 +4467,35 @@ export function ConvergenceApp() {
                       The board is calm, the lab is staffed, and the clock can move when you are ready.
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="mission-card rounded-[28px] border-sky-400/18 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Next Quarter Preview</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      These are the payoffs and pressures most likely to matter when you press End Turn.
+                    </p>
+                  </div>
+                  <SignalChip label={`${nextQuarterPreview.length} hooks`} tone={store.activeDilemma ? "bad" : "focus"} />
+                </div>
+                <div className="mt-4 space-y-2">
+                  {nextQuarterPreview.map((item, index) => (
+                    <div
+                      key={`${item.label}-${index}`}
+                      className="rounded-2xl border border-white/8 bg-slate-950/58 px-3 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="min-w-0">
+                          <span className="block text-[11px] uppercase tracking-[0.2em] text-slate-500">{item.label}</span>
+                          <span className="mt-1 block text-sm font-medium text-white">{item.value}</span>
+                        </span>
+                        <SignalChip label={`0${index + 1}`} tone={item.tone} />
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-400">{item.detail}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
