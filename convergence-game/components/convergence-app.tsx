@@ -2857,6 +2857,44 @@ export function ConvergenceApp() {
   ];
   const readyCheckCount = turnReadinessChecks.filter((check) => check.tone === "good").length;
   const urgentCheckCount = turnReadinessChecks.filter((check) => check.tone === "bad").length;
+  const openingPlaybookActive = store.preset === "founder" && store.turn <= 4;
+  const openingPlaybookSteps = [
+    {
+      label: "Confirm a moving lane",
+      detail:
+        selectedForecast.progressPerTurn > 0
+          ? `${getTrackLabel(store.selectedTrack)} is gaining +${selectedForecast.progressPerTurn}/Q toward ${selectedForecast.projectName}.`
+          : selectedForecast.blockedReason ?? "Open Research and put staff plus compute behind one starter lane.",
+      panel: "track" as PanelId,
+      tone: selectedForecast.progressPerTurn > 0 ? ("good" as const) : ("bad" as const),
+    },
+    {
+      label: "Aim at a payoff",
+      detail: nearResearchPayoff
+        ? `${selectedForecast.projectName} is within ${formatTurns(selectedForecast.turnsToLevel)}. Stay focused if you want the hook to land.`
+        : "Push one starter track until an ETA is close enough that you want to see the next quarter resolve.",
+      panel: "track" as PanelId,
+      tone: nearResearchPayoff ? ("good" as const) : ("focus" as const),
+    },
+    {
+      label: "Keep the lab alive",
+      detail:
+        store.resources.runwayMonths >= 12
+          ? `${store.resources.runwayMonths} months of runway gives you room to make one ambitious commitment.`
+          : `${store.resources.runwayMonths} months of runway is tight. Check Finance before adding burn.`,
+      panel: "finance" as PanelId,
+      tone: store.resources.runwayMonths >= 12 ? ("good" as const) : ("warn" as const),
+    },
+    {
+      label: "Preview the next hook",
+      detail: hasNextQuarterHook
+        ? nextQuarterPreview[0]?.detail ?? "A visible payoff or pressure is queued for the next quarter."
+        : "Before ending the turn, try to set up a hire, build, product, or near-term research payoff.",
+      panel: hasNextQuarterHook ? ("briefing" as PanelId) : ("track" as PanelId),
+      tone: hasNextQuarterHook ? ("good" as const) : ("warn" as const),
+    },
+  ];
+  const openingReadyCount = openingPlaybookSteps.filter((step) => step.tone === "good").length;
   const oneMoreTurnReady = !store.activeDilemma && priorityObjectives.every((objective) => objective.tone !== "bad");
   const sceneArtModeSummary = serverSceneArtReady
     ? "Scene art is ready, but only generates when you click the button."
@@ -4540,6 +4578,36 @@ export function ConvergenceApp() {
                   </div>
                 </div>
               </div>
+
+              {openingPlaybookActive ? (
+                <div className="mission-card rounded-[28px] border-amber-400/16 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-amber-200">Opening Playbook</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        Your first turns should create one clear payoff, not touch every system at once.
+                      </p>
+                    </div>
+                    <SignalChip label={`${openingReadyCount}/${openingPlaybookSteps.length} set`} tone={openingReadyCount >= 3 ? "good" : "focus"} />
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    {openingPlaybookSteps.map((step, index) => (
+                      <button
+                        key={step.label}
+                        type="button"
+                        onClick={() => store.openPanel(step.panel)}
+                        className="flex w-full items-start justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3 text-left transition hover:border-amber-300/25 hover:bg-amber-500/8"
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-white">{index + 1}. {step.label}</span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-400">{step.detail}</span>
+                        </span>
+                        <SignalChip label={step.tone === "good" ? "Set" : step.tone === "bad" ? "Fix" : "Tune"} tone={step.tone} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mission-card rounded-[28px] p-5">
                 <div className="flex items-start justify-between gap-3">
