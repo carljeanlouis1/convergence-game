@@ -3878,6 +3878,62 @@ export function ConvergenceApp() {
     : primaryNextQuarterHook
       ? `${primaryNextQuarterHook.label}: ${primaryNextQuarterHook.detail}`
       : "No sharp payoff is queued yet. You can still advance, but a focused commitment will make the next turn stronger.";
+  const urgentLaunchCheck = turnReadinessChecks.find((check) => check.tone === "bad");
+  const watchLaunchCheck = turnReadinessChecks.find((check) => check.tone === "warn" || check.tone === "focus");
+  const launchReadinessScore = clampMetric(
+    (readyCheckCount / Math.max(turnReadinessChecks.length, 1)) * 100 -
+      urgentCheckCount * 18 +
+      (primaryNextQuarterHook ? 10 : 0) +
+      (primaryMandate?.tone === "bad" ? -12 : primaryMandate?.tone === "good" ? 8 : 0),
+  );
+  const launchPullLabel =
+    store.activeDilemma
+      ? "Clock locked"
+      : primaryNextQuarterHook
+        ? primaryNextQuarterHook.value
+        : primaryTimelineEvent.title;
+  const launchPullVerb =
+    primaryNextQuarterHook?.tone === "good" || primaryNextQuarterHook?.tone === "focus"
+      ? "Chase"
+      : primaryNextQuarterHook?.tone === "bad"
+        ? "Resolve"
+        : primaryNextQuarterHook
+          ? "Watch"
+          : "Advance";
+  const launchPrimaryLabel =
+    primaryNextQuarterHook?.tone === "good"
+      ? "Likely payoff"
+      : primaryNextQuarterHook?.tone === "bad" || primaryNextQuarterHook?.tone === "neutral"
+        ? "Next pressure"
+        : "Next beat";
+  const launchCommandCards = [
+    {
+      label: launchPrimaryLabel,
+      value: launchPullLabel,
+      detail: primaryNextQuarterHook?.detail ?? primaryTimelineEvent.detail,
+      panel: primaryNextQuarterHook?.panel ?? primaryTimelineEvent.panel,
+      tone: primaryNextQuarterHook?.tone ?? primaryTimelineEvent.tone,
+    },
+    {
+      label: "Active risk",
+      value: urgentLaunchCheck?.label ?? watchLaunchCheck?.label ?? "No red blocker",
+      detail:
+        urgentLaunchCheck?.detail ??
+        watchLaunchCheck?.detail ??
+        "The cockpit is green enough to advance, but the world will still move.",
+      panel: urgentLaunchCheck?.panel ?? watchLaunchCheck?.panel ?? ("briefing" as PanelId),
+      tone: urgentLaunchCheck?.tone ?? watchLaunchCheck?.tone ?? ("good" as const),
+    },
+    {
+      label: "Mandate pressure",
+      value: primaryMandate?.title ?? "No mandate pressure",
+      detail: primaryMandate
+        ? `${primaryMandate.requirement} Payoff: ${primaryMandate.payoff}`
+        : "No board mandate is pressing harder than the normal quarter loop.",
+      panel: primaryMandate?.panel ?? ("briefing" as PanelId),
+      tone: primaryMandate?.tone ?? ("neutral" as const),
+    },
+  ];
   const afterActionReport = [
     {
       label: "Quarter Result",
@@ -6379,6 +6435,51 @@ export function ConvergenceApp() {
                   </div>
                   <SignalChip label={quarterLaunchLabel} tone={quarterLaunchTone} />
                 </div>
+                <div className="mt-4 rounded-[24px] border border-sky-400/16 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.76),rgba(5,10,22,0.82))] p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-sky-100">Launch Command</p>
+                      <h4 className="mt-2 text-lg font-semibold text-white">{launchPullLabel}</h4>
+                      <p className="mt-2 text-xs leading-5 text-slate-400">
+                        This is the next-quarter contract: a payoff to chase, a pressure to watch, and a mandate to remember.
+                      </p>
+                    </div>
+                    <SignalChip label={`${launchReadinessScore}/100 ready`} tone={quarterLaunchTone} />
+                  </div>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/8">
+                    <div
+                      className={`h-full rounded-full ${
+                        quarterLaunchTone === "good"
+                          ? "bg-emerald-300"
+                          : quarterLaunchTone === "bad"
+                            ? "bg-rose-300"
+                            : quarterLaunchTone === "warn"
+                              ? "bg-amber-300"
+                              : "bg-sky-300"
+                      }`}
+                      style={{ width: `${Math.max(4, launchReadinessScore)}%` }}
+                    />
+                  </div>
+                  <div className="mt-4 grid gap-2 lg:grid-cols-3">
+                    {launchCommandCards.map((card) => (
+                      <button
+                        key={card.label}
+                        type="button"
+                        onClick={() => store.openPanel(card.panel)}
+                        className="rounded-2xl border border-white/8 bg-slate-950/58 px-3 py-3 text-left transition hover:border-sky-300/25 hover:bg-sky-500/8"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block text-[10px] uppercase tracking-[0.2em] text-sky-100">{card.label}</span>
+                            <span className="mt-1 block text-sm font-semibold text-white">{card.value}</span>
+                          </span>
+                          <SignalChip label={card.tone === "bad" ? "Risk" : card.tone === "good" ? "Ready" : card.tone === "warn" ? "Watch" : "Hook"} tone={card.tone} />
+                        </div>
+                        <p className="mt-2 line-clamp-4 text-xs leading-5 text-slate-400">{card.detail}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <button
                     type="button"
@@ -6424,7 +6525,14 @@ export function ConvergenceApp() {
                     className="inline-flex items-center justify-center gap-2 rounded-2xl border border-sky-300/55 bg-sky-400/18 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_60px_rgba(56,189,248,0.14)] transition hover:border-sky-200/70 hover:bg-sky-400/24 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500 sm:col-span-2"
                   >
                     <Play className="h-4 w-4" />
-                    {store.activeDilemma ? "Resolve Dilemma To Advance" : isPending ? "Advancing Quarter..." : "End Turn - Advance Quarter"}
+                    <span className="flex flex-col items-center leading-none">
+                      <span>{store.activeDilemma ? "Resolve Dilemma To Advance" : isPending ? "Advancing Quarter..." : "Launch Next Quarter"}</span>
+                      {!store.activeDilemma && !isPending ? (
+                        <span className="mt-1 text-[11px] font-normal uppercase tracking-[0.18em] text-sky-100">
+                          {launchPullVerb}: {launchPullLabel}
+                        </span>
+                      ) : null}
+                    </span>
                   </button>
                 </div>
                 <div className="mt-4 rounded-[22px] border border-white/8 bg-slate-950/45 p-3">
