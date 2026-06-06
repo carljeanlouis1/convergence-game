@@ -2857,6 +2857,53 @@ export function ConvergenceApp() {
   ];
   const readyCheckCount = turnReadinessChecks.filter((check) => check.tone === "good").length;
   const urgentCheckCount = turnReadinessChecks.filter((check) => check.tone === "bad").length;
+  const afterActionReport = [
+    {
+      label: "Quarter Result",
+      value: store.resolution?.headline ?? "Opening briefing assembled",
+      detail:
+        store.resolution?.briefing ??
+        "The lab is alive, funded, and waiting for the first decisive commitment.",
+      tone: quarterMomentumScore >= 62 ? ("good" as const) : quarterMomentumScore < 44 ? ("warn" as const) : ("focus" as const),
+    },
+    {
+      label: "Research Signal",
+      value: breakthroughCount
+        ? `${breakthroughCount} breakthrough${breakthroughCount === 1 ? "" : "s"}`
+        : movingResearch.length
+          ? `${movingResearch.length} lane${movingResearch.length === 1 ? "" : "s"} moving`
+          : "No active progress",
+      detail:
+        store.resolution?.breakthroughs[0] ??
+        (movingResearch.length
+          ? `${movingResearch[0].track.shortName} is gaining +${movingResearch[0].forecast.progressPerTurn}/Q.`
+          : stalledResearch[0]?.forecast.blockedReason ?? "Open Research and create motion before the clock advances."),
+      tone: breakthroughCount || movingResearch.length ? ("good" as const) : ("bad" as const),
+    },
+    {
+      label: "Ledger Impact",
+      value: `${quarterlyNet >= 0 ? "+" : ""}${formatCurrency(quarterlyNet)}`,
+      detail:
+        quarterlyNet >= 0
+          ? "Revenue currently covers burn. You can decide how much ambition to buy."
+          : `The lab is burning ${formatCurrency(Math.abs(quarterlyNet))} per quarter. Keep the payoff clock visible.`,
+      tone: quarterlyNet >= 0 ? ("good" as const) : store.resources.runwayMonths < 12 ? ("bad" as const) : ("warn" as const),
+    },
+    {
+      label: "Race Pressure",
+      value: `Rank #${playerRank}`,
+      detail: topRivalMove,
+      tone: playerRank <= 2 ? ("good" as const) : playerRank <= 4 ? ("focus" as const) : ("warn" as const),
+    },
+    {
+      label: "Next Hook",
+      value: nextQuarterPreview[0]?.value ?? "Create one",
+      detail:
+        nextQuarterPreview[0]?.detail ??
+        "Set up a visible payoff before ending the turn: a near ETA, a hire, a build, or a product launch.",
+      tone: nextQuarterPreview[0]?.tone ?? ("warn" as const),
+    },
+  ];
   const openingPlaybookActive = store.preset === "founder" && store.turn <= 4;
   const openingPlaybookSteps = [
     {
@@ -5096,6 +5143,29 @@ export function ConvergenceApp() {
                         {sceneArtStatus.message}
                       </div>
                     ) : null}
+                    <div className="mt-4 rounded-[24px] border border-white/8 bg-slate-950/48 p-4">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.22em] text-slate-400">After Action Report</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-400">
+                            Read this first after a quarter resolves: what happened, what it changed, and why the next turn is tempting.
+                          </p>
+                        </div>
+                        <SignalChip label={`${quarterMomentumLabel} run`} tone={quarterMomentumScore >= 62 ? "good" : quarterMomentumScore < 44 ? "warn" : "focus"} />
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                        {afterActionReport.map((item) => (
+                          <div key={item.label} className="rounded-[20px] border border-white/8 bg-slate-950/65 p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{item.label}</p>
+                              <SignalChip label={item.tone === "good" ? "Up" : item.tone === "bad" ? "Risk" : item.tone === "warn" ? "Watch" : "Signal"} tone={item.tone} />
+                            </div>
+                            <p className="mt-3 text-sm font-semibold text-white">{item.value}</p>
+                            <p className="mt-2 text-xs leading-5 text-slate-400">{item.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                     <div className="mt-4 rounded-[24px] border border-sky-400/18 bg-sky-500/10 p-4">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
