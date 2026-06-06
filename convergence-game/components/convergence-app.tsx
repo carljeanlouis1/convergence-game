@@ -157,6 +157,7 @@ const TRACK_MAP_LAYOUT_KEY = "convergence-v4-track-map-layout";
 
 const DEFAULT_SECTION_OPEN: Record<string, boolean> = {
   "briefing-feed": true,
+  "briefing-chronicle": true,
   "briefing-pulse": true,
   "briefing-memory": false,
   "briefing-result": true,
@@ -3874,6 +3875,124 @@ export function ConvergenceApp() {
     panel: PanelId;
   };
   const quarterDebriefCtaValue = quarterDebriefCtaDisplay.value ?? quarterDebriefCtaDisplay.label ?? "Next move";
+  const runChronicleCards = ([
+    sceneArtUrl
+      ? {
+          id: `scene-art-${sceneArtScope ?? "moment"}-${store.turn}`,
+          label: "Visual memory",
+          title: sceneArtScope === "dilemma" ? "Crisis scene generated" : "Briefing scene generated",
+          detail: "This moment has AI scene art attached. Use it as the visual anchor for the current story beat.",
+          panel: sceneArtScope === "dilemma" ? ("dilemmas" as PanelId) : ("briefing" as PanelId),
+          tone: "good" as const,
+        }
+      : null,
+    cinematicVideoUrl
+      ? {
+          id: `cinematic-${store.turn}`,
+          label: "Cinematic memory",
+          title: "Seedance render ready",
+          detail: `A ${cinematicDuration}s optional cinematic is available for this moment. Save it mentally as the campaign trailer beat.`,
+          panel: cinematicJob?.scope === "dilemma" ? ("dilemmas" as PanelId) : ("briefing" as PanelId),
+          tone: "focus" as const,
+        }
+      : null,
+    store.lastDilemmaResolution
+      ? {
+          id: store.lastDilemmaResolution.id,
+          label: "Decision scar",
+          title: store.lastDilemmaResolution.outcomeLabel,
+          detail: `${store.lastDilemmaResolution.optionLabel}: ${store.lastDilemmaResolution.impact}`,
+          panel: "briefing" as PanelId,
+          tone: store.lastDilemmaResolution.metrics.some((metric) => metric.delta < 0) ? ("warn" as const) : ("focus" as const),
+        }
+      : null,
+    store.resolution
+      ? {
+          id: `quarter-${store.resolution.turn}`,
+          label: "Quarter archived",
+          title: store.resolution.headline,
+          detail:
+            store.resolution.worldEvents[0] ??
+            store.resolution.briefing ??
+            "A quiet quarter still moved research, rivals, and runway forward.",
+          panel: "briefing" as PanelId,
+          tone: quarterMomentumScore >= 62 ? ("good" as const) : quarterMomentumScore < 44 ? ("warn" as const) : ("focus" as const),
+        }
+      : null,
+    ...(store.resolution?.breakthroughs ?? []).slice(0, 3).map((breakthrough, index) => ({
+      id: `chronicle-breakthrough-${store.resolution?.turn ?? store.turn}-${index}`,
+      label: "Discovery",
+      title: breakthrough.split(":")[0] || "Breakthrough",
+      detail: breakthrough,
+      panel: "track" as PanelId,
+      tone: "good" as const,
+    })),
+    ...store.decisionLog.slice(0, 2).map((entry) => ({
+      id: `chronicle-decision-${entry.id}`,
+      label: "Decision memory",
+      title: entry.title,
+      detail: `${entry.choice} -> ${entry.outcome}. ${entry.impact}`,
+      panel: "briefing" as PanelId,
+      tone: "focus" as const,
+    })),
+    ...store.commercializationPrograms
+      .slice()
+      .sort((left, right) => (left.status === "live" ? -1 : 1) - (right.status === "live" ? -1 : 1))
+      .slice(0, 3)
+      .map((program) => ({
+        id: `chronicle-program-${program.id}`,
+        label: program.status === "live" ? "Revenue line" : "Launch in motion",
+        title: program.name,
+        detail:
+          program.status === "live"
+            ? `${formatCurrency(program.quarterlyRevenue)} recurring revenue while reserving ${program.computeDemand} PFLOPS.`
+            : `${program.turnsRemaining}Q until launch, with ${program.computeDemand} PFLOPS reserved for service readiness.`,
+        panel: "track" as PanelId,
+        tone: program.status === "live" ? ("good" as const) : ("focus" as const),
+      })),
+    ...store.projects.slice(0, 2).map((project) => ({
+      id: `chronicle-project-${project.id}`,
+      label: "Build promise",
+      title: project.name,
+      detail: `${project.turnsRemaining}Q until ${project.region} adds ${project.computeDelta} PFLOPS.`,
+      panel: "facilities" as PanelId,
+      tone: "neutral" as const,
+    })),
+    ...store.pendingHires.slice(0, 2).map((hire) => ({
+      id: `chronicle-hire-${hire.id}`,
+      label: "Talent promise",
+      title: `${hire.name} signed`,
+      detail: `${hire.role} arrives next quarter and adds ${formatCurrency(hire.salary / 4)} quarterly payroll.`,
+      panel: "hiring" as PanelId,
+      tone: "focus" as const,
+    })),
+    primaryRivalThreat
+      ? {
+          id: `chronicle-rival-${primaryRivalThreat.id}`,
+          label: "Rival pressure",
+          title: primaryRivalThreat.name,
+          detail: primaryRivalThreat.counter,
+          panel: primaryRivalThreat.panel,
+          tone: primaryRivalThreat.tone,
+        }
+      : null,
+    {
+      id: "chronicle-next-hook",
+      label: "Next episode",
+      title: primaryNextQuarterHook?.value ?? commandPriority.label,
+      detail: primaryNextQuarterHook?.detail ?? commandPriority.message,
+      panel: primaryNextQuarterHook?.panel ?? store.panel,
+      tone: primaryNextQuarterHook?.tone ?? (commandPriority.tone === "rose" ? ("bad" as const) : commandPriority.tone === "amber" ? ("warn" as const) : ("focus" as const)),
+    },
+  ].filter(Boolean) as Array<{
+    id: string;
+    label: string;
+    title: string;
+    detail: string;
+    panel: PanelId;
+    tone: "bad" | "focus" | "good" | "neutral" | "warn";
+  }>).slice(0, 9);
+  const runChronicleFocus = runChronicleCards[0];
   const scienceMilestoneCards = CONVERGENCES.filter(
     (convergence) => !store.convergences.some((triggered) => triggered.id === convergence.id),
   )
@@ -6739,6 +6858,71 @@ export function ConvergenceApp() {
                     </div>
                     {renderCinematicControls("briefing")}
                   </div>
+
+                  <CollapsibleSection
+                    title="Run Chronicle"
+                    subtitle="Campaign-memory cards for the moments that make this run feel worth continuing."
+                    open={isSectionOpen("briefing-chronicle")}
+                    onToggle={() => toggleSection("briefing-chronicle")}
+                    actions={<SignalChip label={`${runChronicleCards.length} memories`} tone={runChronicleFocus?.tone ?? "focus"} />}
+                    className="border-cyan-400/14 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_32%),linear-gradient(180deg,rgba(8,16,34,0.88),rgba(5,10,22,0.86))]"
+                  >
+                    <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,1.28fr)]">
+                      <div className="rounded-[24px] border border-cyan-400/16 bg-cyan-500/8 p-4">
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-100">Campaign Memory</p>
+                        <h3 className="mt-3 text-2xl font-semibold text-white">
+                          {runChronicleFocus?.title ?? "No memory yet"}
+                        </h3>
+                        <p className="mt-3 text-sm leading-7 text-slate-300">
+                          {runChronicleFocus?.detail ??
+                            "Create the first memorable beat by finishing research, resolving a dilemma, launching revenue, hiring a star, or generating scene art."}
+                        </p>
+                        <div className="mt-4 grid gap-2">
+                          <div className="rounded-2xl border border-white/8 bg-slate-950/62 px-3 py-3">
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Decisions logged</p>
+                            <p className="mt-2 text-lg font-semibold text-white">{store.decisionLog.length}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-slate-950/62 px-3 py-3">
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Products / builds</p>
+                            <p className="mt-2 text-lg font-semibold text-white">
+                              {store.commercializationPrograms.length} / {store.projects.length}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/8 bg-slate-950/62 px-3 py-3">
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Visual beat</p>
+                            <p className="mt-2 text-sm font-semibold text-white">
+                              {cinematicVideoUrl ? "Cinematic ready" : sceneArtUrl ? "Scene art ready" : serverSceneArtReady ? "Manual art ready" : "Standby"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {runChronicleCards.map((card, index) => (
+                          <motion.button
+                            key={card.id}
+                            type="button"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.035 }}
+                            onClick={() => store.openPanel(card.panel)}
+                            className="group rounded-[22px] border border-white/8 bg-slate-950/58 p-4 text-left transition hover:border-cyan-300/25 hover:bg-cyan-500/8"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="min-w-0">
+                                <span className="block text-[10px] uppercase tracking-[0.2em] text-cyan-100">{card.label}</span>
+                                <span className="mt-2 block text-sm font-semibold text-white">{card.title}</span>
+                              </span>
+                              <SignalChip label={`0${index + 1}`} tone={card.tone} />
+                            </div>
+                            <p className="mt-3 line-clamp-4 text-xs leading-5 text-slate-400">{card.detail}</p>
+                            <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-slate-500 group-hover:text-cyan-100">
+                              Open {panelGuideLabel(card.panel)}
+                            </p>
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+                  </CollapsibleSection>
 
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
                     <CollapsibleSection
