@@ -2726,7 +2726,8 @@ export const availableBuildOptions = (state: GameState) =>
   );
 
 export const tutorialNotes = [
-  "First quarter: assign eligible talent, allocate compute, and make sure at least one research ETA is moving.",
+  "First quarter: open Research, assign eligible talent, allocate compute, and make sure at least one ETA is moving.",
+  "Use the Full Guide's Quarter Cockpit if you feel lost: read the quarter, create research motion, protect runway, fix bottlenecks, then build ahead.",
   "Before ending a turn, read Command Guidance. It highlights blockers, but you can override it when you understand the tradeoff.",
   "If an ETA looks flat, check Forecast Pace and the progress needed to cut the ETA by one quarter.",
   "Your safest early revenue usually comes from Simulation or the first commercialization path your roster can actually cover.",

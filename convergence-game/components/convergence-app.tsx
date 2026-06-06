@@ -148,6 +148,10 @@ const NAV_PANELS: Array<{ id: PanelId; label: string; icon: typeof BrainCircuit 
   { id: "settings", label: "AI", icon: Handshake },
 ];
 
+function panelGuideLabel(panel: PanelId) {
+  return NAV_PANELS.find((entry) => entry.id === panel)?.label ?? "Decision";
+}
+
 const LAYOUT_PREFS_KEY = "convergence-layout-v3";
 const TRACK_MAP_LAYOUT_KEY = "convergence-v4-track-map-layout";
 
@@ -211,6 +215,9 @@ const tutorialSlides = [
     ],
     action: "Turn 1: assign talent to Foundation, Alignment, or Simulation, then put enough compute on the selected track to make the ETA move.",
     watch: "The left rail is your heartbeat: runway, trust, fear, board confidence, and free compute.",
+    panel: "track" as PanelId,
+    clickTarget: "Open Research and make one starter lane move before touching the rest of the lab.",
+    dangerSign: "If every ETA says Awaiting staff or Stalled, the quarter will pass without a real capability hook.",
   },
   {
     title: "The One-More-Turn Loop",
@@ -222,6 +229,9 @@ const tutorialSlides = [
     ],
     action: "Use Command Guidance as a checklist, not a command. Ignore it only when you understand the tradeoff.",
     watch: "The strongest hook is usually the thing with a timer: low runway, ETA near completion, active dilemma, or contested talent.",
+    panel: "briefing" as PanelId,
+    clickTarget: "Open Briefing after every End Turn and read what changed before making the next commitment.",
+    dangerSign: "If you are ending turns without a timer, blocker, or payoff in mind, the run starts feeling random.",
   },
   {
     title: "Research Like XCOM",
@@ -233,6 +243,9 @@ const tutorialSlides = [
     ],
     action: "If ETA feels stuck, check Forecast Pace and 'To cut ETA by 1Q'. You may need more compute, better staff, or a sprint posture.",
     watch: "Bottleneck Scan explains why a track is slow: missing specialist, compute shortfall, governance pressure, or commercialization readiness.",
+    panel: "track" as PanelId,
+    clickTarget: "Use the Research map, then the assignment panel below it, to choose the lane and staff it.",
+    dangerSign: "If compute changes but ETA does not, read exact pace and the progress needed to cut ETA by one quarter.",
   },
   {
     title: "Money Is Time",
@@ -244,6 +257,9 @@ const tutorialSlides = [
     ],
     action: "If runway falls under 12 months, open Finance before ending the turn. If it falls under 8, treat cash as the main crisis.",
     watch: "Quarterly ledger, payroll, commercialization opex, and compute upkeep are the four numbers that explain most surprises.",
+    panel: "finance" as PanelId,
+    clickTarget: "Open Finance whenever runway drops under 12 months or a big build/hire is tempting.",
+    dangerSign: "High capability with low runway is not momentum. It is a countdown to a forced funding choice.",
   },
   {
     title: "Commercialize Deliberately",
@@ -255,6 +271,9 @@ const tutorialSlides = [
     ],
     action: "When a program is locked, read the blocker literally: hire coverage, free compute, finish a prerequisite, or raise capital.",
     watch: "Product compute competes with research compute. A profitable launch can still slow science if the cluster is overcommitted.",
+    panel: "track" as PanelId,
+    clickTarget: "Open Research, select the track, then inspect the commercialization graph and selected market path.",
+    dangerSign: "If a product is locked by coverage, hiring more generic scientists will not fix it. Hire the named badge.",
   },
   {
     title: "Build Like A Tycoon",
@@ -266,6 +285,9 @@ const tutorialSlides = [
     ],
     action: "Build when free compute is consistently low, product reserves are blocking launches, or a key research ETA needs acceleration.",
     watch: "Projected capacity, active projects, supplier multiplier, energy policy, and commercial reserve tell you whether expansion is worth it.",
+    panel: "facilities" as PanelId,
+    clickTarget: "Open Build when free compute is low or when product reserves are eating the research cluster.",
+    dangerSign: "A facility that arrives after the bottleneck has already cost you the race was started too late.",
   },
   {
     title: "Talent Is Strategy",
@@ -277,6 +299,9 @@ const tutorialSlides = [
     ],
     action: "Hire when the candidate solves a named bottleneck: unlocks a track, covers a product, or replaces a critical missing specialist.",
     watch: "Coverage badges like Field-ops, Product, Policy, Security, and Orbital explain why a hire matters beyond raw stats.",
+    panel: "hiring" as PanelId,
+    clickTarget: "Open Talent first to see your current assignments, then scroll into the market for missing coverage.",
+    dangerSign: "If a product says it needs Field Ops, Product, Policy, or Security, look for that badge before stats.",
   },
   {
     title: "Dilemmas Are Memory",
@@ -288,6 +313,9 @@ const tutorialSlides = [
     ],
     action: "Before choosing, compare both the likely branch and the worst branch. A 'safe' option may still have strategic cost.",
     watch: "After a decision, read the result modal. It shows the hidden roll, the realized branch, and the numbers that changed.",
+    panel: "briefing" as PanelId,
+    clickTarget: "Open Briefing or the active dilemma theater, then inspect odds, branches, and consequence chips.",
+    dangerSign: "If you only read the option title, you will miss the low-probability branch that can reshape the run.",
   },
   {
     title: "Winning The Race",
@@ -299,6 +327,47 @@ const tutorialSlides = [
     ],
     action: "Pick a strategic identity: safety-first steward, revenue machine, state partner, open-science lab, or accelerationist frontier shop.",
     watch: "Rival trajectories show who might beat you to capability, public trust, or catastrophic recklessness.",
+    panel: "briefing" as PanelId,
+    clickTarget: "Use Briefing and the left rail to compare your trajectory against rivals before committing the next quarter.",
+    dangerSign: "Trying to win every axis usually loses tempo. Choose which pressure you are willing to tolerate.",
+  },
+];
+
+const quarterCockpitSteps: Array<{
+  label: string;
+  panel: PanelId;
+  detail: string;
+  icon: typeof BrainCircuit;
+}> = [
+  {
+    label: "Read the quarter",
+    panel: "briefing",
+    detail: "Check world pulse, decision memory, and the newest consequence before touching controls.",
+    icon: Globe2,
+  },
+  {
+    label: "Create research motion",
+    panel: "track",
+    detail: "One lane needs assigned talent, enough compute, and a posture that fits the risk.",
+    icon: BrainCircuit,
+  },
+  {
+    label: "Protect runway",
+    panel: "finance",
+    detail: "If runway is under 12 months, finance is the main game until the next cash answer.",
+    icon: BarChart3,
+  },
+  {
+    label: "Fix named bottlenecks",
+    panel: "hiring",
+    detail: "Hire for unlocks and coverage badges, not just the highest-looking stat line.",
+    icon: Users,
+  },
+  {
+    label: "Expand before the wall",
+    panel: "facilities",
+    detail: "Build when free compute or product reserve is starting to constrain the next payoff.",
+    icon: Building2,
   },
 ];
 
@@ -1345,10 +1414,28 @@ function MenuCard({
   );
 }
 
-function TutorialOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+function TutorialOverlay({
+  open,
+  onClose,
+  onOpenPanel,
+  navigationEnabled = true,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onOpenPanel: (panel: PanelId) => void;
+  navigationEnabled?: boolean;
+}) {
   const [step, setStep] = useState(0);
 
   const slide = tutorialSlides[step];
+  const jumpToPanel = (panel: PanelId) => {
+    if (!navigationEnabled) {
+      return;
+    }
+
+    onOpenPanel(panel);
+    onClose();
+  };
 
   return (
     <AnimatePresence>
@@ -1387,6 +1474,32 @@ function TutorialOverlay({ open, onClose }: { open: boolean; onClose: () => void
                     </button>
                   ))}
                 </div>
+                <div className="mt-5 rounded-[24px] border border-emerald-400/15 bg-emerald-500/8 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200">Quarter Cockpit</p>
+                  <div className="mt-3 space-y-2">
+                    {quarterCockpitSteps.map((cockpitStep) => {
+                      const Icon = cockpitStep.icon;
+
+                      return (
+                        <button
+                          key={cockpitStep.label}
+                          type="button"
+                          disabled={!navigationEnabled}
+                          onClick={() => jumpToPanel(cockpitStep.panel)}
+                          className="flex w-full items-start gap-2 rounded-2xl border border-white/8 bg-slate-950/62 px-3 py-3 text-left text-xs leading-5 text-slate-300 transition hover:border-emerald-300/25 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 text-emerald-100">
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          <span>
+                            <span className="block font-medium text-white">{cockpitStep.label}</span>
+                            <span className="mt-1 block text-slate-500">{cockpitStep.detail}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
               <div className="min-w-0 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.12),transparent_34%),linear-gradient(180deg,rgba(10,18,38,0.94),rgba(7,12,28,0.96))] p-6">
                 <div className="flex items-start justify-between gap-4">
@@ -1420,6 +1533,25 @@ function TutorialOverlay({ open, onClose }: { open: boolean; onClose: () => void
                   <div className="rounded-[22px] border border-amber-400/18 bg-amber-500/10 px-4 py-4">
                     <p className="text-[11px] uppercase tracking-[0.2em] text-amber-200">Watch This</p>
                     <p className="mt-2 text-sm leading-6 text-amber-50">{slide.watch}</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    disabled={!navigationEnabled}
+                    onClick={() => jumpToPanel(slide.panel)}
+                    className="rounded-[22px] border border-sky-400/20 bg-sky-500/10 px-4 py-4 text-left transition hover:border-sky-300/35 hover:bg-sky-500/14 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-sky-200">
+                      {navigationEnabled ? "Click Next" : "After Launch"}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-sky-50">
+                      {navigationEnabled ? slide.clickTarget : `Start a run, then use this guide to jump straight into ${panelGuideLabel(slide.panel)}.`}
+                    </p>
+                  </button>
+                  <div className="rounded-[22px] border border-rose-400/18 bg-rose-500/10 px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-rose-200">Failure Sign</p>
+                    <p className="mt-2 text-sm leading-6 text-rose-50">{slide.dangerSign}</p>
                   </div>
                 </div>
                 <div className="mt-6 flex items-center justify-between gap-3">
@@ -4596,7 +4728,12 @@ export function ConvergenceApp() {
             ))}
           </div>
         </div>
-        <TutorialOverlay open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+        <TutorialOverlay
+          open={tutorialOpen}
+          onClose={() => setTutorialOpen(false)}
+          onOpenPanel={store.openPanel}
+          navigationEnabled={false}
+        />
       </main>
     );
   }
@@ -8417,7 +8554,7 @@ export function ConvergenceApp() {
         ) : null}
       </AnimatePresence>
 
-      <TutorialOverlay open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+      <TutorialOverlay open={tutorialOpen} onClose={() => setTutorialOpen(false)} onOpenPanel={store.openPanel} />
     </main>
   );
 }
