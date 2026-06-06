@@ -2259,6 +2259,8 @@ export function ConvergenceApp() {
           100,
       ),
       detail: `Needs Foundation L6, Alignment L5, Trust 58. You have L${store.tracks.foundation.level}, L${store.tracks.alignment.level}, Trust ${Math.round(store.resources.trust)}.`,
+      action: "Push Alignment and trust alongside Foundation before capability locks the story.",
+      panel: "track" as PanelId,
       tone: store.tracks.foundation.level >= 6 && store.tracks.alignment.level >= 5 && store.resources.trust >= 58 ? ("good" as const) : ("focus" as const),
     },
     {
@@ -2268,12 +2270,16 @@ export function ConvergenceApp() {
           Math.max(0, 2 - store.tracks.alignment.level) * 19,
       ),
       detail: `Danger rises when Foundation reaches L6 while Alignment is L1 or lower. Current gap: ${store.tracks.foundation.level - store.tracks.alignment.level}.`,
+      action: "Assign alignment talent, cut sprint posture, or delay Foundation until safety catches up.",
+      panel: "track" as PanelId,
       tone: store.tracks.foundation.level >= 4 && store.tracks.alignment.level <= 1 ? ("bad" as const) : ("warn" as const),
     },
     {
       label: "Regulatory Capture",
       score: clampMetric((store.flags.governmentDependence / 10) * 100),
       detail: `State dependence ending triggers at 10. Current dependence: ${store.flags.governmentDependence}.`,
+      action: "Avoid state-heavy funding and preserve independent commercial runway.",
+      panel: "finance" as PanelId,
       tone: store.flags.governmentDependence >= 8 ? ("bad" as const) : store.flags.governmentDependence >= 5 ? ("warn" as const) : ("neutral" as const),
     },
     {
@@ -2285,6 +2291,8 @@ export function ConvergenceApp() {
           100,
       ),
       detail: `Triggers from high revenue, ethics debt, and Foundation L4+. Revenue ${formatCurrency(store.resources.revenue)}, ethics debt ${store.flags.ethicsDebt}.`,
+      action: "Slow extractive commercialization, reduce ethics debt, or invest in trust before scaling revenue.",
+      panel: "finance" as PanelId,
       tone: store.flags.ethicsDebt >= 6 && store.resources.revenue >= 16 ? ("bad" as const) : ("warn" as const),
     },
     {
@@ -2293,6 +2301,8 @@ export function ConvergenceApp() {
         ((store.tracks.robotics.level / 4) + (store.tracks.space.level / 4) + (store.tracks.materials.level / 4)) * 33.33,
       ),
       detail: `Needs Robotics L4, Space L4, Materials L4. Current: R${store.tracks.robotics.level}, S${store.tracks.space.level}, M${store.tracks.materials.level}.`,
+      action: "Build the hard-tech triangle: robotics, materials, and orbital systems.",
+      panel: "track" as PanelId,
       tone: "good" as const,
     },
     {
@@ -2304,6 +2314,8 @@ export function ConvergenceApp() {
           100,
       ),
       detail: `Needs Simulation L5, Quantum L4, Foundation L4. Current: Sim ${store.tracks.simulation.level}, Quantum ${store.tracks.quantum.level}, Foundation ${store.tracks.foundation.level}.`,
+      action: "Staff Simulation and Quantum together so world-modeling becomes the campaign identity.",
+      panel: "track" as PanelId,
       tone: "focus" as const,
     },
     {
@@ -2315,6 +2327,8 @@ export function ConvergenceApp() {
           (store.flags.ethicsDebt < 6 ? 22 : 0),
       ),
       detail: `Survive to turn ${TOTAL_TURNS} without another ending capturing the run. Current turn: ${store.turn}.`,
+      action: "Keep trust ahead of fear, avoid capture, and leave yourself enough runway to choose.",
+      panel: "briefing" as PanelId,
       tone: "good" as const,
     },
   ].sort((left, right) => right.score - left.score);
@@ -4895,7 +4909,7 @@ export function ConvergenceApp() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Race Leader</p>
-                      <p className="mt-2 text-base font-medium text-white">#{playerRank} Convergence</p>
+                    <p className="mt-2 text-base font-medium text-white">#{playerRank} Convergence</p>
                     <p className="mt-1 text-xs leading-5 text-slate-400">
                       Trajectory: {labLeaderboard.find((entry) => entry.id === "player")?.trajectory}
                     </p>
@@ -4931,6 +4945,23 @@ export function ConvergenceApp() {
                   </div>
                   <SignalChip label={currentTrajectory} tone={currentTrajectoryTone} />
                 </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Campaign Rank</p>
+                    <p className="mt-2 text-lg font-semibold text-white">#{playerRank}</p>
+                    <p className="mt-1 text-xs text-slate-500">Race score {labLeaderboard.find((entry) => entry.id === "player")?.raceScore}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Primary Drift</p>
+                    <p className="mt-2 text-lg font-semibold text-white">{strongestTrajectorySignals[0]?.label}</p>
+                    <p className="mt-1 text-xs text-slate-500">{strongestTrajectorySignals[0]?.score}% pressure</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Steering Window</p>
+                    <p className="mt-2 text-lg font-semibold text-white">{TOTAL_TURNS - store.turn}Q</p>
+                    <p className="mt-1 text-xs text-slate-500">Remaining before default campaign resolution.</p>
+                  </div>
+                </div>
                 <div className="mt-4 space-y-2">
                   {strongestTrajectorySignals.map((signal) => {
                     const barClass =
@@ -4945,18 +4976,27 @@ export function ConvergenceApp() {
                               : "bg-slate-400";
 
                     return (
-                      <div key={signal.label} className="rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3">
+                      <button
+                        key={signal.label}
+                        type="button"
+                        onClick={() => store.openPanel(signal.panel)}
+                        className="w-full rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3 text-left transition hover:border-cyan-300/25 hover:bg-cyan-500/8"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <span className="min-w-0">
                             <span className="block text-sm font-medium text-white">{signal.label}</span>
                             <span className="mt-1 block text-xs leading-5 text-slate-400">{signal.detail}</span>
+                            <span className="mt-2 block text-xs leading-5 text-cyan-100">{signal.action}</span>
                           </span>
-                          <SignalChip label={`${signal.score}%`} tone={signal.tone} />
+                          <span className="flex shrink-0 flex-col items-end gap-2">
+                            <SignalChip label={`${signal.score}%`} tone={signal.tone} />
+                            <SignalChip label={`Open ${panelGuideLabel(signal.panel)}`} tone="focus" />
+                          </span>
                         </div>
                         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
                           <div className={`h-full rounded-full ${barClass}`} style={{ width: `${signal.score}%` }} />
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
