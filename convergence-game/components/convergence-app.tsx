@@ -3249,6 +3249,102 @@ export function ConvergenceApp() {
       tone: nextQuarterPreview[0]?.tone ?? ("warn" as const),
     },
   ];
+  const liveProductBeat = store.resolution?.worldEvents.find((event) => event.includes("goes live"));
+  const facilityOnlineBeat = store.resolution?.worldEvents.find((event) => event.includes("comes online"));
+  const talentArrivalBeat = store.resolution?.worldEvents.find((event) => event.includes("arrive and are ready"));
+  const realizedDebriefBeats = [
+    store.resolution?.breakthroughs.length
+      ? {
+          label: "Breakthrough landed",
+          value: `${store.resolution.breakthroughs.length} discovery${store.resolution.breakthroughs.length === 1 ? "" : "ies"}`,
+          detail: store.resolution.breakthroughs[0],
+          panel: "track" as PanelId,
+          tone: "good" as const,
+        }
+      : null,
+    liveProductBeat
+      ? {
+          label: "Revenue beat",
+          value: "Product live",
+          detail: liveProductBeat,
+          panel: "track" as PanelId,
+          tone: "good" as const,
+        }
+      : null,
+    facilityOnlineBeat
+      ? {
+          label: "Capacity beat",
+          value: "Build online",
+          detail: facilityOnlineBeat,
+          panel: "facilities" as PanelId,
+          tone: "focus" as const,
+        }
+      : null,
+    talentArrivalBeat
+      ? {
+          label: "Talent beat",
+          value: "New staff ready",
+          detail: talentArrivalBeat,
+          panel: "hiring" as PanelId,
+          tone: "focus" as const,
+        }
+      : null,
+    primaryRivalThreat
+      ? {
+          label: "Rival beat",
+          value: primaryRivalThreat.name,
+          detail: primaryRivalThreat.counter,
+          panel: primaryRivalThreat.panel,
+          tone: primaryRivalThreat.tone,
+        }
+      : null,
+    store.resolution
+      ? {
+          label: "Ledger beat",
+          value: `${store.resolution.financeDelta >= 0 ? "+" : ""}${formatCurrency(store.resolution.financeDelta)}`,
+          detail:
+            store.resolution.financeDelta >= 0
+              ? "Capital moved in your favor this quarter. Spend the breathing room deliberately."
+              : "Capital fell this quarter. Make the next commitment earn its burn.",
+          panel: "finance" as PanelId,
+          tone: store.resolution.financeDelta >= 0 ? ("good" as const) : ("warn" as const),
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    label: string;
+    value: string;
+    detail: string;
+    panel: PanelId;
+    tone: "bad" | "focus" | "good" | "neutral" | "warn";
+  }>;
+  const quarterDebriefBeats = realizedDebriefBeats.length
+    ? realizedDebriefBeats.slice(0, 5)
+    : [
+        {
+          label: "Quiet quarter",
+          value: "Create a payoff",
+          detail: "No major payoff landed yet. Set up research, talent, build, or product motion before the next end turn.",
+          panel: "track" as PanelId,
+          tone: "warn" as const,
+        },
+      ];
+  const quarterDebriefLead = store.activeDilemma
+    ? "The command room is holding on a crisis. Resolve the decision to unfreeze the quarter clock."
+    : breakthroughCount
+      ? "A discovery changed the board. The next move is deciding whether that science becomes speed, safety, or revenue."
+      : primaryNextQuarterHook
+        ? `${primaryNextQuarterHook.label} is the next temptation. The game is giving you a reason to click one more turn.`
+        : quarterlyNet < 0
+          ? "The lab moved, but the ledger is asking for proof. Convert momentum into a visible payoff."
+          : "The lab is stable. Stability is useful, but the next quarter needs a sharper promise.";
+  const quarterDebriefCta = primaryNextQuarterHook ?? priorityObjectives[0] ?? quarterDebriefBeats[0];
+  const quarterDebriefCtaDisplay = quarterDebriefCta as {
+    label?: string;
+    value?: string;
+    detail: string;
+    panel: PanelId;
+  };
+  const quarterDebriefCtaValue = quarterDebriefCtaDisplay.value ?? quarterDebriefCtaDisplay.label ?? "Next move";
   const openingPlaybookActive = store.preset === "founder" && store.turn <= 4;
   const openingPlaybookSteps = [
     {
@@ -5709,6 +5805,68 @@ export function ConvergenceApp() {
                           </p>
                         </div>
                         <SignalChip label={`${quarterMomentumLabel} run`} tone={quarterMomentumScore >= 62 ? "good" : quarterMomentumScore < 44 ? "warn" : "focus"} />
+                      </div>
+                      <div className="mt-4 grid gap-3 xl:grid-cols-[0.92fr_1.08fr]">
+                        <div className="rounded-[24px] border border-cyan-400/16 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.82),rgba(4,9,22,0.9))] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-100">Quarter Debrief</p>
+                              <h4 className="mt-2 text-xl font-semibold text-white">
+                                {store.resolution ? `${store.resolution.year} ${store.resolution.quarter}` : "Opening Command"}
+                              </h4>
+                            </div>
+                            <SignalChip label={`${quarterMomentumScore}/100`} tone={quarterMomentumScore >= 62 ? "good" : quarterMomentumScore < 44 ? "warn" : "focus"} />
+                          </div>
+                          <p className="mt-3 text-sm leading-7 text-slate-300">{quarterDebriefLead}</p>
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                              <span>Turn Pull</span>
+                              <span>{quarterMomentumLabel}</span>
+                            </div>
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/8">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${quarterMomentumScore}%` }}
+                                transition={{ duration: 0.65, ease: "easeOut" }}
+                                className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-emerald-300"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => store.openPanel(quarterDebriefCtaDisplay.panel)}
+                            className="mt-4 w-full rounded-2xl border border-cyan-300/24 bg-cyan-500/10 px-4 py-3 text-left transition hover:border-cyan-200/40 hover:bg-cyan-500/14"
+                          >
+                            <span className="block text-[10px] uppercase tracking-[0.2em] text-cyan-100">Best Next Click</span>
+                            <span className="mt-2 block text-base font-semibold text-white">{quarterDebriefCtaValue}</span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-300">{quarterDebriefCtaDisplay.detail}</span>
+                          </button>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {quarterDebriefBeats.map((beat, index) => (
+                            <motion.button
+                              key={`${beat.label}-${beat.value}`}
+                              type="button"
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              onClick={() => store.openPanel(beat.panel)}
+                              className="rounded-[22px] border border-white/8 bg-slate-950/65 p-3 text-left transition hover:border-sky-300/25 hover:bg-sky-500/8"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="min-w-0">
+                                  <span className="block text-[10px] uppercase tracking-[0.2em] text-slate-500">{beat.label}</span>
+                                  <span className="mt-2 block text-sm font-semibold text-white">{beat.value}</span>
+                                </span>
+                                <SignalChip label={beat.tone === "good" ? "Payoff" : beat.tone === "bad" ? "Risk" : beat.tone === "warn" ? "Watch" : "Signal"} tone={beat.tone} />
+                              </div>
+                              <p className="mt-2 text-xs leading-5 text-slate-400">{beat.detail}</p>
+                              <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-cyan-200">
+                                Open {panelGuideLabel(beat.panel)}
+                              </p>
+                            </motion.button>
+                          ))}
+                        </div>
                       </div>
                       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                         {afterActionReport.map((item) => (
