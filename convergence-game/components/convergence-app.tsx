@@ -4824,7 +4824,7 @@ export function ConvergenceApp() {
                     </div>
 
                     <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(320px,0.98fr)_minmax(0,1.02fr)]">
-                      <div className="mission-art-frame min-h-[320px] rounded-[28px]">
+                      <div className="mission-art-frame mission-art-frame--briefing min-h-[320px] rounded-[28px]">
                         {sceneArtScope === "briefing" && sceneArtUrl ? (
                           <>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
