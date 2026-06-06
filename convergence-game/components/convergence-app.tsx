@@ -7273,6 +7273,23 @@ export function ConvergenceApp() {
                       tone={nextProjectDue ? "focus" : "neutral"}
                     />
                   </div>
+                  <div className="mission-art-frame mission-art-frame--facilities mt-5 min-h-[220px] rounded-[24px]">
+                    <div className="relative z-10 flex min-h-[220px] flex-col justify-between p-5">
+                      <div>
+                        <SignalChip label="Infrastructure theater" tone="focus" />
+                        <h3 className="mt-5 max-w-xl text-2xl font-semibold text-white">Compute campus command view</h3>
+                        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                          Facilities turns abstract PFLOPS into a visible supply chain: chip vendor, energy politics, reserved product load, and build timing all compete for the same campus.
+                        </p>
+                      </div>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <SignalChip label={store.supplier.vendor} tone="neutral" />
+                        <SignalChip label={store.energyPolicy.name} tone="warn" />
+                        <SignalChip label={`${store.resources.computeCapacity} PFLOPS total`} tone="focus" />
+                        <SignalChip label={`${researchCapacity} PFLOPS research`} tone="good" />
+                      </div>
+                    </div>
+                  </div>
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <div className="rounded-2xl border border-sky-400/18 bg-sky-500/10 p-3">
                       <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-sky-100">
