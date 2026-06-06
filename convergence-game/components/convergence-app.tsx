@@ -74,6 +74,7 @@ import {
   ENERGY_POLICIES,
   START_PRESETS,
   SUPPLIER_CONTRACTS,
+  TOTAL_TURNS,
   TRACK_DEFINITIONS,
 } from "@/lib/game/data";
 import {
@@ -2105,6 +2106,87 @@ export function ConvergenceApp() {
     })),
   ].sort((left, right) => right.raceScore - left.raceScore);
   const playerRank = labLeaderboard.findIndex((entry) => entry.id === "player") + 1;
+  const currentTrajectory = describePlayerTrajectory(store);
+  const currentTrajectoryTone =
+    currentTrajectory.includes("Misalignment") || currentTrajectory.includes("Dystopia")
+      ? ("bad" as const)
+      : currentTrajectory.includes("Capture")
+        ? ("warn" as const)
+        : currentTrajectory.includes("Beneficial") ||
+            currentTrajectory.includes("Open") ||
+            currentTrajectory.includes("Transcendence")
+          ? ("good" as const)
+          : ("focus" as const);
+  const trajectorySignals = [
+    {
+      label: "Beneficial ASI",
+      score: clampMetric(
+        ((store.tracks.foundation.level / 6) * 0.36 +
+          (store.tracks.alignment.level / 5) * 0.4 +
+          (store.resources.trust / 58) * 0.24) *
+          100,
+      ),
+      detail: `Needs Foundation L6, Alignment L5, Trust 58. You have L${store.tracks.foundation.level}, L${store.tracks.alignment.level}, Trust ${Math.round(store.resources.trust)}.`,
+      tone: store.tracks.foundation.level >= 6 && store.tracks.alignment.level >= 5 && store.resources.trust >= 58 ? ("good" as const) : ("focus" as const),
+    },
+    {
+      label: "Misalignment Risk",
+      score: clampMetric(
+        (store.tracks.foundation.level / 6) * 62 +
+          Math.max(0, 2 - store.tracks.alignment.level) * 19,
+      ),
+      detail: `Danger rises when Foundation reaches L6 while Alignment is L1 or lower. Current gap: ${store.tracks.foundation.level - store.tracks.alignment.level}.`,
+      tone: store.tracks.foundation.level >= 4 && store.tracks.alignment.level <= 1 ? ("bad" as const) : ("warn" as const),
+    },
+    {
+      label: "Regulatory Capture",
+      score: clampMetric((store.flags.governmentDependence / 10) * 100),
+      detail: `State dependence ending triggers at 10. Current dependence: ${store.flags.governmentDependence}.`,
+      tone: store.flags.governmentDependence >= 8 ? ("bad" as const) : store.flags.governmentDependence >= 5 ? ("warn" as const) : ("neutral" as const),
+    },
+    {
+      label: "Corporate Dystopia",
+      score: clampMetric(
+        ((store.resources.revenue / 22) * 0.34 +
+          (store.flags.ethicsDebt / 8) * 0.34 +
+          (store.tracks.foundation.level / 4) * 0.32) *
+          100,
+      ),
+      detail: `Triggers from high revenue, ethics debt, and Foundation L4+. Revenue ${formatCurrency(store.resources.revenue)}, ethics debt ${store.flags.ethicsDebt}.`,
+      tone: store.flags.ethicsDebt >= 6 && store.resources.revenue >= 16 ? ("bad" as const) : ("warn" as const),
+    },
+    {
+      label: "Transcendence",
+      score: clampMetric(
+        ((store.tracks.robotics.level / 4) + (store.tracks.space.level / 4) + (store.tracks.materials.level / 4)) * 33.33,
+      ),
+      detail: `Needs Robotics L4, Space L4, Materials L4. Current: R${store.tracks.robotics.level}, S${store.tracks.space.level}, M${store.tracks.materials.level}.`,
+      tone: "good" as const,
+    },
+    {
+      label: "Simulation Revelation",
+      score: clampMetric(
+        ((store.tracks.simulation.level / 5) * 0.38 +
+          (store.tracks.quantum.level / 4) * 0.32 +
+          (store.tracks.foundation.level / 4) * 0.3) *
+          100,
+      ),
+      detail: `Needs Simulation L5, Quantum L4, Foundation L4. Current: Sim ${store.tracks.simulation.level}, Quantum ${store.tracks.quantum.level}, Foundation ${store.tracks.foundation.level}.`,
+      tone: "focus" as const,
+    },
+    {
+      label: "Open Future",
+      score: clampMetric(
+        (store.turn / TOTAL_TURNS) * 42 +
+          (store.resources.trust >= store.resources.fear ? 18 : 0) +
+          (store.flags.governmentDependence < 6 ? 18 : 0) +
+          (store.flags.ethicsDebt < 6 ? 22 : 0),
+      ),
+      detail: `Survive to turn ${TOTAL_TURNS} without another ending capturing the run. Current turn: ${store.turn}.`,
+      tone: "good" as const,
+    },
+  ].sort((left, right) => right.score - left.score);
+  const strongestTrajectorySignals = trajectorySignals.slice(0, 4);
   const topRivalMove = topRivals[0]?.recentMove ?? "Rival status";
   const expenseEntries = Object.entries(store.resources.expenses).sort((left, right) => right[1] - left[1]);
   const researchExpenseBreakdown = getResearchExpenseBreakdown(store);
@@ -4623,6 +4705,47 @@ export function ConvergenceApp() {
                     </p>
                     <p className="mt-1 text-xs text-slate-400">Control durability and live quarterly inflow.</p>
                   </div>
+                </div>
+              </div>
+
+              <div className="mission-card rounded-[28px] border-cyan-400/14 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-cyan-200">Trajectory Compass</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      The run is drifting toward <span className="font-medium text-white">{currentTrajectory}</span>. Steer the thresholds before they harden into an ending.
+                    </p>
+                  </div>
+                  <SignalChip label={currentTrajectory} tone={currentTrajectoryTone} />
+                </div>
+                <div className="mt-4 space-y-2">
+                  {strongestTrajectorySignals.map((signal) => {
+                    const barClass =
+                      signal.tone === "good"
+                        ? "bg-emerald-300"
+                        : signal.tone === "bad"
+                          ? "bg-rose-300"
+                          : signal.tone === "warn"
+                            ? "bg-amber-300"
+                            : signal.tone === "focus"
+                              ? "bg-sky-300"
+                              : "bg-slate-400";
+
+                    return (
+                      <div key={signal.label} className="rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-white">{signal.label}</span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-400">{signal.detail}</span>
+                          </span>
+                          <SignalChip label={`${signal.score}%`} tone={signal.tone} />
+                        </div>
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
+                          <div className={`h-full rounded-full ${barClass}`} style={{ width: `${signal.score}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
