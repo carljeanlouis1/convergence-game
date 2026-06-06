@@ -2531,7 +2531,46 @@ export function ConvergenceApp() {
     (soonest, project) => (!soonest || project.turnsRemaining < soonest.turnsRemaining ? project : soonest),
     null,
   );
+  const breakthroughCount = store.resolution?.breakthroughs.length ?? 0;
+  const nearResearchPayoff = Boolean(
+    selectedForecast.turnsToLevel &&
+      selectedForecast.turnsToLevel <= 3 &&
+      selectedForecast.projectName !== "Completed",
+  );
+  const quarterMomentumScore = clampMetric(
+    50 +
+      breakthroughCount * 12 +
+      (quarterlyNet >= 0 ? 8 : -8) +
+      (store.resources.runwayMonths >= 18 ? 8 : store.resources.runwayMonths < 8 ? -18 : store.resources.runwayMonths < 12 ? -10 : 0) +
+      (nearResearchPayoff ? 9 : 0) +
+      (store.pendingHires.length ? 4 : 0) +
+      (nextProjectDue ? 3 : 0) +
+      (store.activeDilemma ? -18 : 0),
+  );
+  const quarterMomentumLabel =
+    quarterMomentumScore >= 78
+      ? "Surging"
+      : quarterMomentumScore >= 62
+        ? "Building"
+        : quarterMomentumScore >= 44
+          ? "Tense"
+          : "Fragile";
+  const quarterMomentumDetail =
+    store.activeDilemma
+      ? "A live dilemma is holding the clock. Resolve it to convert tension into direction."
+      : nearResearchPayoff
+        ? `${selectedForecast.projectName} is close enough to make the next few turns feel dangerous in a good way.`
+        : breakthroughCount
+          ? "A fresh breakthrough changed the board. Convert it into revenue, safety, or tempo."
+          : quarterlyNet < 0
+            ? "The lab has forward motion, but burn is eating the clock. Make the next turn pay for itself."
+            : "The run is stable. Set up a visible payoff so the next quarter has a sharper hook.";
   const missionActionCards = [
+    {
+      label: "Momentum",
+      value: `${quarterMomentumScore}/100 · ${quarterMomentumLabel}`,
+      body: quarterMomentumDetail,
+    },
     {
       label: "What Changed",
       value: store.activeDilemma
@@ -4428,7 +4467,7 @@ export function ConvergenceApp() {
                     </div>
                   </div>
                 </div>
-                <div className="mission-action-grid mt-5 grid gap-3 rounded-[26px] border border-white/8 p-3 md:grid-cols-3">
+                <div className="mission-action-grid mt-5 grid gap-3 rounded-[26px] border border-white/8 p-3 md:grid-cols-2 xl:grid-cols-4">
                   {missionActionCards.map((card) => (
                     <div key={card.label} className="rounded-[22px] border border-white/8 bg-slate-950/56 p-4">
                       <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{card.label}</p>
