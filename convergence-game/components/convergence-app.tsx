@@ -2265,7 +2265,10 @@ export function ConvergenceApp() {
         etaChanges: forecast.turnsToLevel !== selectedForecast.turnsToLevel,
       };
     })
-    .filter((preview, index, previews) => previews.findIndex((entry) => entry.delta === preview.delta) === index);
+    .filter(
+      (preview, index, previews) =>
+        preview.delta > 0 && previews.findIndex((entry) => entry.delta === preview.delta) === index,
+    );
   const strongestComputePreview = computeForecastPreviews.reduce<(typeof computeForecastPreviews)[number] | null>(
     (best, preview) =>
       !best || preview.forecast.progressPerTurn > best.forecast.progressPerTurn ? preview : best,
