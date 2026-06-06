@@ -982,8 +982,13 @@ const generateDynamicBuildOptions = (state: GameState): FacilityState[] => {
   }));
 };
 
-export const getTrackForecast = (state: GameState, trackId: TrackId) => {
+export const getTrackForecast = (
+  state: GameState,
+  trackId: TrackId,
+  options: { computeOverride?: number } = {},
+) => {
   const track = state.tracks[trackId];
+  const compute = Math.max(0, options.computeOverride ?? track.compute);
   const maxLevel = getTrackLevelCount(trackId);
   const activeStage = currentStageForTrack(trackId, track.level);
   const target = computeTrackThreshold(trackId, track.level);
@@ -1004,10 +1009,10 @@ export const getTrackForecast = (state: GameState, trackId: TrackId) => {
   const supplierBonus = 1 + (supplierTrackModifiers[state.supplier.vendor][trackId] ?? 0);
   const energyBonus = 1 + (energyTrackModifiers[state.energyPolicy.id][trackId] ?? 0);
   const computeReadiness = activeStage
-    ? clamp(track.compute / Math.max(activeStage.recommendedCompute, 1), 0.4, 1.2)
+    ? clamp(compute / Math.max(activeStage.recommendedCompute, 1), 0.4, 1.2)
     : 1;
   const computeFactor =
-    (track.compute / 6.4) *
+    (compute / 6.4) *
     state.supplier.computeMultiplier *
     supplierBonus *
     energyBonus *

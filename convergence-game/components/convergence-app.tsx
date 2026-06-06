@@ -2248,6 +2248,39 @@ export function ConvergenceApp() {
   const researchCapacity = getResearchComputeCapacity(store);
   const reservedCommercialCompute = getCommercializationReservedCompute(store);
   const freeCompute = Math.max(researchCapacity - totalAllocated, 0);
+  const computeForecastPreviews = Array.from(new Set([5, 10, freeCompute]))
+    .filter((delta) => selectedTrack.unlocked && delta > 0)
+    .map((delta) => {
+      const actualDelta = Math.min(delta, freeCompute);
+      const compute = selectedTrack.compute + actualDelta;
+      const forecast = getTrackForecast(store, store.selectedTrack, { computeOverride: compute });
+
+      return {
+        id: `compute-preview-${actualDelta}`,
+        label: actualDelta === freeCompute ? "Max free" : `+${actualDelta} PFLOPS`,
+        delta: actualDelta,
+        compute,
+        forecast,
+        progressDelta: Number((forecast.progressPerTurn - selectedForecast.progressPerTurn).toFixed(1)),
+        etaChanges: forecast.turnsToLevel !== selectedForecast.turnsToLevel,
+      };
+    })
+    .filter((preview, index, previews) => previews.findIndex((entry) => entry.delta === preview.delta) === index);
+  const strongestComputePreview = computeForecastPreviews.reduce<(typeof computeForecastPreviews)[number] | null>(
+    (best, preview) =>
+      !best || preview.forecast.progressPerTurn > best.forecast.progressPerTurn ? preview : best,
+    null,
+  );
+  const computeEtaGuidance =
+    selectedForecast.blockedReason
+      ? selectedForecast.blockedReason
+      : selectedForecast.progressNeededToReduceEta > 0
+        ? strongestComputePreview?.etaChanges
+          ? `${strongestComputePreview.label} is enough to change the displayed ETA to ${formatTurns(strongestComputePreview.forecast.turnsToLevel)}.`
+          : `Need +${selectedForecast.progressNeededToReduceEta}/Q pace to cut the ETA by 1Q. More compute helps, but staff or posture may be the real lever.`
+        : selectedForecast.turnsToLevel === 1
+          ? "This project is already close enough to land next quarter if nothing blocks it."
+          : "Current pace is enough for the displayed ETA threshold.";
   const buildOptions = availableBuildOptions(store);
   const postureOptions = Object.values(TRACK_POSTURES) as Array<(typeof TRACK_POSTURES)[TrackPostureId]>;
   const selectedPosture = TRACK_POSTURES[selectedTrack.posture ?? "balanced"];
@@ -7228,6 +7261,48 @@ export function ConvergenceApp() {
                       <button type="button" onClick={() => store.adjustCompute(store.selectedTrack, -5)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white">-5</button>
                       <button type="button" onClick={() => store.adjustCompute(store.selectedTrack, 5)} className="rounded-xl border border-sky-400/40 bg-sky-500/10 px-3 py-2 text-white">+5</button>
                       <span className="ml-auto text-xs uppercase tracking-[0.18em] text-slate-500">{freeCompute} PFLOPS free</span>
+                    </div>
+                    <div className="mt-4 rounded-[20px] border border-sky-400/14 bg-sky-500/8 p-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-sky-100">Compute ETA Preview</p>
+                          <p className="mt-2 text-xs leading-5 text-slate-400">{computeEtaGuidance}</p>
+                        </div>
+                        {selectedForecast.progressNeededToReduceEta > 0 ? (
+                          <SignalChip label={`Need +${selectedForecast.progressNeededToReduceEta}/Q`} tone="warn" />
+                        ) : (
+                          <SignalChip label="ETA threshold met" tone="good" />
+                        )}
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        {computeForecastPreviews.length ? (
+                          computeForecastPreviews.map((preview) => (
+                            <button
+                              key={preview.id}
+                              type="button"
+                              onClick={() => store.adjustCompute(store.selectedTrack, preview.delta)}
+                              className={`rounded-2xl border px-3 py-3 text-left transition ${
+                                preview.etaChanges
+                                  ? "border-emerald-400/28 bg-emerald-500/10 hover:bg-emerald-500/14"
+                                  : "border-white/8 bg-slate-950/62 hover:border-sky-400/20 hover:bg-sky-500/8"
+                              }`}
+                            >
+                              <span className="block text-[11px] uppercase tracking-[0.16em] text-slate-500">{preview.label}</span>
+                              <span className="mt-2 block text-sm font-semibold text-white">
+                                ETA {formatTurns(preview.forecast.turnsToLevel)}
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-slate-400">
+                                +{preview.forecast.progressPerTurn}/Q
+                                {preview.progressDelta > 0 ? ` (${preview.progressDelta >= 0 ? "+" : ""}${preview.progressDelta})` : ""}
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl border border-white/8 bg-slate-950/62 px-3 py-3 text-xs leading-5 text-slate-500 sm:col-span-3">
+                            No spare research compute is available. Free PFLOPS from another track, pause a product launch, or build capacity.
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="mt-4 rounded-[20px] border border-white/8 bg-slate-950/55 p-3">
                       <div className="flex items-center justify-between gap-3">
