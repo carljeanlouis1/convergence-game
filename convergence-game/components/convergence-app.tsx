@@ -2334,6 +2334,62 @@ export function ConvergenceApp() {
   ].sort((left, right) => right.score - left.score);
   const strongestTrajectorySignals = trajectorySignals.slice(0, 4);
   const topRivalMove = topRivals[0]?.recentMove ?? "Rival status";
+  const rivalThreats = topRivals
+    .map((rival) => {
+      const capabilityGap = Math.round(rival.capability - playerCapability);
+      const capabilityPressure = clampMetric(50 + capabilityGap * 1.8);
+      const recklessnessPressure = clampMetric(100 - rival.safety);
+      const legitimacyPressure = clampMetric(50 + (rival.goodwill - playerTrust) * 1.2);
+      const threatScore = clampMetric(
+        capabilityPressure * 0.5 + recklessnessPressure * 0.3 + legitimacyPressure * 0.2,
+      );
+      const tone: "bad" | "warn" | "focus" | "neutral" =
+        threatScore >= 72 ? "bad" : threatScore >= 58 ? "warn" : threatScore >= 45 ? "focus" : "neutral";
+      let label = "Watch signal";
+      let edge = `${getTrackLabel(rival.focus)} focus`;
+      let counter = "Keep your strongest lane moving and check the race board after each quarter.";
+      let panel: PanelId = "briefing";
+
+      if (capabilityGap >= 8) {
+        label = "Capability lead";
+        edge = `${capabilityGap} capability ahead`;
+        counter = `Push ${getTrackLabel(store.selectedTrack)} with staff and compute, or pivot toward ${getTrackLabel(rival.focus)} before the gap compounds.`;
+        panel = "track";
+      } else if (recklessnessPressure >= 62) {
+        label = "Unsafe acceleration";
+        edge = `${Math.round(rival.safety)} safety culture`;
+        counter = "Turn their speed into a legitimacy opening: keep trust ahead of fear and avoid sloppy public choices.";
+        panel = "briefing";
+      } else if (legitimacyPressure >= 58) {
+        label = "Legitimacy challenge";
+        edge = `${Math.round(rival.goodwill)} public goodwill`;
+        counter = "Use safer finance, cleaner commercialization, and trust-building dilemma choices to regain narrative control.";
+        panel = "finance";
+      } else if (capabilityGap >= -4) {
+        label = "Neck-and-neck";
+        edge = `Within ${Math.abs(capabilityGap)} capability`;
+        counter = "Create one near-term payoff this quarter: a research level, hire arrival, facility completion, or product launch.";
+        panel = "track";
+      }
+
+      return {
+        id: rival.id,
+        name: rival.name,
+        label,
+        edge,
+        counter,
+        focus: getTrackLabel(rival.focus),
+        recentMove: rival.recentMove,
+        threatScore,
+        tone,
+        panel,
+      };
+    })
+    .sort((left, right) => right.threatScore - left.threatScore);
+  const primaryRivalThreat = rivalThreats[0];
+  const rivalPressureDetail = primaryRivalThreat
+    ? `${primaryRivalThreat.name}: ${primaryRivalThreat.counter}`
+    : topRivalMove;
   const expenseEntries = Object.entries(store.resources.expenses).sort((left, right) => right[1] - left[1]);
   const researchExpenseBreakdown = getResearchExpenseBreakdown(store);
   const commercializationExpenseBreakdown = getCommercializationExpenseBreakdown(store);
@@ -2769,7 +2825,7 @@ export function ConvergenceApp() {
 
     return {
       label: "World pressure",
-      message: topRivalMove,
+      message: rivalPressureDetail,
       tone: "slate" as const,
     };
   })();
@@ -3181,7 +3237,7 @@ export function ConvergenceApp() {
     {
       label: "Race Pressure",
       value: `Rank #${playerRank}`,
-      detail: topRivalMove,
+      detail: rivalPressureDetail,
       tone: playerRank <= 2 ? ("good" as const) : playerRank <= 4 ? ("focus" as const) : ("warn" as const),
     },
     {
@@ -4915,8 +4971,12 @@ export function ConvergenceApp() {
                     </p>
                   </div>
                   <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Top Rival Move</p>
-                    <p className="mt-2 text-sm leading-6 text-white">{topRivalMove}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Primary Threat</p>
+                      {primaryRivalThreat ? <SignalChip label={`${primaryRivalThreat.threatScore}%`} tone={primaryRivalThreat.tone} /> : null}
+                    </div>
+                    <p className="mt-2 text-base font-medium text-white">{primaryRivalThreat?.name ?? "No rival signal"}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">{primaryRivalThreat?.edge ?? topRivalMove}</p>
                   </div>
                   <div className="rounded-[22px] border border-white/8 bg-slate-950/65 p-4">
                     <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Trust / Fear</p>
@@ -4933,6 +4993,41 @@ export function ConvergenceApp() {
                     <p className="mt-1 text-xs text-slate-400">Control durability and live quarterly inflow.</p>
                   </div>
                 </div>
+                {primaryRivalThreat ? (
+                  <div className="mt-4 rounded-[24px] border border-amber-400/14 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.12),transparent_36%),linear-gradient(180deg,rgba(8,16,34,0.78),rgba(5,10,22,0.82))] p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-amber-100">Rival Threat Board</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                          {primaryRivalThreat.name} is the loudest pressure this quarter. Treat rivals as moving clocks, not background flavor.
+                        </p>
+                      </div>
+                      <SignalChip label={primaryRivalThreat.label} tone={primaryRivalThreat.tone} />
+                    </div>
+                    <div className="mt-4 grid gap-2 lg:grid-cols-3">
+                      {rivalThreats.slice(0, 3).map((threat) => (
+                        <button
+                          key={threat.id}
+                          type="button"
+                          onClick={() => store.openPanel(threat.panel)}
+                          className="rounded-2xl border border-white/8 bg-slate-950/62 px-3 py-3 text-left transition hover:border-amber-300/30 hover:bg-amber-500/8"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium text-white">{threat.name}</span>
+                              <span className="mt-1 block text-xs uppercase tracking-[0.16em] text-amber-100">{threat.edge}</span>
+                            </span>
+                            <SignalChip label={`${threat.threatScore}%`} tone={threat.tone} />
+                          </div>
+                          <p className="mt-2 text-xs leading-5 text-slate-400">{threat.counter}</p>
+                          <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-cyan-200">
+                            Open {panelGuideLabel(threat.panel)}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="mission-card rounded-[28px] border-cyan-400/14 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
@@ -5363,23 +5458,40 @@ export function ConvergenceApp() {
                   onToggle={() => setRivalsOpen((value) => !value)}
                 >
                   <div className="space-y-3">
-                    {topRivals.map((rival) => (
-                      <div key={rival.id} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
-                        <div className="flex items-center justify-between gap-3 text-sm text-white">
-                          <span>{rival.name}</span>
-                          <span className="text-slate-400">{Math.round(rival.capability)}</span>
+                    {topRivals.map((rival) => {
+                      const threat = rivalThreats.find((entry) => entry.id === rival.id);
+
+                      return (
+                        <div key={rival.id} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
+                          <div className="flex items-center justify-between gap-3 text-sm text-white">
+                            <span>{rival.name}</span>
+                            <span className="text-slate-400">{Math.round(rival.capability)}</span>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            <MetricBar label="Capability" value={rival.capability} tone="blue" />
+                            <MetricBar label="Safety" value={rival.safety} tone="amber" />
+                            <MetricBar label="Goodwill" value={rival.goodwill} tone="green" />
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <SignalChip
+                              label={`Focus: ${TRACK_DEFINITIONS.find((track) => track.id === rival.focus)?.shortName}`}
+                              tone="neutral"
+                            />
+                            {threat ? <SignalChip label={`${threat.threatScore}% threat`} tone={threat.tone} /> : null}
+                          </div>
+                          <p className="mt-2 text-xs leading-5 text-slate-500">{rival.recentMove}</p>
+                          {threat ? (
+                            <button
+                              type="button"
+                              onClick={() => store.openPanel(threat.panel)}
+                              className="mt-3 w-full rounded-2xl border border-amber-400/12 bg-amber-500/8 px-3 py-2 text-left text-xs leading-5 text-amber-50 transition hover:border-amber-300/30"
+                            >
+                              Counter: {threat.counter}
+                            </button>
+                          ) : null}
                         </div>
-                        <div className="mt-3 space-y-2">
-                          <MetricBar label="Capability" value={rival.capability} tone="blue" />
-                          <MetricBar label="Safety" value={rival.safety} tone="amber" />
-                          <MetricBar label="Goodwill" value={rival.goodwill} tone="green" />
-                        </div>
-                        <p className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">
-                          Focus: {TRACK_DEFINITIONS.find((track) => track.id === rival.focus)?.shortName}
-                        </p>
-                        <p className="mt-2 text-xs leading-5 text-slate-500">{rival.recentMove}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <div className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Race Board</p>
@@ -7308,6 +7420,38 @@ export function ConvergenceApp() {
                     <RichText text={rivalColor} className="mt-3 text-violet-50" />
                   </div>
                 ) : null}
+
+                <div className="rounded-[24px] border border-amber-400/14 bg-amber-500/8 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-amber-100">Rival Threat Board</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">
+                        Each rival threat is derived from capability, safety culture, goodwill, and their current focus.
+                      </p>
+                    </div>
+                    {primaryRivalThreat ? <SignalChip label={primaryRivalThreat.label} tone={primaryRivalThreat.tone} /> : null}
+                  </div>
+                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                    {rivalThreats.map((threat) => (
+                      <button
+                        key={threat.id}
+                        type="button"
+                        onClick={() => store.openPanel(threat.panel)}
+                        className="rounded-2xl border border-white/8 bg-slate-950/65 px-3 py-3 text-left transition hover:border-amber-300/30 hover:bg-amber-500/8"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span>
+                            <span className="block text-sm font-medium text-white">{threat.name}</span>
+                            <span className="mt-1 block text-xs text-slate-500">{threat.recentMove}</span>
+                          </span>
+                          <SignalChip label={`${threat.threatScore}%`} tone={threat.tone} />
+                        </div>
+                        <p className="mt-3 text-xs uppercase tracking-[0.18em] text-amber-100">{threat.edge}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">{threat.counter}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
                   <div className="flex items-center justify-between gap-3">
