@@ -2270,6 +2270,7 @@ export function ConvergenceApp() {
   const initialize = store.initialize;
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [quarterResultOpen, setQuarterResultOpen] = useState(false);
   const [saveQuitOpen, setSaveQuitOpen] = useState(false);
   const [saveQuitBusy, setSaveQuitBusy] = useState(false);
   const [saveQuitStatus, setSaveQuitStatus] = useState<{
@@ -2336,6 +2337,8 @@ export function ConvergenceApp() {
   const audioUrlRef = useRef<string | null>(null);
   const sceneArtUrlRef = useRef<string | null>(null);
   const autoNarratedTurnRef = useRef<number | null>(null);
+  const quarterLaunchRequestedRef = useRef(false);
+  const lastQuarterResultTurnRef = useRef<number | null>(null);
   const hasAutosave =
     typeof window !== "undefined" && Boolean(window.localStorage.getItem("convergence-autosave"));
   const [cloudCredentials, setCloudCredentials] = useState<CloudCredentials | null>(null);
@@ -5272,6 +5275,29 @@ export function ConvergenceApp() {
   }, [store.resolution?.turn, store.activeDilemma?.id]);
 
   useEffect(() => {
+    const resolutionTurn = store.resolution?.turn ?? null;
+
+    if (resolutionTurn === null) {
+      lastQuarterResultTurnRef.current = null;
+      quarterLaunchRequestedRef.current = false;
+      setQuarterResultOpen(false);
+      return;
+    }
+
+    if (resolutionTurn === lastQuarterResultTurnRef.current) {
+      return;
+    }
+
+    const shouldOpenQuarterResult = quarterLaunchRequestedRef.current && !store.activeDilemma;
+    lastQuarterResultTurnRef.current = resolutionTurn;
+    quarterLaunchRequestedRef.current = false;
+
+    if (shouldOpenQuarterResult) {
+      setQuarterResultOpen(true);
+    }
+  }, [store.activeDilemma, store.resolution?.turn]);
+
+  useEffect(() => {
     if (store.resolution?.breakthroughs.length) {
       playSynthTone(soundEnabled, "breakthrough");
     } else if (store.activeDilemma) {
@@ -6519,6 +6545,7 @@ export function ConvergenceApp() {
                     onClick={() =>
                       startTransition(() => {
                         playSynthTone(soundEnabled, "click");
+                        quarterLaunchRequestedRef.current = true;
                         store.nextTurn();
                       })
                     }
@@ -9913,6 +9940,143 @@ export function ConvergenceApp() {
           ))}
         </div>
       </nav>
+
+      <AnimatePresence>
+        {quarterResultOpen && store.resolution && !store.activeDilemma ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 overflow-y-auto bg-slate-950/78 p-4 py-6 backdrop-blur-xl"
+          >
+            <motion.div
+              initial={{ y: 26, opacity: 0, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 18, opacity: 0, scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 170, damping: 22 }}
+              className="mx-auto w-full max-w-7xl rounded-[36px] border border-cyan-300/18 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.13),transparent_30%),linear-gradient(180deg,rgba(8,16,34,0.98),rgba(4,9,22,0.96))] p-5 shadow-[0_34px_140px_rgba(0,0,0,0.62)] md:p-7"
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-cyan-200">Quarter Result</p>
+                  <h2 className="mt-3 text-3xl font-semibold text-white md:text-4xl">
+                    {store.resolution.headline}
+                  </h2>
+                  <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">
+                    {quarterDebriefLead}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <SignalChip label={`${store.resolution.year} ${store.resolution.quarter}`} tone="focus" />
+                  <SignalChip label={`${quarterMomentumScore}/100 turn pull`} tone={quarterMomentumScore >= 62 ? "good" : quarterMomentumScore < 44 ? "warn" : "focus"} />
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+                <div className="rounded-[28px] border border-cyan-400/18 bg-[linear-gradient(180deg,rgba(8,16,34,0.78),rgba(5,10,22,0.88))] p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Momentum Read</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-white">{quarterMomentumLabel}</h3>
+                    </div>
+                    <Radar className="h-6 w-6 text-cyan-200" />
+                  </div>
+                  <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/8">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${quarterMomentumScore}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-emerald-300"
+                    />
+                  </div>
+                  <div className="mt-5 rounded-2xl border border-white/8 bg-slate-950/58 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-100">Best Next Click</p>
+                    <p className="mt-2 text-lg font-semibold text-white">{quarterDebriefCtaValue}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{quarterDebriefCtaDisplay.detail}</p>
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playSynthTone(soundEnabled, "click");
+                        setQuarterResultOpen(false);
+                        store.openPanel(quarterDebriefCtaDisplay.panel);
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/35 bg-cyan-500/12 px-4 py-3 text-sm font-medium text-cyan-50 transition hover:border-cyan-200/55 hover:bg-cyan-500/18"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Open Best Next Click
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playSynthTone(soundEnabled, "click");
+                        setQuarterResultOpen(false);
+                      }}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/8"
+                    >
+                      Continue Briefing
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {quarterDebriefBeats.slice(0, 4).map((beat, index) => (
+                    <motion.button
+                      key={`${beat.label}-${beat.value}-result`}
+                      type="button"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.06 }}
+                      onClick={() => {
+                        playSynthTone(soundEnabled, "click");
+                        setQuarterResultOpen(false);
+                        store.openPanel(beat.panel);
+                      }}
+                      className="rounded-[24px] border border-white/8 bg-slate-950/62 p-4 text-left transition hover:border-sky-300/30 hover:bg-sky-500/8"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="min-w-0">
+                          <span className="block text-[10px] uppercase tracking-[0.2em] text-slate-500">{beat.label}</span>
+                          <span className="mt-2 block text-base font-semibold text-white">{beat.value}</span>
+                        </span>
+                        <SignalChip label={beat.tone === "good" ? "Landed" : beat.tone === "bad" ? "Risk" : beat.tone === "warn" ? "Watch" : "Signal"} tone={beat.tone} />
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-slate-400">{beat.detail}</p>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                {afterActionReport.map((item, index) => (
+                  <motion.button
+                    key={`${item.label}-overlay`}
+                    type="button"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.18 + index * 0.04 }}
+                    onClick={() => {
+                      playSynthTone(soundEnabled, "click");
+                      setQuarterResultOpen(false);
+                      if (item.label === "Ledger Impact") store.openPanel("finance");
+                      if (item.label === "Research Signal" || item.label === "Next Hook") store.openPanel("track");
+                    }}
+                    className="rounded-[22px] border border-white/8 bg-white/5 p-3 text-left transition hover:border-cyan-300/25 hover:bg-cyan-500/8"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{item.label}</p>
+                      <SignalChip label={item.tone === "good" ? "Up" : item.tone === "bad" ? "Risk" : item.tone === "warn" ? "Watch" : "Signal"} tone={item.tone} />
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-white">{item.value}</p>
+                    <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-400">{item.detail}</p>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {store.activeDilemma ? (
