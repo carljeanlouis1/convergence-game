@@ -2732,7 +2732,7 @@ export const availableBuildOptions = (state: GameState) =>
 
 export const tutorialNotes = [
   "First quarter: open Research, assign eligible talent, allocate compute, and make sure at least one ETA is moving.",
-  "Use the Full Guide's First 8 Quarters route if you feel lost. It teaches one safe opening before you start improvising.",
+  "Use Command Academy when stuck: First Turn Recipe, rescue cards, system decoder, and the First 8 Quarters route.",
   "After every End Turn, read the Quarter Debrief first. It tells you what paid off, what got worse, and the best next click.",
   "Before ending a turn, read Command Guidance and the Quarter Launch checks. Override them only when you understand the tradeoff.",
   "If an ETA looks flat, check Forecast Pace and the progress needed to cut the ETA by one quarter.",

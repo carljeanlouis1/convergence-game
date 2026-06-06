@@ -453,6 +453,113 @@ const commandHeuristics = [
   "End Turn should feel like pulling a lever, not sweeping the floor. Queue one payoff before you click it.",
 ];
 
+const firstTurnRecipe: Array<{
+  step: string;
+  label: string;
+  detail: string;
+  panel: PanelId;
+  tone: "good" | "focus" | "warn" | "neutral";
+}> = [
+  {
+    step: "01",
+    label: "Pick one starter lane",
+    detail: "Foundation is fastest, Alignment is safest, Simulation is usually the cleanest early money path.",
+    panel: "track",
+    tone: "focus",
+  },
+  {
+    step: "02",
+    label: "Assign eligible talent",
+    detail: "Use the assignment panel. Free staff are safe; yellow cards are already working somewhere else.",
+    panel: "track",
+    tone: "good",
+  },
+  {
+    step: "03",
+    label: "Check compute ETA preview",
+    detail: "If +5 PFLOPS does not change ETA, read the exact pace threshold before spending more.",
+    panel: "track",
+    tone: "warn",
+  },
+  {
+    step: "04",
+    label: "End with one hook",
+    detail: "Before End Turn, know what you want to see resolve: an ETA, hire arrival, build timer, product, or crisis.",
+    panel: "briefing",
+    tone: "good",
+  },
+];
+
+const academyRescueCards: Array<{
+  symptom: string;
+  reason: string;
+  fix: string;
+  panel: PanelId;
+  tone: "bad" | "focus" | "warn" | "neutral";
+}> = [
+  {
+    symptom: "Research ETA looks stuck",
+    reason: "The display rounds to whole quarters, while the forecast pace is decimal.",
+    fix: "Open Compute ETA Preview and look for the pace needed to cut ETA by 1Q. Add staff, compute, or Sprint only if it crosses the threshold.",
+    panel: "track",
+    tone: "warn",
+  },
+  {
+    symptom: "Commercialization is locked",
+    reason: "Products are their own commitments with capital, prerequisite, compute, and coverage gates.",
+    fix: "Read the blocker word-for-word. If it asks for Product, Field Ops, Policy, Security, or another badge, hire that coverage.",
+    panel: "track",
+    tone: "focus",
+  },
+  {
+    symptom: "I do not know who to hire",
+    reason: "Raw skill is less important than solving the named bottleneck in front of you.",
+    fix: "Open Talent and compare unlocks, coverage badges, current assignments, payroll, and whether rivals may steal the candidate.",
+    panel: "hiring",
+    tone: "neutral",
+  },
+  {
+    symptom: "The lab is suddenly broke",
+    reason: "Payroll, compute upkeep, research posture, product opex, and builds all stack into quarterly burn.",
+    fix: "Open Finance, read Runway Scenarios, then decide whether to pause ambition, launch revenue, or raise money.",
+    panel: "finance",
+    tone: "bad",
+  },
+];
+
+const systemDecoderCards = [
+  {
+    term: "PFLOPS",
+    meaning: "The shared compute budget for research and products.",
+    why: "Research allocation speeds projects; live products reserve service compute and can starve science.",
+  },
+  {
+    term: "Runway",
+    meaning: "How long the lab survives if the current ledger stays true.",
+    why: "Under 12 months, almost every decision becomes a finance decision.",
+  },
+  {
+    term: "Coverage",
+    meaning: "Talent badges that satisfy product or operational gates.",
+    why: "A brilliant scientist may still not cover Field Ops, Product, Policy, Security, or Orbital work.",
+  },
+  {
+    term: "Trajectory",
+    meaning: "The ending pressure your run is drifting toward.",
+    why: "You are not chasing one score. You are steering capability, safety, legitimacy, and control.",
+  },
+  {
+    term: "Scene Art",
+    meaning: "Optional AI-generated visual atmosphere for a briefing or dilemma.",
+    why: "It is there to make story beats memorable, not to change deterministic simulation rules.",
+  },
+  {
+    term: "Cinematic",
+    meaning: "Optional fal.ai Seedance video for a major moment you choose to preserve.",
+    why: "Use it for breakthroughs, dilemmas, or endings, not every quarter.",
+  },
+];
+
 function playSynthTone(enabled: boolean, kind: "click" | "breakthrough" | "warning") {
   if (!enabled || typeof window === "undefined") {
     return;
@@ -1634,6 +1741,77 @@ function TutorialOverlay({
                   <div className="rounded-[22px] border border-rose-400/18 bg-rose-500/10 px-4 py-4">
                     <p className="text-[11px] uppercase tracking-[0.2em] text-rose-200">Failure Sign</p>
                     <p className="mt-2 text-sm leading-6 text-rose-50">{slide.dangerSign}</p>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-[24px] border border-sky-400/16 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_36%),linear-gradient(180deg,rgba(8,16,34,0.78),rgba(5,10,22,0.82))] p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-sky-100">Command Academy</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">
+                        Use this like flight school: follow the first-turn drill once, then use the rescue cards when a system feels confusing.
+                      </p>
+                    </div>
+                    <SignalChip label="New player rescue" tone="focus" />
+                  </div>
+                  <div className="mt-4 grid gap-3 xl:grid-cols-[0.88fr_1.12fr]">
+                    <div className="rounded-[22px] border border-white/8 bg-slate-950/58 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-200">First Turn Recipe</p>
+                      <div className="mt-3 space-y-2">
+                        {firstTurnRecipe.map((item) => (
+                          <button
+                            key={`${item.step}-${item.label}`}
+                            type="button"
+                            disabled={!navigationEnabled}
+                            onClick={() => jumpToPanel(item.panel)}
+                            className="w-full rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-left transition hover:border-emerald-300/25 hover:bg-emerald-500/8 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="min-w-0">
+                                <span className="block text-[10px] uppercase tracking-[0.2em] text-emerald-200">{item.step}</span>
+                                <span className="mt-1 block text-sm font-semibold text-white">{item.label}</span>
+                              </span>
+                              <SignalChip label={panelGuideLabel(item.panel)} tone={item.tone} />
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-slate-400">{item.detail}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[22px] border border-white/8 bg-slate-950/58 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-amber-200">If This Happens</p>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                        {academyRescueCards.map((card) => (
+                          <button
+                            key={card.symptom}
+                            type="button"
+                            disabled={!navigationEnabled}
+                            onClick={() => jumpToPanel(card.panel)}
+                            className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3 text-left transition hover:border-amber-300/25 hover:bg-amber-500/8 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="min-w-0">
+                                <span className="block text-sm font-semibold text-white">{card.symptom}</span>
+                                <span className="mt-1 block text-[11px] leading-5 text-slate-500">{card.reason}</span>
+                              </span>
+                              <SignalChip label={panelGuideLabel(card.panel)} tone={card.tone} />
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-slate-300">{card.fix}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded-[22px] border border-white/8 bg-slate-950/58 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-100">System Decoder</p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {systemDecoderCards.map((card) => (
+                        <div key={card.term} className="rounded-2xl border border-white/8 bg-white/4 px-3 py-3">
+                          <p className="text-sm font-semibold text-white">{card.term}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-300">{card.meaning}</p>
+                          <p className="mt-2 text-[11px] leading-5 text-cyan-100">{card.why}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-5 rounded-[24px] border border-cyan-400/16 bg-cyan-500/8 p-4">
@@ -5249,7 +5427,7 @@ export function ConvergenceApp() {
                   className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-3 text-sm text-sky-50"
                 >
                   <BookOpen className="h-4 w-4" />
-                  How It Works
+                  Command Academy
                 </button>
               </div>
             <div className="mission-panel w-full max-w-sm rounded-[28px] p-5 xl:block">
@@ -6167,7 +6345,7 @@ export function ConvergenceApp() {
                     </div>
                     <button type="button" onClick={() => setTutorialOpen(true)} className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-2 text-sm text-white">
                       <BookOpen className="h-4 w-4" />
-                      Full Guide
+                      Command Academy
                     </button>
                   </motion.div>
                 ) : null}
