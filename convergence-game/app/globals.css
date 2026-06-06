@@ -126,6 +126,25 @@ body {
     radial-gradient(circle at 50% 20%, transparent 0 38%, rgba(5, 9, 22, 0.24) 70%);
 }
 
+.mission-art-frame--dilemma {
+  background:
+    linear-gradient(180deg, rgba(24, 8, 12, 0.12), rgba(5, 9, 22, 0.84)),
+    radial-gradient(circle at 38% 32%, rgba(251, 113, 133, 0.16), transparent 28%),
+    radial-gradient(circle at 68% 18%, rgba(245, 201, 104, 0.18), transparent 26%),
+    url("/art/mission-control-crisis-bg.jpg") center / cover no-repeat,
+    linear-gradient(135deg, rgba(10, 22, 45, 0.98), rgba(2, 8, 20, 0.96));
+}
+
+.mission-art-frame--dilemma::before {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(90deg, rgba(2, 6, 18, 0.66), rgba(2, 6, 18, 0.22) 48%, rgba(2, 6, 18, 0.7)),
+    linear-gradient(180deg, rgba(2, 6, 18, 0.02), rgba(2, 6, 18, 0.72));
+}
+
 .mission-art-frame::after {
   pointer-events: none;
   position: absolute;

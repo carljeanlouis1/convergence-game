@@ -7472,7 +7472,7 @@ export function ConvergenceApp() {
                       {sceneArtStatus.message}
                     </div>
                   ) : null}
-                  <div className="mission-art-frame min-h-[260px] rounded-[28px]">
+                  <div className="mission-art-frame mission-art-frame--dilemma min-h-[260px] rounded-[28px]">
                     {sceneArtScope === "dilemma" && sceneArtUrl ? (
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -7485,7 +7485,7 @@ export function ConvergenceApp() {
                     ) : (
                       <div className="relative z-10 flex min-h-[260px] flex-col justify-between p-5">
                         <div>
-                          <SignalChip label={serverSceneArtReady ? "Fast crisis art ready" : "Art standby"} tone={serverSceneArtReady ? "focus" : "neutral"} />
+                          <SignalChip label={serverSceneArtReady ? "Manual crisis art ready" : "Art standby"} tone={serverSceneArtReady ? "focus" : "neutral"} />
                           <h3 className="mt-5 text-2xl font-semibold text-white">Crisis theater</h3>
                           <p className="mt-3 max-w-md text-sm leading-6 text-slate-300">
                             Generate a frame when you want this decision to feel like a boardroom emergency with consequences on the wall.
