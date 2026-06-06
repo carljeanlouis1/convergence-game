@@ -2727,12 +2727,14 @@ export const availableBuildOptions = (state: GameState) =>
 
 export const tutorialNotes = [
   "First quarter: open Research, assign eligible talent, allocate compute, and make sure at least one ETA is moving.",
-  "Use the Full Guide's Quarter Cockpit if you feel lost: read the quarter, create research motion, protect runway, fix bottlenecks, then build ahead.",
-  "Before ending a turn, read Command Guidance. It highlights blockers, but you can override it when you understand the tradeoff.",
+  "Use the Full Guide's First 8 Quarters route if you feel lost. It teaches one safe opening before you start improvising.",
+  "After every End Turn, read the Quarter Debrief first. It tells you what paid off, what got worse, and the best next click.",
+  "Before ending a turn, read Command Guidance and the Quarter Launch checks. Override them only when you understand the tradeoff.",
   "If an ETA looks flat, check Forecast Pace and the progress needed to cut the ETA by one quarter.",
-  "Your safest early revenue usually comes from Simulation or the first commercialization path your roster can actually cover.",
+  "Your safest early revenue usually comes from Simulation or the first commercialization path your roster can actually staff and serve with compute.",
   "Hiring is strategic: look for track unlocks, product coverage badges, or specialists needed by the next research stage.",
   "Products reserve service compute immediately. Launching revenue can slow research if the cluster is overcommitted.",
-  "Build facilities when compute is repeatedly bottlenecking research or product launches, not just because cash is available.",
+  "Build facilities before the wall: start expansion when free compute is getting tight, not after the bottleneck has already cost you tempo.",
+  "Use the Rival Threat Board to decide whether a rival needs a research response, a legitimacy response, or no response at all.",
   "Dilemmas are permanent memory. Read the odds, then read the result modal to see which branch actually landed.",
 ];

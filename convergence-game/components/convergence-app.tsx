@@ -371,6 +371,88 @@ const quarterCockpitSteps: Array<{
   },
 ];
 
+const firstEightQuarterPlan: Array<{
+  timing: string;
+  label: string;
+  target: string;
+  mistake: string;
+  panel: PanelId;
+  tone: "good" | "focus" | "warn" | "neutral";
+}> = [
+  {
+    timing: "Q1",
+    label: "Light one research lane",
+    target: "Assign eligible talent and commit compute until one ETA is visibly moving.",
+    mistake: "Do not spread staff across every unlocked track before one lane has momentum.",
+    panel: "track",
+    tone: "good",
+  },
+  {
+    timing: "Q2",
+    label: "Read the debrief",
+    target: "Use the Quarter Debrief to identify the payoff, threat, or blocker that just appeared.",
+    mistake: "Skipping the briefing makes the simulation feel random instead of reactive.",
+    panel: "briefing",
+    tone: "focus",
+  },
+  {
+    timing: "Q3",
+    label: "Patch the roster",
+    target: "Hire only if the candidate unlocks a track, clears a product badge, or fixes a bottleneck.",
+    mistake: "A flashy researcher who does not solve a named blocker can quietly sink runway.",
+    panel: "hiring",
+    tone: "neutral",
+  },
+  {
+    timing: "Q4",
+    label: "Stabilize the ledger",
+    target: "If runway is under 12 months, make Finance the main board before adding burn.",
+    mistake: "Capability without cash becomes a forced funding story.",
+    panel: "finance",
+    tone: "warn",
+  },
+  {
+    timing: "Q5",
+    label: "Choose a payoff",
+    target: "Commercialize only when coverage, capital, and service compute are all visible.",
+    mistake: "Launching a product that reserves compute can slow the research race you meant to win.",
+    panel: "track",
+    tone: "focus",
+  },
+  {
+    timing: "Q6",
+    label: "Build before the wall",
+    target: "Start facilities before free compute hits zero for multiple quarters.",
+    mistake: "A data center that arrives after the bottleneck has already hurt you was started late.",
+    panel: "facilities",
+    tone: "neutral",
+  },
+  {
+    timing: "Q7",
+    label: "Answer rival pressure",
+    target: "Use the Rival Threat Board to decide whether to race, out-legitimize, or ignore a lab.",
+    mistake: "Trying to counter every rival pressure at once usually loses tempo.",
+    panel: "briefing",
+    tone: "focus",
+  },
+  {
+    timing: "Q8",
+    label: "Pick a trajectory",
+    target: "Let the Trajectory Compass tell you what ending you are drifting toward, then steer on purpose.",
+    mistake: "If you do not choose an identity, the strongest pressure system will choose one for you.",
+    panel: "briefing",
+    tone: "good",
+  },
+];
+
+const commandHeuristics = [
+  "One moving ETA is better than five impressive but stalled dashboards.",
+  "Runway under 12 months makes every hire, build, posture, and product a finance decision.",
+  "Products reserve compute immediately; a profitable launch can still slow frontier science.",
+  "Dilemmas are dice with memory: the result screen shows which branch became campaign history.",
+  "End Turn should feel like pulling a lever, not sweeping the floor. Queue one payoff before you click it.",
+];
+
 function playSynthTone(enabled: boolean, kind: "click" | "breakthrough" | "warning") {
   if (!enabled || typeof window === "undefined") {
     return;
@@ -1450,9 +1532,9 @@ function TutorialOverlay({
             initial={{ y: 18, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 12, opacity: 0 }}
-            className="mx-auto w-full max-w-5xl rounded-[32px] border border-white/10 bg-[#081021]/96 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)]"
+            className="mx-auto w-full max-w-6xl rounded-[32px] border border-white/10 bg-[#081021]/96 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)]"
           >
-            <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
               <div className="rounded-[28px] border border-white/10 bg-white/4 p-4">
                 <p className="text-xs uppercase tracking-[0.24em] text-sky-200">How To Play</p>
                 <div className="mt-4 space-y-2">
@@ -1552,6 +1634,51 @@ function TutorialOverlay({
                   <div className="rounded-[22px] border border-rose-400/18 bg-rose-500/10 px-4 py-4">
                     <p className="text-[11px] uppercase tracking-[0.2em] text-rose-200">Failure Sign</p>
                     <p className="mt-2 text-sm leading-6 text-rose-50">{slide.dangerSign}</p>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-[24px] border border-cyan-400/16 bg-cyan-500/8 p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-100">First 8 Quarters</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">
+                        This is the beginner opening route. You can break it later, but learn why it works first.
+                      </p>
+                    </div>
+                    <SignalChip label="Opening route" tone="focus" />
+                  </div>
+                  <div className="mt-4 grid gap-2 md:grid-cols-2">
+                    {firstEightQuarterPlan.map((item) => (
+                      <button
+                        key={`${item.timing}-${item.label}`}
+                        type="button"
+                        disabled={!navigationEnabled}
+                        onClick={() => jumpToPanel(item.panel)}
+                        className="rounded-[20px] border border-white/8 bg-slate-950/58 p-3 text-left transition hover:border-cyan-300/25 hover:bg-cyan-500/8 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block text-[10px] uppercase tracking-[0.2em] text-cyan-200">{item.timing}</span>
+                            <span className="mt-1 block text-sm font-semibold text-white">{item.label}</span>
+                          </span>
+                          <SignalChip label={panelGuideLabel(item.panel)} tone={item.tone} />
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-300">{item.target}</p>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">Avoid: {item.mistake}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-4 rounded-[24px] border border-white/8 bg-white/4 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Commander Rules Of Thumb</p>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    {commandHeuristics.map((rule, index) => (
+                      <div key={rule} className="rounded-2xl border border-white/8 bg-slate-950/58 px-3 py-3 text-sm leading-6 text-slate-300">
+                        <span className="mr-2 text-[10px] uppercase tracking-[0.2em] text-sky-200">
+                          Rule {index + 1}
+                        </span>
+                        {rule}
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="mt-6 flex items-center justify-between gap-3">
