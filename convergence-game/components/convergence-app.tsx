@@ -3244,6 +3244,115 @@ export function ConvergenceApp() {
     tone: "bad" | "focus" | "good" | "neutral";
   }>;
   const primaryNextQuarterHook = nextQuarterPreview[0];
+  const operationsTimelineEvents = ([
+    store.activeDilemma
+      ? {
+          id: `dilemma-${store.activeDilemma.id}`,
+          due: 0,
+          label: "Now",
+          title: store.activeDilemma.title,
+          detail: "Resolve this dilemma before any timer can advance.",
+          panel: "dilemmas" as PanelId,
+          tone: "bad" as const,
+        }
+      : null,
+    ...researchForecasts
+      .filter(
+        ({ forecast, trackState }) =>
+          trackState.unlocked &&
+          !forecast.blockedReason &&
+          forecast.turnsToLevel !== null &&
+          forecast.turnsToLevel <= 8 &&
+          forecast.projectName !== "Completed",
+      )
+      .map(({ forecast, track, trackState }) => ({
+        id: `research-${track.id}`,
+        due: forecast.turnsToLevel ?? 99,
+        label: `${formatTurns(forecast.turnsToLevel)} ETA`,
+        title: `${track.shortName} L${trackState.level + 1}`,
+        detail: `${forecast.projectName} is gaining +${forecast.progressPerTurn}/Q if staffing and compute hold.`,
+        panel: "track" as PanelId,
+        tone: forecast.turnsToLevel === 1 ? ("good" as const) : ("focus" as const),
+      })),
+    ...store.commercializationPrograms
+      .filter((program) => program.status === "launching" && program.turnsRemaining <= 8)
+      .map((program) => ({
+        id: `commercial-${program.id}`,
+        due: program.turnsRemaining,
+        label: `${program.turnsRemaining}Q`,
+        title: `${program.name} live`,
+        detail: `${formatCurrency(program.quarterlyRevenue)} revenue begins if the launch completes.`,
+        panel: "track" as PanelId,
+        tone: program.turnsRemaining <= 1 ? ("good" as const) : ("focus" as const),
+      })),
+    ...store.projects
+      .filter((project) => project.turnsRemaining <= 8)
+      .map((project) => ({
+        id: `project-${project.id}`,
+        due: project.turnsRemaining,
+        label: `${project.turnsRemaining}Q`,
+        title: `${project.name} online`,
+        detail: `Adds ${project.computeDelta} PFLOPS in ${project.region}.`,
+        panel: "facilities" as PanelId,
+        tone: project.turnsRemaining <= 1 ? ("good" as const) : ("neutral" as const),
+      })),
+    store.pendingHires.length
+      ? {
+          id: "pending-hires",
+          due: 1,
+          label: "1Q",
+          title: `${store.pendingHires.length} hire${store.pendingHires.length === 1 ? "" : "s"} arrive`,
+          detail: `New payroll starts next quarter: ${formatCurrency(pendingHirePayroll)}.`,
+          panel: "hiring" as PanelId,
+          tone: "focus" as const,
+        }
+      : null,
+    contestedCandidateCount
+      ? {
+          id: "contested-market",
+          due: 1,
+          label: "1Q",
+          title: "Contested talent can vanish",
+          detail: `${contestedCandidateCount} candidate${contestedCandidateCount === 1 ? "" : "s"} may sign with rivals at quarter end.`,
+          panel: "hiring" as PanelId,
+          tone: "warn" as const,
+        }
+      : null,
+    quarterlyNet < 0
+      ? {
+          id: "runway-pressure",
+          due: Math.max(1, Math.ceil(store.resources.runwayMonths / 3)),
+          label: `${Math.max(1, Math.ceil(store.resources.runwayMonths / 3))}Q`,
+          title: "Runway pressure",
+          detail: `${store.resources.runwayMonths} months remain at the current ledger.`,
+          panel: "finance" as PanelId,
+          tone: store.resources.runwayMonths < 10 ? ("bad" as const) : ("warn" as const),
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    id: string;
+    due: number;
+    label: string;
+    title: string;
+    detail: string;
+    panel: PanelId;
+    tone: "bad" | "focus" | "good" | "neutral" | "warn";
+  }>)
+    .sort((left, right) => {
+      const priority = { bad: 0, good: 1, focus: 2, warn: 3, neutral: 4 };
+      return left.due - right.due || priority[left.tone] - priority[right.tone];
+    })
+    .slice(0, 6);
+  const primaryTimelineEvent =
+    operationsTimelineEvents[0] ?? {
+      id: "steady-ops",
+      due: 1,
+      label: "1Q",
+      title: "World pressure advances",
+      detail: "No payoff timer is queued. Create a research, hiring, build, or product hook before ending the turn.",
+      panel: "track" as PanelId,
+      tone: "warn" as const,
+    };
   const movingResearch = researchForecasts.filter(
     ({ forecast, trackState }) =>
       trackState.unlocked &&
@@ -5396,6 +5505,54 @@ export function ConvergenceApp() {
                   </div>
                 </div>
               ) : null}
+
+              <div className="mission-card rounded-[28px] border-sky-400/14 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Operations Timeline</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Upcoming timers across research, products, builds, hiring, and runway. This is the “just one more quarter” rail.
+                    </p>
+                  </div>
+                  <SignalChip label={primaryTimelineEvent.label} tone={primaryTimelineEvent.tone} />
+                </div>
+                <div className="mt-4 space-y-2">
+                  {(operationsTimelineEvents.length ? operationsTimelineEvents : [primaryTimelineEvent]).map((event, index) => {
+                    const dotClass =
+                      event.tone === "good"
+                        ? "bg-emerald-300"
+                        : event.tone === "bad"
+                          ? "bg-rose-300"
+                          : event.tone === "warn"
+                            ? "bg-amber-300"
+                            : event.tone === "focus"
+                              ? "bg-sky-300"
+                              : "bg-slate-400";
+
+                    return (
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={() => store.openPanel(event.panel)}
+                        className="relative w-full rounded-2xl border border-white/8 bg-slate-950/60 px-3 py-3 pl-10 text-left transition hover:border-sky-300/25 hover:bg-sky-500/8"
+                      >
+                        <span className={`absolute left-3 top-4 h-3 w-3 rounded-full ${dotClass}`} />
+                        {index < (operationsTimelineEvents.length ? operationsTimelineEvents : [primaryTimelineEvent]).length - 1 ? (
+                          <span className="absolute bottom-[-10px] left-[17px] top-8 w-px bg-white/10" />
+                        ) : null}
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block text-[10px] uppercase tracking-[0.2em] text-sky-200">{event.label}</span>
+                            <span className="mt-1 block text-sm font-semibold text-white">{event.title}</span>
+                          </span>
+                          <SignalChip label={`Open ${panelGuideLabel(event.panel)}`} tone={event.tone} />
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-400">{event.detail}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="mission-card rounded-[28px] border-cyan-400/14 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
                 <div className="flex items-start justify-between gap-3">
