@@ -3113,6 +3113,25 @@ export function ConvergenceApp() {
   ];
   const readyCheckCount = turnReadinessChecks.filter((check) => check.tone === "good").length;
   const urgentCheckCount = turnReadinessChecks.filter((check) => check.tone === "bad").length;
+  const quarterLaunchTone = store.activeDilemma
+    ? ("bad" as const)
+    : urgentCheckCount
+      ? ("warn" as const)
+      : readyCheckCount === turnReadinessChecks.length
+        ? ("good" as const)
+        : ("focus" as const);
+  const quarterLaunchLabel = store.activeDilemma
+    ? "Crisis blocking clock"
+    : urgentCheckCount
+      ? `${urgentCheckCount} urgent check${urgentCheckCount === 1 ? "" : "s"}`
+      : readyCheckCount === turnReadinessChecks.length
+        ? "Ready to launch"
+        : `${readyCheckCount}/${turnReadinessChecks.length} green`;
+  const quarterLaunchDetail = store.activeDilemma
+    ? "Resolve the active dilemma before the simulation clock can move."
+    : primaryNextQuarterHook
+      ? `${primaryNextQuarterHook.label}: ${primaryNextQuarterHook.detail}`
+      : "No sharp payoff is queued yet. You can still advance, but a focused commitment will make the next turn stronger.";
   const afterActionReport = [
     {
       label: "Quarter Result",
@@ -5074,8 +5093,17 @@ export function ConvergenceApp() {
                 </div>
               </div>
 
-              <div className="mission-card rounded-[28px] p-5">
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Run Controls</p>
+              <div className="mission-card rounded-[28px] border-sky-400/16 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Quarter Launch</p>
+                    <h3 className="mt-2 text-lg font-semibold text-white">
+                      {store.activeDilemma ? "Decision required before the clock moves" : "Ready the next simulation tick"}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">{quarterLaunchDetail}</p>
+                  </div>
+                  <SignalChip label={quarterLaunchLabel} tone={quarterLaunchTone} />
+                </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <button
                     type="button"
@@ -5118,10 +5146,10 @@ export function ConvergenceApp() {
                         store.nextTurn();
                       })
                     }
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-sky-400/45 bg-sky-500/15 px-4 py-3 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-sky-300/55 bg-sky-400/18 px-4 py-3 text-sm font-semibold text-white shadow-[0_18px_60px_rgba(56,189,248,0.14)] transition hover:border-sky-200/70 hover:bg-sky-400/24 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500 sm:col-span-2"
                   >
                     <Play className="h-4 w-4" />
-                    End Turn
+                    {store.activeDilemma ? "Resolve Dilemma To Advance" : isPending ? "Advancing Quarter..." : "End Turn - Advance Quarter"}
                   </button>
                 </div>
                 <div className="mt-4 rounded-[22px] border border-white/8 bg-slate-950/45 p-3">
