@@ -5793,6 +5793,25 @@ export function ConvergenceApp() {
                       <SignalChip label={`${reservedCommercialCompute} PFLOPS reserved`} tone="neutral" />
                     </div>
                   </div>
+                  {store.panel === "finance" ? (
+                    <div className="mission-art-frame mission-art-frame--finance mt-5 min-h-[220px] rounded-[24px]">
+                      <div className="relative z-10 flex min-h-[220px] flex-col justify-between p-5">
+                        <div>
+                          <SignalChip label="Capital theater" tone={quarterlyNet >= 0 ? "good" : "warn"} />
+                          <h3 className="mt-5 max-w-xl text-2xl font-semibold text-white">Runway command table</h3>
+                          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                            Finance turns ambition into time. Every hire, build, product, and research sprint is a bet against this ledger.
+                          </p>
+                        </div>
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          <SignalChip label={`${store.resources.runwayMonths} months runway`} tone={store.resources.runwayMonths < 10 ? "bad" : store.resources.runwayMonths < 18 ? "warn" : "good"} />
+                          <SignalChip label={`${quarterlyNet >= 0 ? "+" : ""}${formatCurrency(quarterlyNet)} net`} tone={quarterlyNet >= 0 ? "good" : "warn"} />
+                          <SignalChip label={`${fundingOffers.length} funding offers`} tone={fundingOffers.length ? "focus" : "neutral"} />
+                          <SignalChip label={`${Math.round(store.flags.founderControl)}% control`} tone="focus" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <CommandMetric
                       label="Founder Control"

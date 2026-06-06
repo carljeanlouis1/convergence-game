@@ -164,6 +164,25 @@ body {
     linear-gradient(180deg, rgba(2, 6, 18, 0.04), rgba(2, 6, 18, 0.72));
 }
 
+.mission-art-frame--finance {
+  background:
+    linear-gradient(180deg, rgba(5, 9, 22, 0.08), rgba(5, 9, 22, 0.8)),
+    radial-gradient(circle at 58% 34%, rgba(16, 185, 129, 0.15), transparent 28%),
+    radial-gradient(circle at 26% 22%, rgba(245, 201, 104, 0.14), transparent 26%),
+    url("/art/mission-control-finance-bg.jpg") center / cover no-repeat,
+    linear-gradient(135deg, rgba(10, 22, 45, 0.98), rgba(2, 8, 20, 0.96));
+}
+
+.mission-art-frame--finance::before {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(90deg, rgba(2, 6, 18, 0.68), rgba(2, 6, 18, 0.18) 52%, rgba(2, 6, 18, 0.7)),
+    linear-gradient(180deg, rgba(2, 6, 18, 0.04), rgba(2, 6, 18, 0.74));
+}
+
 .mission-art-frame::after {
   pointer-events: none;
   position: absolute;
