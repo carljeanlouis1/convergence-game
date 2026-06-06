@@ -2623,6 +2623,76 @@ export function ConvergenceApp() {
     (sum, hire) => sum + hire.salary / 4 + hire.signingBonus,
     0,
   );
+  const estimateRunwayMonths = (capital: number, net: number) =>
+    net >= 0 ? 36 : Math.max(0, Math.floor((capital / Math.max(Math.abs(net), 0.1)) * 3));
+  const launchingCommercialPrograms = store.commercializationPrograms.filter(
+    (program) => program.status === "launching",
+  );
+  const launchingRevenueLift = launchingCommercialPrograms.reduce(
+    (sum, program) => sum + program.quarterlyRevenue,
+    0,
+  );
+  const launchingOpexLift = launchingCommercialPrograms.reduce((sum, program) => {
+    const currentOpex =
+      commercializationExpenseBreakdown.find((entry) => entry.id === program.id)?.amount ??
+      Math.max(0.12, program.quarterlyExpense * 0.45);
+
+    return sum + Math.max(0, program.quarterlyExpense - currentOpex);
+  }, 0);
+  const projectedNetAfterLaunches = Number((quarterlyNet + launchingRevenueLift - launchingOpexLift).toFixed(2));
+  const projectedNetAfterPendingHires = Number((quarterlyNet - pendingHirePayroll).toFixed(2));
+  const projectedNetAfterPipeline = Number((projectedNetAfterLaunches - pendingHirePayroll).toFixed(2));
+  const largestFundingOffer = [...fundingOffers].sort((left, right) => right.capital - left.capital)[0] ?? null;
+  const financeScenarioCards = [
+    {
+      id: "current-ledger",
+      label: "Current ledger",
+      value: `${quarterlyNet >= 0 ? "+" : ""}${formatCurrency(quarterlyNet)}`,
+      detail: `${store.resources.runwayMonths} months runway if the current revenue and burn hold.`,
+      runwayMonths: store.resources.runwayMonths,
+      tone: quarterlyNet >= 0 ? ("good" as const) : store.resources.runwayMonths < 10 ? ("bad" as const) : ("warn" as const),
+    },
+    {
+      id: "launch-pipeline",
+      label: "After launches",
+      value: `${projectedNetAfterLaunches >= 0 ? "+" : ""}${formatCurrency(projectedNetAfterLaunches)}`,
+      detail: launchingCommercialPrograms.length
+        ? `${launchingCommercialPrograms.length} product${launchingCommercialPrograms.length === 1 ? "" : "s"} could add ${formatCurrency(launchingRevenueLift)} revenue and ${formatCurrency(launchingOpexLift)} opex.`
+        : "No product launch pipeline is queued. Commercial upside needs a new authorization.",
+      runwayMonths: estimateRunwayMonths(store.resources.capital, projectedNetAfterLaunches),
+      tone: launchingCommercialPrograms.length ? ("focus" as const) : ("neutral" as const),
+    },
+    {
+      id: "pending-hires",
+      label: "After signed hires",
+      value: `${projectedNetAfterPendingHires >= 0 ? "+" : ""}${formatCurrency(projectedNetAfterPendingHires)}`,
+      detail: store.pendingHires.length
+        ? `${store.pendingHires.length} hire${store.pendingHires.length === 1 ? "" : "s"} add ${formatCurrency(pendingHirePayroll)} payroll next quarter.`
+        : "No signed hires are waiting to join the payroll.",
+      runwayMonths: estimateRunwayMonths(store.resources.capital, projectedNetAfterPendingHires),
+      tone: store.pendingHires.length ? ("warn" as const) : ("neutral" as const),
+    },
+    largestFundingOffer
+      ? {
+          id: "best-funding",
+          label: "Best funding window",
+          value: `+${formatCurrency(largestFundingOffer.capital)}`,
+          detail: `${largestFundingOffer.name} extends the treasury but costs ${largestFundingOffer.founderControlLoss}% founder control.`,
+          runwayMonths: estimateRunwayMonths(
+            store.resources.capital + largestFundingOffer.capital,
+            projectedNetAfterPipeline,
+          ),
+          tone: "good" as const,
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    id: string;
+    label: string;
+    value: string;
+    detail: string;
+    runwayMonths: number;
+    tone: "bad" | "focus" | "good" | "neutral" | "warn";
+  }>;
   const commercializationLookup = Object.fromEntries(
     allCommercializationOptions.map((option) => [option.id, option]),
   ) as Record<string, (typeof allCommercializationOptions)[number]>;
@@ -8234,6 +8304,48 @@ export function ConvergenceApp() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+                <div className="mission-card rounded-[26px] border-sky-400/14 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.9),rgba(5,10,22,0.88))] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Runway Scenarios</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        Compare the current ledger against near-future commitments before you add another hire, build, or product.
+                      </p>
+                    </div>
+                    <SignalChip label={`${financeScenarioCards.length} cases`} tone="focus" />
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {financeScenarioCards.map((scenario) => {
+                      const scenarioPercent = Math.max(5, Math.min(100, (scenario.runwayMonths / 36) * 100));
+                      const barClass =
+                        scenario.tone === "good"
+                          ? "bg-emerald-300"
+                          : scenario.tone === "bad"
+                            ? "bg-rose-300"
+                            : scenario.tone === "warn"
+                              ? "bg-amber-300"
+                              : scenario.tone === "focus"
+                                ? "bg-sky-300"
+                                : "bg-slate-400";
+
+                      return (
+                        <div key={scenario.id} className="rounded-[22px] border border-white/8 bg-slate-950/60 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{scenario.label}</p>
+                              <p className="mt-2 text-lg font-semibold text-white">{scenario.value}</p>
+                            </div>
+                            <SignalChip label={`${scenario.runwayMonths}mo`} tone={scenario.tone} />
+                          </div>
+                          <p className="mt-3 text-xs leading-5 text-slate-400">{scenario.detail}</p>
+                          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
+                            <div className={`h-full rounded-full ${barClass}`} style={{ width: `${scenarioPercent}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
