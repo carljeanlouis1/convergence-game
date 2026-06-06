@@ -2433,6 +2433,39 @@ export function ConvergenceApp() {
 
       return scoreCandidate(right) - scoreCandidate(left);
     });
+  const topMarketCandidate = filteredCandidates[0] ?? null;
+  const talentIntelligence = [
+    {
+      label: "Roster utilization",
+      value: idleTalent.length ? `${idleTalent.length} idle` : "Fully assigned",
+      detail: idleTalent.length
+        ? "Idle talent is unused tempo. Move them through Research before ending the quarter."
+        : "Every current employee is contributing somewhere this quarter.",
+      tone: idleTalent.length ? ("warn" as const) : ("good" as const),
+    },
+    {
+      label: "Selected-lane market",
+      value: `${matchingCandidateCount} fit${matchingCandidateCount === 1 ? "" : "s"}`,
+      detail: `${getTrackLabel(store.selectedTrack)} has ${matchingCandidateCount} visible candidate${matchingCandidateCount === 1 ? "" : "s"} who can support it.`,
+      tone: matchingCandidateCount ? ("focus" as const) : ("neutral" as const),
+    },
+    {
+      label: "Contested talent",
+      value: contestedCandidateCount ? `${contestedCandidateCount} at risk` : "No contests",
+      detail: contestedCandidateCount
+        ? "Contested candidates can disappear at quarter end if rivals close them first."
+        : "No visible market candidate is being actively poached right now.",
+      tone: contestedCandidateCount ? ("bad" as const) : ("good" as const),
+    },
+    {
+      label: "Best visible target",
+      value: topMarketCandidate?.name ?? "No candidate",
+      detail: topMarketCandidate
+        ? `${topMarketCandidate.role} / ${getTrackLabel(topMarketCandidate.primaryTrack)}. ${topMarketCandidate.ask}`
+        : "The current market filters are hiding every candidate.",
+      tone: topMarketCandidate?.contestedBy ? ("warn" as const) : topMarketCandidate ? ("focus" as const) : ("neutral" as const),
+    },
+  ];
   const panelMeta: Record<
     PanelId,
     {
@@ -5390,6 +5423,23 @@ export function ConvergenceApp() {
                         <SignalChip label={`${store.pendingHires.length} arriving`} tone={store.pendingHires.length ? "focus" : "neutral"} />
                       </div>
                     </div>
+                    <div className="mission-art-frame mission-art-frame--talent mt-5 min-h-[220px] rounded-[24px]">
+                      <div className="relative z-10 flex min-h-[220px] flex-col justify-between p-5">
+                        <div>
+                          <SignalChip label="Talent theater" tone={contestedCandidateCount ? "bad" : "focus"} />
+                          <h3 className="mt-5 max-w-xl text-2xl font-semibold text-white">Roster and recruiting command view</h3>
+                          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                            People are your scarce strategic resource: assignments create research tempo, coverage unlocks products, and contested candidates create quarter-end pressure.
+                          </p>
+                        </div>
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          <SignalChip label={`${assignedTalent.length} assigned`} tone="good" />
+                          <SignalChip label={`${idleTalent.length} idle`} tone={idleTalent.length ? "warn" : "neutral"} />
+                          <SignalChip label={`${matchingCandidateCount} market fits`} tone="focus" />
+                          <SignalChip label={`${contestedCandidateCount} contested`} tone={contestedCandidateCount ? "bad" : "neutral"} />
+                        </div>
+                      </div>
+                    </div>
                     <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       <CommandMetric
                         label="Assigned Talent"
@@ -5419,6 +5469,21 @@ export function ConvergenceApp() {
                         icon={TrendingUp}
                         tone="emerald"
                       />
+                    </div>
+                    <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      {talentIntelligence.map((item) => (
+                        <div key={item.label} className="rounded-[22px] border border-white/8 bg-slate-950/58 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{item.label}</p>
+                            <SignalChip
+                              label={item.tone === "good" ? "Clear" : item.tone === "bad" ? "Urgent" : item.tone === "warn" ? "Watch" : "Signal"}
+                              tone={item.tone}
+                            />
+                          </div>
+                          <p className="mt-3 text-sm font-semibold text-white">{item.value}</p>
+                          <p className="mt-2 text-xs leading-5 text-slate-400">{item.detail}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
 

@@ -183,6 +183,25 @@ body {
     linear-gradient(180deg, rgba(2, 6, 18, 0.04), rgba(2, 6, 18, 0.74));
 }
 
+.mission-art-frame--talent {
+  background:
+    linear-gradient(180deg, rgba(5, 9, 22, 0.08), rgba(5, 9, 22, 0.8)),
+    radial-gradient(circle at 54% 38%, rgba(56, 189, 248, 0.14), transparent 30%),
+    radial-gradient(circle at 24% 22%, rgba(245, 201, 104, 0.12), transparent 24%),
+    url("/art/mission-control-talent-bg.jpg") center / cover no-repeat,
+    linear-gradient(135deg, rgba(10, 22, 45, 0.98), rgba(2, 8, 20, 0.96));
+}
+
+.mission-art-frame--talent::before {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(90deg, rgba(2, 6, 18, 0.66), rgba(2, 6, 18, 0.2) 48%, rgba(2, 6, 18, 0.72)),
+    linear-gradient(180deg, rgba(2, 6, 18, 0.04), rgba(2, 6, 18, 0.74));
+}
+
 .mission-art-frame::after {
   pointer-events: none;
   position: absolute;
