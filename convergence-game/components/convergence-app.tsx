@@ -2951,6 +2951,7 @@ export function ConvergenceApp() {
           label: "Clock Paused",
           value: "Resolve crisis first",
           detail: "The quarter cannot advance until the active dilemma has a committed answer.",
+          panel: "dilemmas" as PanelId,
           tone: "bad" as const,
         }
       : null,
@@ -2968,6 +2969,7 @@ export function ConvergenceApp() {
                   .slice(0, 3)
                   .map((entry) => entry.track.shortName)
                   .join(", "),
+          panel: "track" as PanelId,
           tone: "good" as const,
         }
       : null,
@@ -2981,6 +2983,7 @@ export function ConvergenceApp() {
           detail: `Expected new quarterly revenue: ${formatCurrency(
             productsDueNextQuarter.reduce((sum, program) => sum + program.quarterlyRevenue, 0),
           )}.`,
+          panel: "track" as PanelId,
           tone: "good" as const,
         }
       : null,
@@ -2992,6 +2995,7 @@ export function ConvergenceApp() {
               ? `${store.pendingHires[0].name} arrives`
               : `${store.pendingHires.length} hires arrive`,
           detail: `New payroll starts next quarter: ${formatCurrency(pendingHirePayroll)}.`,
+          panel: "hiring" as PanelId,
           tone: "focus" as const,
         }
       : null,
@@ -3006,6 +3010,7 @@ export function ConvergenceApp() {
             (sum, project) => sum + project.computeDelta,
             0,
           )} PFLOPS.`,
+          panel: "facilities" as PanelId,
           tone: "focus" as const,
         }
       : null,
@@ -3014,6 +3019,7 @@ export function ConvergenceApp() {
           label: "Cash Burn",
           value: `${formatCurrency(Math.abs(quarterlyNet))} burn`,
           detail: `Projected capital after next quarter: ${formatCurrency(projectedCapitalAfterQuarter)}.`,
+          panel: "finance" as PanelId,
           tone: store.resources.runwayMonths < 10 ? ("bad" as const) : ("neutral" as const),
         }
       : null,
@@ -3027,6 +3033,7 @@ export function ConvergenceApp() {
           label: "Steady Quarter",
           value: "Progress advances",
           detail: "Research, rivals, and world pressure will tick forward. Set up a payoff before ending the turn if you want a stronger hook.",
+          panel: "track" as PanelId,
           tone: "neutral" as const,
         }
       : null,
@@ -3036,8 +3043,10 @@ export function ConvergenceApp() {
     label: string;
     value: string;
     detail: string;
+    panel: PanelId;
     tone: "bad" | "focus" | "good" | "neutral";
   }>;
+  const primaryNextQuarterHook = nextQuarterPreview[0];
   const movingResearch = researchForecasts.filter(
     ({ forecast, trackState }) =>
       trackState.unlocked &&
@@ -5031,9 +5040,11 @@ export function ConvergenceApp() {
                 </div>
                 <div className="mt-4 space-y-2">
                   {nextQuarterPreview.map((item, index) => (
-                    <div
+                    <button
                       key={`${item.label}-${index}`}
-                      className="rounded-2xl border border-white/8 bg-slate-950/58 px-3 py-3"
+                      type="button"
+                      onClick={() => store.openPanel(item.panel)}
+                      className="w-full rounded-2xl border border-white/8 bg-slate-950/58 px-3 py-3 text-left transition hover:border-sky-300/25 hover:bg-sky-500/8"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <span className="min-w-0">
@@ -5043,7 +5054,7 @@ export function ConvergenceApp() {
                         <SignalChip label={`0${index + 1}`} tone={item.tone} />
                       </div>
                       <p className="mt-2 text-xs leading-5 text-slate-400">{item.detail}</p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -5516,6 +5527,25 @@ export function ConvergenceApp() {
                           </div>
                         ))}
                       </div>
+                      {primaryNextQuarterHook ? (
+                        <button
+                          type="button"
+                          onClick={() => store.openPanel(primaryNextQuarterHook.panel)}
+                          className="mt-4 w-full rounded-[24px] border border-sky-400/22 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.16),transparent_32%),linear-gradient(135deg,rgba(14,25,51,0.92),rgba(7,13,28,0.92))] p-4 text-left transition hover:border-sky-300/38 hover:bg-sky-500/12"
+                        >
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <span className="min-w-0">
+                              <span className="block text-xs uppercase tracking-[0.22em] text-sky-200">Next Quarter Hook</span>
+                              <span className="mt-2 block text-lg font-semibold text-white">{primaryNextQuarterHook.value}</span>
+                              <span className="mt-2 block text-sm leading-6 text-slate-300">{primaryNextQuarterHook.detail}</span>
+                            </span>
+                            <span className="flex shrink-0 flex-wrap items-center gap-2">
+                              <SignalChip label={primaryNextQuarterHook.label} tone={primaryNextQuarterHook.tone} />
+                              <SignalChip label={`Open ${panelGuideLabel(primaryNextQuarterHook.panel)}`} tone="focus" />
+                            </span>
+                          </div>
+                        </button>
+                      ) : null}
                     </div>
                     <div className="mt-4 rounded-[24px] border border-sky-400/18 bg-sky-500/10 p-4">
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
