@@ -5193,6 +5193,64 @@ export function ConvergenceApp() {
 
               {store.panel === "track" ? (
                 <div className="space-y-4">
+                  <div className="mission-art-frame mission-art-frame--research min-h-[220px] rounded-[28px]">
+                    <div className="relative z-10 flex min-h-[220px] flex-col justify-between p-5">
+                      <div>
+                        <SignalChip
+                          label={selectedForecast.blockedReason ? "Research doctrine / blocked" : "Research doctrine / live"}
+                          tone={selectedForecast.blockedReason ? "warn" : selectedForecast.progressPerTurn > 0 ? "good" : "focus"}
+                        />
+                        <h3 className="mt-5 max-w-2xl text-2xl font-semibold text-white">Discovery command table</h3>
+                        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+                          Research now competes for the same scarce lab reality: specialist coverage, PFLOPS, posture risk, and product compute reserve.
+                          Keep one lane moving, then decide when it is worth turning science into revenue.
+                        </p>
+                      </div>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <SignalChip label={`${selectedForecast.projectName} target`} tone="focus" />
+                        <SignalChip label={`+${selectedForecast.progressPerTurn}/Q`} tone={selectedForecast.progressPerTurn > 0 ? "good" : "bad"} />
+                        <SignalChip label={`ETA ${formatTurns(selectedForecast.turnsToLevel)}`} tone="neutral" />
+                        <SignalChip label={`${selectedTrack.compute} PFLOPS committed`} tone={selectedTrack.compute >= selectedForecast.recommendedCompute ? "good" : "warn"} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <CommandMetric
+                      label="Research Motion"
+                      value={selectedForecast.progressPerTurn > 0 ? `+${selectedForecast.progressPerTurn}/Q` : "Stalled"}
+                      helper={
+                        selectedForecast.blockedReason ??
+                        `${selectedForecast.projectName} is forecast at ${formatExactTurns(selectedForecast.exactTurnsToLevel)} from current assignments.`
+                      }
+                      icon={FlaskConical}
+                      tone={selectedForecast.progressPerTurn > 0 ? "emerald" : "rose"}
+                    />
+                    <CommandMetric
+                      label="Talent Coverage"
+                      value={`${selectedForecast.assignedCount} assigned`}
+                      helper={
+                        selectedForecast.assignedCount
+                          ? "Assigned specialists drive the active lane each quarter."
+                          : "Assign eligible talent before ending the quarter."
+                      }
+                      icon={Users}
+                      tone={selectedForecast.assignedCount ? "sky" : "amber"}
+                    />
+                    <CommandMetric
+                      label="Compute Fit"
+                      value={`${Math.round((selectedForecast.computeReadiness ?? 1) * 100)}%`}
+                      helper={`${selectedTrack.compute}/${selectedForecast.recommendedCompute} PFLOPS committed, with ${freeCompute} PFLOPS still free for research.`}
+                      icon={Cpu}
+                      tone={selectedTrack.compute >= selectedForecast.recommendedCompute ? "emerald" : "amber"}
+                    />
+                    <CommandMetric
+                      label="Posture"
+                      value={selectedPosture.label}
+                      helper={`${selectedPosture.summary} Expense modifier x${selectedPosture.expenseMultiplier.toFixed(2)}.`}
+                      icon={Zap}
+                      tone={selectedPosture.id === "sprint" ? "amber" : selectedPosture.id === "safe" ? "emerald" : "slate"}
+                    />
+                  </div>
                   <TrackMap state={store} onOpenTrack={store.openTrack} />
                   {trackTalentAssignmentPanel}
                 </div>
