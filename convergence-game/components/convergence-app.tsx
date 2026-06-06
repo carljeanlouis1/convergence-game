@@ -3472,6 +3472,100 @@ export function ConvergenceApp() {
     panel: PanelId;
   };
   const quarterDebriefCtaValue = quarterDebriefCtaDisplay.value ?? quarterDebriefCtaDisplay.label ?? "Next move";
+  const scienceMilestoneCards = CONVERGENCES.filter(
+    (convergence) => !store.convergences.some((triggered) => triggered.id === convergence.id),
+  )
+    .map((convergence) => {
+      const requirements = Object.entries(convergence.requirements) as Array<[TrackId, number]>;
+      const completedRequirements = requirements.filter(
+        ([trackId, level]) => store.tracks[trackId].level >= level,
+      ).length;
+      const progress = clampMetric(
+        (requirements.reduce((sum, [trackId, level]) => {
+          const current = store.tracks[trackId].level;
+          return sum + Math.min(1, current / Math.max(level, 1));
+        }, 0) /
+          Math.max(requirements.length, 1)) *
+          100,
+      );
+      const missing = requirements
+        .filter(([trackId, level]) => store.tracks[trackId].level < level)
+        .map(([trackId, level]) => `${getTrackLabel(trackId)} L${level}`);
+
+      return {
+        id: convergence.id,
+        lane: "Science convergence",
+        title: convergence.name,
+        progress,
+        detail: missing.length
+          ? `Needs ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "..." : ""}.`
+          : convergence.description,
+        payoff: convergence.description,
+        panel: "track" as PanelId,
+        tone:
+          progress >= 85
+            ? ("good" as const)
+            : progress >= 55
+              ? ("focus" as const)
+              : completedRequirements
+                ? ("neutral" as const)
+                : ("warn" as const),
+      };
+    })
+    .sort((left, right) => right.progress - left.progress)
+    .slice(0, 2);
+  const liveCommercialProgramIds = new Set(
+    store.commercializationPrograms
+      .filter((program) => program.status === "live")
+      .map((program) => program.definitionId),
+  );
+  const marketMilestoneCard = COMMERCIALIZATION_CONVERGENCES.map((convergence) => {
+    const liveCount = convergence.requiredPrograms.filter((programId) => liveCommercialProgramIds.has(programId)).length;
+    const progress = clampMetric((liveCount / Math.max(convergence.requiredPrograms.length, 1)) * 100);
+    const missingProgramNames = convergence.requiredPrograms
+      .filter((programId) => !liveCommercialProgramIds.has(programId))
+      .map((programId) => commercializationLookup[programId]?.name ?? programId);
+
+    return {
+      id: convergence.id,
+      lane: "Market convergence",
+      title: convergence.name,
+      progress,
+      detail: missingProgramNames.length
+        ? `Needs ${missingProgramNames.slice(0, 2).join(" + ")}${missingProgramNames.length > 2 ? "..." : ""}.`
+        : "The market stack is live. Watch its political side effects.",
+      payoff: `${formatCurrency(convergence.revenue)} revenue / ${formatCurrency(convergence.expense)} opex.`,
+      panel: "track" as PanelId,
+      tone: progress >= 100 ? ("good" as const) : progress >= 50 ? ("focus" as const) : ("neutral" as const),
+    };
+  }).sort((left, right) => right.progress - left.progress)[0];
+  const trajectoryMilestoneCard = strongestTrajectorySignals[0]
+    ? {
+        id: `trajectory-${strongestTrajectorySignals[0].label}`,
+        lane: "Ending trajectory",
+        title: strongestTrajectorySignals[0].label,
+        progress: strongestTrajectorySignals[0].score,
+        detail: strongestTrajectorySignals[0].action,
+        payoff: strongestTrajectorySignals[0].detail,
+        panel: strongestTrajectorySignals[0].panel,
+        tone: strongestTrajectorySignals[0].tone,
+      }
+    : null;
+  const campaignArcCards = [
+    ...scienceMilestoneCards,
+    marketMilestoneCard,
+    trajectoryMilestoneCard,
+  ].filter(Boolean) as Array<{
+    id: string;
+    lane: string;
+    title: string;
+    progress: number;
+    detail: string;
+    payoff: string;
+    panel: PanelId;
+    tone: "bad" | "focus" | "good" | "neutral" | "warn";
+  }>;
+  const campaignArcFocus = campaignArcCards[0];
   const openingPlaybookActive = store.preset === "founder" && store.turn <= 4;
   const openingPlaybookSteps = [
     {
@@ -5252,6 +5346,56 @@ export function ConvergenceApp() {
                   </div>
                 ) : null}
               </div>
+
+              {campaignArcCards.length ? (
+                <div className="mission-card rounded-[28px] border-emerald-400/14 bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-emerald-200">Campaign Arc</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        Medium-term targets give the run shape beyond the next quarter. Pick one arc and let it guide the next few turns.
+                      </p>
+                    </div>
+                    {campaignArcFocus ? <SignalChip label={`${campaignArcFocus.progress}% closest`} tone={campaignArcFocus.tone} /> : null}
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    {campaignArcCards.map((arc) => {
+                      const barClass =
+                        arc.tone === "good"
+                          ? "bg-emerald-300"
+                          : arc.tone === "bad"
+                            ? "bg-rose-300"
+                            : arc.tone === "warn"
+                              ? "bg-amber-300"
+                              : arc.tone === "focus"
+                                ? "bg-sky-300"
+                                : "bg-slate-400";
+
+                      return (
+                        <button
+                          key={arc.id}
+                          type="button"
+                          onClick={() => store.openPanel(arc.panel)}
+                          className="rounded-2xl border border-white/8 bg-slate-950/60 px-3 py-3 text-left transition hover:border-emerald-300/25 hover:bg-emerald-500/8"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="block text-[10px] uppercase tracking-[0.2em] text-emerald-100">{arc.lane}</span>
+                              <span className="mt-1 block text-sm font-semibold text-white">{arc.title}</span>
+                            </span>
+                            <SignalChip label={`${arc.progress}%`} tone={arc.tone} />
+                          </div>
+                          <p className="mt-2 text-xs leading-5 text-slate-400">{arc.detail}</p>
+                          <p className="mt-2 text-xs leading-5 text-slate-500">{arc.payoff}</p>
+                          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
+                            <div className={`h-full rounded-full ${barClass}`} style={{ width: `${arc.progress}%` }} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mission-card rounded-[28px] border-cyan-400/14 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
                 <div className="flex items-start justify-between gap-3">
