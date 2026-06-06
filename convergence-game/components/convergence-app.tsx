@@ -3667,6 +3667,152 @@ export function ConvergenceApp() {
     store.pendingHires.length > 0 ||
     buildsDueNextQuarter.length > 0 ||
     Boolean(selectedForecast.turnsToLevel && selectedForecast.turnsToLevel <= 3);
+  const strategicMandates = ([
+    store.activeDilemma
+      ? {
+          id: "mandate-dilemma",
+          label: "Crisis mandate",
+          title: "Resolve the live decision",
+          deadline: "Now",
+          progress: 0,
+          requirement: "Choose one branch before the simulation clock can move again.",
+          payoff: "Permanent memory, applied consequences, and the next quarter unlocked.",
+          failure: "No research, product, facility, or rival timer advances while the crisis is unresolved.",
+          panel: "dilemmas" as PanelId,
+          tone: "bad" as const,
+        }
+      : null,
+    selectedTrack.unlocked && selectedForecast.projectName !== "Completed"
+      ? {
+          id: "mandate-research",
+          label: "Discovery mandate",
+          title: `Complete ${selectedForecast.projectName}`,
+          deadline: selectedForecast.turnsToLevel ? `${formatTurns(selectedForecast.turnsToLevel)} target` : "Needs staff",
+          progress: clampMetric(selectedForecast.progressPercent),
+          requirement:
+            selectedForecast.blockedReason ??
+            `Hold ${selectedForecast.assignedCount} staff and ${selectedTrack.compute} PFLOPS on ${getTrackLabel(store.selectedTrack)}.`,
+          payoff:
+            selectedTrack.level < trackDefinition.levels.length
+              ? `Unlocks ${trackDefinition.levels[selectedTrack.level].name}, passive lift, and new story/product pressure.`
+              : "Keeps the frontier lane moving toward a campaign-defining breakthrough.",
+          failure: "Rivals keep advancing while your main science lane loses tempo.",
+          panel: "track" as PanelId,
+          tone: selectedForecast.blockedReason ? ("bad" as const) : selectedForecast.turnsToLevel && selectedForecast.turnsToLevel <= 2 ? ("good" as const) : ("focus" as const),
+        }
+      : null,
+    selectedCommercializationOption &&
+    selectedCommercializationOption.available &&
+    !selectedCommercializationOption.isLive &&
+    !selectedCommercializationOption.isLaunching
+      ? {
+          id: "mandate-commercialize",
+          label: "Revenue mandate",
+          title: `Launch ${selectedCommercializationOption.name}`,
+          deadline: "Authorize now",
+          progress: 100,
+          requirement: `${formatCurrency(selectedCommercializationOption.upfrontCost)} upfront and ${selectedCommercializationOption.computeDemand} PFLOPS service compute.`,
+          payoff: `${formatCurrency(selectedCommercializationOption.quarterlyRevenue)} recurring revenue after launch.`,
+          failure: "The science stays impressive but does not buy more runway.",
+          panel: "track" as PanelId,
+          tone: "good" as const,
+        }
+      : null,
+    store.resources.runwayMonths < 18 || quarterlyNet < 0
+      ? {
+          id: "mandate-runway",
+          label: "Runway mandate",
+          title: "Stabilize the quarter ledger",
+          deadline: store.resources.runwayMonths < 10 ? "Emergency" : "Next 2Q",
+          progress: clampMetric((store.resources.runwayMonths / 18) * 100),
+          requirement:
+            quarterlyNet < 0
+              ? `Close a ${formatCurrency(Math.abs(quarterlyNet))}/Q burn gap with revenue, funding, or restraint.`
+              : "Keep runway above 18 months before adding major burn.",
+          payoff: "More freedom to sprint research, hire specialists, and wait out bad funding terms.",
+          failure: "Board pressure and forced capital tradeoffs start deciding the story for you.",
+          panel: "finance" as PanelId,
+          tone: store.resources.runwayMonths < 10 ? ("bad" as const) : ("warn" as const),
+        }
+      : null,
+    idleStaffCount > 0 || matchingCandidateCount > 0
+      ? {
+          id: "mandate-talent",
+          label: "Talent mandate",
+          title: idleStaffCount > 0 ? "Put the roster to work" : "Close the specialist gap",
+          deadline: "Before End Turn",
+          progress: clampMetric((assignedHeadcount / Math.max(store.employees.length, 1)) * 100),
+          requirement:
+            idleStaffCount > 0
+              ? `${idleStaffCount} employee${idleStaffCount === 1 ? " is" : "s are"} idle or waiting for reassignment.`
+              : `${matchingCandidateCount} market candidate${matchingCandidateCount === 1 ? "" : "s"} can cover the selected lane.`,
+          payoff: "More forecast pace, product coverage, and fewer wasted payroll dollars.",
+          failure: "You pay for talent without turning it into tempo.",
+          panel: idleStaffCount > 0 ? ("track" as PanelId) : ("hiring" as PanelId),
+          tone: idleStaffCount > 1 ? ("warn" as const) : ("focus" as const),
+        }
+      : null,
+    freeCompute <= 8 || reservedCommercialCompute > researchCapacity * 0.35
+      ? {
+          id: "mandate-compute",
+          label: "Infrastructure mandate",
+          title: store.projects.length ? "Protect the build queue" : "Plan the next compute jump",
+          deadline: nextProjectDue ? `${nextProjectDue.turnsRemaining}Q build timer` : "Before bottleneck",
+          progress: store.projects.length ? clampMetric(((nextProjectDue?.totalTurns ?? 1) - (nextProjectDue?.turnsRemaining ?? 0)) / Math.max(nextProjectDue?.totalTurns ?? 1, 1) * 100) : clampMetric((freeCompute / Math.max(researchCapacity, 1)) * 100),
+          requirement:
+            store.projects.length && nextProjectDue
+              ? `${nextProjectDue.name} must survive ${nextProjectDue.turnsRemaining}Q of construction burn.`
+              : "Start expansion before product reserve and research allocation crowd each other out.",
+          payoff:
+            store.projects.length && nextProjectDue
+              ? `+${nextProjectDue.computeDelta} PFLOPS when ${nextProjectDue.name} comes online.`
+              : "More room for simultaneous research and revenue programs.",
+          failure: "A late build turns compute scarcity into lost research tempo.",
+          panel: "facilities" as PanelId,
+          tone: freeCompute <= 3 ? ("bad" as const) : ("focus" as const),
+        }
+      : null,
+    primaryRivalThreat && primaryRivalThreat.threatScore >= 55
+      ? {
+          id: "mandate-rival",
+          label: "Rival mandate",
+          title: `Answer ${primaryRivalThreat.name}`,
+          deadline: "This quarter",
+          progress: clampMetric(100 - primaryRivalThreat.threatScore),
+          requirement: primaryRivalThreat.counter,
+          payoff: "Keeps the race board from feeling like background flavor.",
+          failure: "A rival pressure can become the story while your lab optimizes internally.",
+          panel: primaryRivalThreat.panel,
+          tone: primaryRivalThreat.tone,
+        }
+      : null,
+    !store.activeDilemma && !hasNextQuarterHook
+      ? {
+          id: "mandate-hook",
+          label: "One-more-turn mandate",
+          title: "Queue a visible payoff",
+          deadline: "Before End Turn",
+          progress: 25,
+          requirement: "Set up a near ETA, hire arrival, product launch, build completion, or crisis resolution.",
+          payoff: "The next quarter opens with a reason to keep playing.",
+          failure: "A quiet turn may still be optimal, but it will feel flatter.",
+          panel: "briefing" as PanelId,
+          tone: "warn" as const,
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    id: string;
+    label: string;
+    title: string;
+    deadline: string;
+    progress: number;
+    requirement: string;
+    payoff: string;
+    failure: string;
+    panel: PanelId;
+    tone: "bad" | "focus" | "good" | "neutral" | "warn";
+  }>).slice(0, 4);
+  const primaryMandate = strategicMandates[0];
   const turnReadinessChecks = [
     {
       label: "Research motion",
@@ -5917,6 +6063,64 @@ export function ConvergenceApp() {
                   </div>
                 </div>
               ) : null}
+
+              <div className="mission-card rounded-[28px] border-amber-400/14 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.11),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-amber-200">Strategic Mandates</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Short-term board objectives turn the current state into concrete pressure, payoff, and consequence.
+                    </p>
+                  </div>
+                  <SignalChip label={primaryMandate?.deadline ?? "No deadline"} tone={primaryMandate?.tone ?? "neutral"} />
+                </div>
+                <div className="mt-4 grid gap-2">
+                  {strategicMandates.map((mandate, index) => {
+                    const barClass =
+                      mandate.tone === "good"
+                        ? "bg-emerald-300"
+                        : mandate.tone === "bad"
+                          ? "bg-rose-300"
+                          : mandate.tone === "warn"
+                            ? "bg-amber-300"
+                            : mandate.tone === "focus"
+                              ? "bg-sky-300"
+                              : "bg-slate-400";
+
+                    return (
+                      <button
+                        key={mandate.id}
+                        type="button"
+                        onClick={() => store.openPanel(mandate.panel)}
+                        className="rounded-2xl border border-white/8 bg-slate-950/60 px-3 py-3 text-left transition hover:border-amber-300/25 hover:bg-amber-500/8"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block text-[10px] uppercase tracking-[0.2em] text-amber-100">{mandate.label}</span>
+                            <span className="mt-1 block text-sm font-semibold text-white">{mandate.title}</span>
+                          </span>
+                          <span className="flex shrink-0 flex-col items-end gap-2">
+                            <SignalChip label={mandate.deadline} tone={mandate.tone} />
+                            <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">M{index + 1}</span>
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-300">{mandate.requirement}</p>
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
+                          <div className={`h-full rounded-full ${barClass}`} style={{ width: `${Math.max(4, mandate.progress)}%` }} />
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2">
+                          <p className="rounded-2xl border border-emerald-400/12 bg-emerald-500/8 px-3 py-2 text-[11px] leading-5 text-emerald-50">
+                            Payoff: {mandate.payoff}
+                          </p>
+                          <p className="rounded-2xl border border-rose-400/12 bg-rose-500/8 px-3 py-2 text-[11px] leading-5 text-rose-50">
+                            If ignored: {mandate.failure}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="mission-card rounded-[28px] border-sky-400/14 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
                 <div className="flex items-start justify-between gap-3">
