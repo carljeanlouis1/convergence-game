@@ -26,17 +26,39 @@ export async function onRequestGet({ request, env }: PagesContext) {
 
   const url = new URL(request.url);
   const requestId = url.searchParams.get("requestId")?.trim();
-  const model = normalizeQueueModelPath(url.searchParams.get("model") ?? envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL));
+  const rawModel = (url.searchParams.get("model") ?? envValue(env.FAL_VIDEO_MODEL, DEFAULT_FAL_VIDEO_MODEL))
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+  const model = normalizeQueueModelPath(rawModel);
 
   if (!requestId) {
     return json({ ok: false, message: "Missing fal request id." }, 400);
   }
 
-  const response = await fetch(`https://queue.fal.run/${model}/requests/${encodeURIComponent(requestId)}/status?logs=1`, {
-    headers: {
-      Authorization: `Key ${falKey}`,
-    },
-  });
+  const encodedRequestId = encodeURIComponent(requestId);
+  const candidateUrls = [
+    `https://queue.fal.run/${rawModel}/requests/${encodedRequestId}/status?logs=1`,
+    `https://queue.fal.run/${model}/requests/${encodedRequestId}/status?logs=1`,
+    `https://queue.fal.run/${model}/image-to-video/requests/${encodedRequestId}/status?logs=1`,
+    `https://queue.fal.run/${model}/text-to-video/requests/${encodedRequestId}/status?logs=1`,
+  ].filter((candidate, index, all) => Boolean(candidate) && all.indexOf(candidate) === index);
+
+  let response: Response | null = null;
+  for (const candidate of candidateUrls) {
+    response = await fetch(candidate, {
+      headers: {
+        Authorization: `Key ${falKey}`,
+      },
+    });
+
+    if (response.ok || ![404, 405, 422].includes(response.status)) {
+      break;
+    }
+  }
+
+  if (!response) {
+    return json({ ok: false, message: "Unable to locate cinematic status URL." }, 502);
+  }
 
   if (!response.ok) {
     return json(
