@@ -2638,12 +2638,13 @@ export function ConvergenceApp() {
     panel: PanelId;
     tone: "bad" | "focus" | "good" | "neutral";
   }>;
-  const researchDueNextQuarter = TRACK_DEFINITIONS.map((track) => {
+  const researchForecasts = TRACK_DEFINITIONS.map((track) => {
     const trackState = store.tracks[track.id];
     const forecast = getTrackForecast(store, track.id);
 
     return {
       track,
+      trackState,
       forecast,
       due:
         trackState.unlocked &&
@@ -2651,7 +2652,8 @@ export function ConvergenceApp() {
         forecast.turnsToLevel === 1 &&
         forecast.projectName !== "Completed",
     };
-  }).filter((entry) => entry.due);
+  });
+  const researchDueNextQuarter = researchForecasts.filter((entry) => entry.due);
   const buildsDueNextQuarter = store.projects.filter((project) => project.turnsRemaining <= 1);
   const productsDueNextQuarter = store.commercializationPrograms.filter(
     (program) => program.status === "launching" && program.turnsRemaining <= 1,
@@ -2750,6 +2752,72 @@ export function ConvergenceApp() {
     detail: string;
     tone: "bad" | "focus" | "good" | "neutral";
   }>;
+  const movingResearch = researchForecasts.filter(
+    ({ forecast, trackState }) =>
+      trackState.unlocked &&
+      forecast.progressPerTurn > 0 &&
+      forecast.projectName !== "Completed",
+  );
+  const stalledResearch = researchForecasts.filter(
+    ({ forecast, trackState }) =>
+      trackState.unlocked &&
+      forecast.projectName !== "Completed" &&
+      (forecast.blockedReason || forecast.progressPerTurn <= 0),
+  );
+  const idleStaffCount = Math.max(0, store.employees.length - assignedHeadcount);
+  const hasNextQuarterHook =
+    Boolean(store.activeDilemma) ||
+    researchDueNextQuarter.length > 0 ||
+    productsDueNextQuarter.length > 0 ||
+    store.pendingHires.length > 0 ||
+    buildsDueNextQuarter.length > 0 ||
+    Boolean(selectedForecast.turnsToLevel && selectedForecast.turnsToLevel <= 3);
+  const turnReadinessChecks = [
+    {
+      label: "Research motion",
+      detail: movingResearch.length
+        ? `${movingResearch.length} active lane${movingResearch.length === 1 ? " is" : "s are"} gaining progress this quarter.`
+        : stalledResearch[0]?.forecast.blockedReason ?? "No active research lane is moving yet.",
+      panel: "track" as PanelId,
+      tone: movingResearch.length ? ("good" as const) : stalledResearch.length ? ("bad" as const) : ("warn" as const),
+    },
+    {
+      label: "Talent coverage",
+      detail: idleStaffCount
+        ? `${idleStaffCount} employee${idleStaffCount === 1 ? " is" : "s are"} idle or waiting for assignment.`
+        : "Every current employee is assigned to a research lane or mission role.",
+      panel: "hiring" as PanelId,
+      tone: idleStaffCount === 0 ? ("good" as const) : idleStaffCount <= 1 ? ("warn" as const) : ("focus" as const),
+    },
+    {
+      label: "Compute discipline",
+      detail:
+        freeCompute <= 2
+          ? "Cluster time is committed. End Turn will meaningfully advance the roadmap."
+          : `${freeCompute} PFLOPS remains free. Commit more if speed matters more than flexibility.`,
+      panel: "track" as PanelId,
+      tone: freeCompute <= 2 ? ("good" as const) : freeCompute <= 8 ? ("warn" as const) : ("focus" as const),
+    },
+    {
+      label: "Runway",
+      detail:
+        store.resources.runwayMonths >= 12
+          ? `${store.resources.runwayMonths} months of runway gives you room to choose ambition.`
+          : `${store.resources.runwayMonths} months of runway makes the next quarter financially tense.`,
+      panel: "finance" as PanelId,
+      tone: store.resources.runwayMonths < 8 ? ("bad" as const) : store.resources.runwayMonths < 12 ? ("warn" as const) : ("good" as const),
+    },
+    {
+      label: "Next hook",
+      detail: hasNextQuarterHook
+        ? nextQuarterPreview[0]?.detail ?? "There is a visible payoff, pressure, or crisis waiting on the next quarter."
+        : "Set up a hire, build, product launch, or near-term research payoff if you want a stronger turn hook.",
+      panel: store.activeDilemma ? ("dilemmas" as PanelId) : ("briefing" as PanelId),
+      tone: hasNextQuarterHook ? ("good" as const) : ("warn" as const),
+    },
+  ];
+  const readyCheckCount = turnReadinessChecks.filter((check) => check.tone === "good").length;
+  const urgentCheckCount = turnReadinessChecks.filter((check) => check.tone === "bad").length;
   const oneMoreTurnReady = !store.activeDilemma && priorityObjectives.every((objective) => objective.tone !== "bad");
   const sceneArtModeSummary = serverSceneArtReady
     ? "Scene art is ready, but only generates when you click the button."
@@ -4467,6 +4535,40 @@ export function ConvergenceApp() {
                       The board is calm, the lab is staffed, and the clock can move when you are ready.
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="mission-card rounded-[28px] border-emerald-400/14 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.1),transparent_32%),linear-gradient(180deg,rgba(8,16,34,0.92),rgba(5,10,22,0.86))] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-emerald-200">End Turn Checklist</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      A quick cockpit scan before you advance the quarter.
+                    </p>
+                  </div>
+                  <SignalChip
+                    label={urgentCheckCount ? `${urgentCheckCount} urgent` : `${readyCheckCount}/${turnReadinessChecks.length} green`}
+                    tone={urgentCheckCount ? "bad" : readyCheckCount === turnReadinessChecks.length ? "good" : "focus"}
+                  />
+                </div>
+                <div className="mt-4 grid gap-2">
+                  {turnReadinessChecks.map((check) => (
+                    <button
+                      key={check.label}
+                      type="button"
+                      onClick={() => store.openPanel(check.panel)}
+                      className="flex w-full items-start justify-between gap-3 rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3 text-left transition hover:border-emerald-300/25 hover:bg-emerald-500/8"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-white">{check.label}</span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-400">{check.detail}</span>
+                      </span>
+                      <SignalChip
+                        label={check.tone === "good" ? "Ready" : check.tone === "bad" ? "Fix" : "Watch"}
+                        tone={check.tone}
+                      />
+                    </button>
+                  ))}
                 </div>
               </div>
 
