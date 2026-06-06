@@ -4567,47 +4567,61 @@ export function ConvergenceApp() {
         <PixiBackground />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(83,166,255,0.16),transparent_28%),linear-gradient(180deg,rgba(4,10,22,0.78),rgba(4,8,20,0.96))]" />
         <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-8 lg:px-10">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl">
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="mission-eyebrow">Convergence Mission Control</p>
-                <SignalChip label="Production command room" tone="good" />
-              </div>
-              <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight text-white lg:text-6xl">
-                Run the AI lab that decides what the century becomes.
-              </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-                Turn-based strategy across 120 quarters of hiring, compute allocation, geopolitics,
-                and moral tradeoffs.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                <SignalChip label="120 quarter campaign" tone="focus" />
-                <SignalChip label="Deterministic simulation" tone="neutral" />
-                <SignalChip label={serverSceneArtReady ? "Production AI online" : "AI optional"} tone={serverSceneArtReady ? "good" : "neutral"} />
-              </div>
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="mission-card rounded-[24px] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Opening Read</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">You are not just racing. You are deciding which compromises become normal.</p>
+          <div className="mission-art-frame mission-art-frame--home rounded-[36px] p-5 shadow-[0_42px_140px_rgba(0,0,0,0.48)] lg:p-7">
+            <div className="relative z-10 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+              <div className="max-w-3xl">
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="mission-eyebrow">Convergence Mission Control</p>
+                  <SignalChip label="Production command room" tone="good" />
                 </div>
-                <div className="mission-card rounded-[24px] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Core Loop</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">Assign people, allocate compute, manage burn, then survive the next quarter.</p>
+                <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-tight text-white lg:text-6xl">
+                  Run the AI lab that decides what the century becomes.
+                </h1>
+                <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+                  Turn-based strategy across 120 quarters of hiring, compute allocation, geopolitics,
+                  and moral tradeoffs.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-2">
+                  <SignalChip label="120 quarter campaign" tone="focus" />
+                  <SignalChip label="Deterministic simulation" tone="neutral" />
+                  <SignalChip label={serverSceneArtReady ? "Production AI online" : "AI optional"} tone={serverSceneArtReady ? "good" : "neutral"} />
                 </div>
-                <div className="mission-card rounded-[24px] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">AI Layer</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">{sceneArtModeSummary}</p>
+                <div className="mt-6 grid gap-2 rounded-[26px] border border-white/10 bg-slate-950/58 p-3 sm:grid-cols-3">
+                  {[
+                    ["01", "Read the quarter", "Briefing tells you what moved and what is now dangerous."],
+                    ["02", "Make one commitment", "Push research, hire talent, launch revenue, or build compute."],
+                    ["03", "Chase the hook", "End Turn, then follow the next payoff or crisis before it cools."],
+                  ].map(([step, label, detail]) => (
+                    <div key={step} className="rounded-[20px] border border-white/8 bg-white/5 px-3 py-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-sky-200">{step}</p>
+                      <p className="mt-2 text-sm font-semibold text-white">{label}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">{detail}</p>
+                    </div>
+                  ))}
                 </div>
+                <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                  <div className="mission-card rounded-[24px] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Opening Read</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">You are not just racing. You are deciding which compromises become normal.</p>
+                  </div>
+                  <div className="mission-card rounded-[24px] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Core Loop</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">Assign people, allocate compute, manage burn, then survive the next quarter.</p>
+                  </div>
+                  <div className="mission-card rounded-[24px] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">AI Layer</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">{sceneArtModeSummary}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTutorialOpen(true)}
+                  className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-3 text-sm text-sky-50"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  How It Works
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setTutorialOpen(true)}
-                className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-sky-400/35 bg-sky-500/10 px-4 py-3 text-sm text-sky-50"
-              >
-                <BookOpen className="h-4 w-4" />
-                How It Works
-              </button>
-            </div>
             <div className="mission-panel w-full max-w-sm rounded-[28px] p-5 xl:block">
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Session Controls</p>
               <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${statusPanelClasses(geminiStatus.tone)}`}>
@@ -4721,6 +4735,7 @@ export function ConvergenceApp() {
                   );
                 })}
               </div>
+            </div>
             </div>
           </div>
           <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
