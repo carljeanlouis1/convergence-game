@@ -2609,6 +2609,15 @@ export function ConvergenceApp() {
       isBlocked: isActive && Boolean(selectedForecast.blockedReason),
     };
   });
+  const selectedNextResearchStage =
+    selectedTrackRoadmap.find((stage) => stage.isActive) ??
+    selectedTrackRoadmap.find((stage) => stage.status === "future") ??
+    null;
+  const selectedNextStageUnlocks = selectedNextResearchStage?.unlocks.slice(0, 3) ?? [];
+  const selectedNextStageRevenuePrograms = selectedNextResearchStage?.revenuePrograms.slice(0, 3) ?? [];
+  const selectedNextStageConvergence = selectedNextResearchStage?.stageConvergences.find(
+    (convergence) => !convergence.triggered,
+  );
   const pendingHirePayroll = store.pendingHires.reduce((sum, hire) => sum + hire.salary / 4, 0);
   const pendingHireCloseCost = store.pendingHires.reduce(
     (sum, hire) => sum + hire.salary / 4 + hire.signingBonus,
@@ -6118,6 +6127,102 @@ export function ConvergenceApp() {
                       tone={selectedPosture.id === "sprint" ? "amber" : selectedPosture.id === "safe" ? "emerald" : "slate"}
                     />
                   </div>
+                  {selectedNextResearchStage ? (
+                    <div className="rounded-[28px] border border-emerald-400/16 bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.14),transparent_34%),linear-gradient(180deg,rgba(8,18,34,0.88),rgba(5,10,22,0.92))] p-5">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-xs uppercase tracking-[0.22em] text-emerald-100">Breakthrough Preview</p>
+                            <SignalChip
+                              label={
+                                selectedNextResearchStage.isBlocked
+                                  ? "Blocked"
+                                  : selectedNextResearchStage.isActive
+                                    ? `ETA ${formatTurns(selectedNextResearchStage.turnsToLevel)}`
+                                    : "Future stage"
+                              }
+                              tone={selectedNextResearchStage.isBlocked ? "bad" : selectedNextResearchStage.isActive ? "focus" : "neutral"}
+                            />
+                          </div>
+                          <h3 className="mt-3 text-2xl font-semibold text-white">
+                            L{selectedNextResearchStage.level}: {selectedNextResearchStage.stageName}
+                          </h3>
+                          <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">
+                            {selectedNextResearchStage.summary}
+                          </p>
+                          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500">
+                            {selectedNextResearchStage.technology}
+                          </p>
+                        </div>
+                        <div className="grid min-w-[220px] gap-2 rounded-[22px] border border-white/8 bg-slate-950/58 p-3">
+                          <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-slate-500">
+                            <span>Progress</span>
+                            <span>{Math.round(selectedNextResearchStage.progressPercent)}%</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-white/8">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-emerald-300 to-sky-300"
+                              style={{ width: `${selectedNextResearchStage.progressPercent}%` }}
+                            />
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Passive Lift</p>
+                              <p className="mt-1 text-sm font-semibold text-emerald-100">
+                                +{formatCurrency(selectedNextResearchStage.stageRevenue)}/Q
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Compute Target</p>
+                              <p className="mt-1 text-sm font-semibold text-sky-100">
+                                {selectedNextResearchStage.recommendedCompute} PFLOPS
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                        <div className="rounded-[22px] border border-white/8 bg-slate-950/56 p-4">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">What unlocks</p>
+                          <div className="mt-3 space-y-2">
+                            {selectedNextStageUnlocks.map((unlock) => (
+                              <p key={unlock} className="rounded-2xl border border-emerald-400/12 bg-emerald-500/8 px-3 py-2 text-xs leading-5 text-emerald-50">
+                                {unlock}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-[22px] border border-white/8 bg-slate-950/56 p-4">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Revenue paths</p>
+                          <div className="mt-3 space-y-2">
+                            {selectedNextStageRevenuePrograms.map((program) => (
+                              <p key={program} className="rounded-2xl border border-sky-400/12 bg-sky-500/8 px-3 py-2 text-xs leading-5 text-sky-50">
+                                {program}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-[22px] border border-white/8 bg-slate-950/56 p-4">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Convergence hook</p>
+                          {selectedNextStageConvergence ? (
+                            <div className="mt-3 rounded-2xl border border-amber-400/14 bg-amber-500/8 px-3 py-3">
+                              <p className="text-sm font-semibold text-white">{selectedNextStageConvergence.name}</p>
+                              <p className="mt-2 text-xs leading-5 text-slate-400">
+                                Partner need: {selectedNextStageConvergence.partnerSummary}.
+                              </p>
+                              <p className="mt-2 text-xs leading-5 text-amber-100">
+                                {selectedNextStageConvergence.description}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="mt-3 text-xs leading-5 text-slate-500">
+                              This stage mostly strengthens the lane itself. Check Campaign Arc for cross-track targets.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <TrackMap state={store} onOpenTrack={store.openTrack} />
                   {trackTalentAssignmentPanel}
                 </div>
