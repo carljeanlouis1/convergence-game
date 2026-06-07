@@ -2626,6 +2626,7 @@ export function ConvergenceApp() {
     })),
   ].sort((left, right) => right.raceScore - left.raceScore);
   const playerRank = labLeaderboard.findIndex((entry) => entry.id === "player") + 1;
+  const playerRaceScore = labLeaderboard.find((entry) => entry.id === "player")?.raceScore ?? 0;
   const currentTrajectory = describePlayerTrajectory(store);
   const currentTrajectoryTone =
     currentTrajectory.includes("Misalignment") || currentTrajectory.includes("Dystopia")
@@ -2737,28 +2738,40 @@ export function ConvergenceApp() {
       let edge = `${getTrackLabel(rival.focus)} focus`;
       let counter = "Keep your strongest lane moving and check the race board after each quarter.";
       let panel: PanelId = "briefing";
+      let responseMode = "Monitor";
+      let ifIgnored = "The rival keeps moving while your lab optimizes internally.";
 
       if (capabilityGap >= 8) {
         label = "Capability lead";
         edge = `${capabilityGap} capability ahead`;
         counter = `Push ${getTrackLabel(store.selectedTrack)} with staff and compute, or pivot toward ${getTrackLabel(rival.focus)} before the gap compounds.`;
         panel = "track";
+        responseMode = "Race";
+        ifIgnored = "Their capability lead can become the default story before your next payoff lands.";
       } else if (recklessnessPressure >= 62) {
         label = "Unsafe acceleration";
         edge = `${Math.round(rival.safety)} safety culture`;
         counter = "Turn their speed into a legitimacy opening: keep trust ahead of fear and avoid sloppy public choices.";
         panel = "briefing";
+        responseMode = "Out-legitimize";
+        ifIgnored = "Their reckless move can raise public fear and drag your cleaner work into the same backlash.";
       } else if (legitimacyPressure >= 58) {
         label = "Legitimacy challenge";
         edge = `${Math.round(rival.goodwill)} public goodwill`;
         counter = "Use safer finance, cleaner commercialization, and trust-building dilemma choices to regain narrative control.";
         panel = "finance";
+        responseMode = "Rebuild trust";
+        ifIgnored = "Their goodwill advantage can make your next breakthrough look less legitimate.";
       } else if (capabilityGap >= -4) {
         label = "Neck-and-neck";
         edge = `Within ${Math.abs(capabilityGap)} capability`;
         counter = "Create one near-term payoff this quarter: a research level, hire arrival, facility completion, or product launch.";
         panel = "track";
+        responseMode = "Land a payoff";
+        ifIgnored = "A quiet quarter can let a close rival become the new benchmark.";
       }
+
+      const rivalRaceScore = labLeaderboard.find((entry) => entry.id === rival.id)?.raceScore ?? 0;
 
       return {
         id: rival.id,
@@ -2766,8 +2779,11 @@ export function ConvergenceApp() {
         label,
         edge,
         counter,
+        responseMode,
+        ifIgnored,
         focus: getTrackLabel(rival.focus),
         recentMove: rival.recentMove,
+        raceDelta: Math.round(rivalRaceScore - playerRaceScore),
         threatScore,
         tone,
         panel,
@@ -6295,10 +6311,20 @@ export function ConvergenceApp() {
                             </span>
                             <SignalChip label={`${threat.threatScore}%`} tone={threat.tone} />
                           </div>
-                          <p className="mt-2 text-xs leading-5 text-slate-400">{threat.counter}</p>
-                          <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-cyan-200">
-                            Open {panelGuideLabel(threat.panel)}
-                          </p>
+                          <div className="mt-3 grid gap-2">
+                            <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Response</p>
+                              <p className="mt-1 text-xs leading-5 text-slate-300">{threat.responseMode}: {threat.counter}</p>
+                            </div>
+                            <div className="rounded-2xl border border-rose-300/12 bg-rose-500/8 px-3 py-2">
+                              <p className="text-[10px] uppercase tracking-[0.18em] text-rose-200">If ignored</p>
+                              <p className="mt-1 text-xs leading-5 text-rose-50/90">{threat.ifIgnored}</p>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <SignalChip label={threat.raceDelta >= 0 ? `+${threat.raceDelta} race delta` : `${threat.raceDelta} race delta`} tone={threat.raceDelta > 0 ? "warn" : "good"} />
+                            <SignalChip label={`Open ${panelGuideLabel(threat.panel)}`} tone="focus" />
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -9307,7 +9333,20 @@ export function ConvergenceApp() {
                           <SignalChip label={`${threat.threatScore}%`} tone={threat.tone} />
                         </div>
                         <p className="mt-3 text-xs uppercase tracking-[0.18em] text-amber-100">{threat.edge}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-400">{threat.counter}</p>
+                        <div className="mt-3 grid gap-2">
+                          <div className="rounded-2xl border border-white/8 bg-white/4 px-3 py-2">
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Counter-move</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-300">{threat.responseMode}: {threat.counter}</p>
+                          </div>
+                          <div className="rounded-2xl border border-rose-300/12 bg-rose-500/8 px-3 py-2">
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-rose-200">If ignored</p>
+                            <p className="mt-1 text-xs leading-5 text-rose-50/90">{threat.ifIgnored}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <SignalChip label={threat.raceDelta >= 0 ? `+${threat.raceDelta} race delta` : `${threat.raceDelta} race delta`} tone={threat.raceDelta > 0 ? "warn" : "good"} />
+                          <SignalChip label={`Open ${panelGuideLabel(threat.panel)}`} tone="focus" />
+                        </div>
                       </button>
                     ))}
                   </div>
