@@ -2487,6 +2487,12 @@ export function ConvergenceApp() {
         compute,
         forecast,
         progressDelta: Number((forecast.progressPerTurn - selectedForecast.progressPerTurn).toFixed(1)),
+        exactTurnDelta: Number(
+          (
+            (selectedForecast.exactTurnsToLevel ?? 0) -
+            (forecast.exactTurnsToLevel ?? selectedForecast.exactTurnsToLevel ?? 0)
+          ).toFixed(2),
+        ),
         etaChanges: forecast.turnsToLevel !== selectedForecast.turnsToLevel,
       };
     })
@@ -2499,13 +2505,16 @@ export function ConvergenceApp() {
       !best || preview.forecast.progressPerTurn > best.forecast.progressPerTurn ? preview : best,
     null,
   );
+  const strongestComputeExactDelta = strongestComputePreview?.exactTurnDelta ?? 0;
   const computeEtaGuidance =
     selectedForecast.blockedReason
       ? selectedForecast.blockedReason
       : selectedForecast.progressNeededToReduceEta > 0
         ? strongestComputePreview?.etaChanges
           ? `${strongestComputePreview.label} is enough to change the displayed ETA to ${formatTurns(strongestComputePreview.forecast.turnsToLevel)}.`
-          : `Need +${selectedForecast.progressNeededToReduceEta}/Q pace to cut the ETA by 1Q. More compute helps, but staff or posture may be the real lever.`
+          : strongestComputePreview && strongestComputeExactDelta > 0
+            ? `${strongestComputePreview.label} raises pace by +${strongestComputePreview.progressDelta}/Q and pulls the exact finish ${strongestComputeExactDelta.toFixed(2)}Q closer, even though the headline ETA still rounds to ${formatTurns(selectedForecast.turnsToLevel)}. Need +${selectedForecast.progressNeededToReduceEta}/Q more pace to cut the displayed ETA by 1Q.`
+            : `Need +${selectedForecast.progressNeededToReduceEta}/Q pace to cut the ETA by 1Q. More compute helps, but staff or posture may be the real lever.`
         : selectedForecast.turnsToLevel === 1
           ? "This project is already close enough to land next quarter if nothing blocks it."
           : "Current pace is enough for the displayed ETA threshold.";
@@ -8346,6 +8355,11 @@ export function ConvergenceApp() {
                     </div>
                     <div className="mt-3 flex items-center justify-between text-sm text-slate-300"><span>Quarterly progress</span><span className="font-medium text-white">+{selectedForecast.progressPerTurn}</span></div>
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-300"><span>Forecast pace</span><span className="text-white">{formatExactTurns(selectedForecast.exactTurnsToLevel)}</span></div>
+                    {strongestComputePreview && strongestComputeExactDelta > 0 ? (
+                      <div className="mt-2 rounded-2xl border border-sky-400/18 bg-sky-500/10 px-3 py-2 text-xs leading-5 text-sky-100">
+                        Best compute move: {strongestComputePreview.label} lifts progress by +{strongestComputePreview.progressDelta}/Q and shifts exact ETA from {formatExactTurns(selectedForecast.exactTurnsToLevel)} to {formatExactTurns(strongestComputePreview.forecast.exactTurnsToLevel)}.
+                      </div>
+                    ) : null}
                     {selectedForecast.progressNeededToReduceEta > 0 ? (
                       <div className="mt-2 flex items-center justify-between gap-4 text-sm text-slate-300">
                         <span>To cut ETA by 1Q</span>
@@ -8407,6 +8421,9 @@ export function ConvergenceApp() {
                               <span className="mt-1 block text-xs leading-5 text-slate-400">
                                 +{preview.forecast.progressPerTurn}/Q
                                 {preview.progressDelta > 0 ? ` (${preview.progressDelta >= 0 ? "+" : ""}${preview.progressDelta})` : ""}
+                                <br />
+                                Exact {formatExactTurns(preview.forecast.exactTurnsToLevel)}
+                                {preview.exactTurnDelta > 0 ? ` / ${preview.exactTurnDelta.toFixed(2)}Q faster` : ""}
                               </span>
                             </button>
                           ))
