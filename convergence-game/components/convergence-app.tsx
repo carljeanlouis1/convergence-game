@@ -3162,6 +3162,51 @@ export function ConvergenceApp() {
       return scoreCandidate(right) - scoreCandidate(left);
     });
   const topMarketCandidate = filteredCandidates[0] ?? null;
+  const contestedMarketCandidates = store.candidates.filter((candidate) => candidate.contestedBy);
+  const highestRiskCandidate =
+    [...contestedMarketCandidates].sort(
+      (left, right) =>
+        getCandidateFitScore(right, candidatePriorityTrack) - getCandidateFitScore(left, candidatePriorityTrack),
+    )[0] ?? null;
+  const selectedCoverageGapLabel = selectedCommercializationOption?.missingRoleKeywords.length
+    ? selectedCommercializationOption.missingRoleKeywords.map(formatRoleKeyword).join(", ")
+    : null;
+  const talentDraftBoard = [
+    {
+      label: "Best visible hire",
+      value: topMarketCandidate?.name ?? "No target",
+      detail: topMarketCandidate
+        ? `${topMarketCandidate.role}. ${getCandidateFitScore(topMarketCandidate, candidatePriorityTrack)}% fit for ${getTrackLabel(candidatePriorityTrack)}. Close cost ${formatCurrency(topMarketCandidate.signingBonus + topMarketCandidate.salary / 4)}.`
+        : "Widen filters to find a candidate worth runway.",
+      tone: topMarketCandidate?.contestedBy ? ("warn" as const) : topMarketCandidate ? ("focus" as const) : ("neutral" as const),
+      action: "Review fit",
+    },
+    {
+      label: "Poach risk",
+      value: highestRiskCandidate?.name ?? "No active poach",
+      detail: highestRiskCandidate?.contestedBy
+        ? `${store.rivals[highestRiskCandidate.contestedBy].name} is circling. If you wait, they can gain ${getTrackLabel(highestRiskCandidate.primaryTrack)} capability at quarter end.`
+        : "No contested candidate is visible this quarter.",
+      tone: highestRiskCandidate ? ("bad" as const) : ("good" as const),
+      action: highestRiskCandidate ? "Decide now" : "No action",
+    },
+    {
+      label: "Coverage blocker",
+      value: selectedCoverageGapLabel ?? "No selected gap",
+      detail: selectedCommercializationOption?.missingRoleKeywords.length
+        ? `${selectedCommercializationOption.name} needs this coverage before it can launch. Filter the market by the missing badge.`
+        : "Select a locked product in Research to see the exact role coverage blocking it.",
+      tone: selectedCoverageGapLabel ? ("warn" as const) : ("neutral" as const),
+      action: selectedCoverageGapLabel ? "Filter coverage" : "Open Research",
+    },
+    {
+      label: "Market timer",
+      value: "Refreshes EoQ",
+      detail: "Every End Turn rebuilds the visible market slate. Contested candidates are the ones with a real chance to disappear.",
+      tone: contestedCandidateCount ? ("focus" as const) : ("neutral" as const),
+      action: "Plan before launch",
+    },
+  ];
   const talentIntelligence = [
     {
       label: "Roster utilization",
@@ -7553,6 +7598,60 @@ export function ConvergenceApp() {
                         tone="emerald"
                       />
                     </div>
+                    <div className="mt-5 rounded-[26px] border border-amber-300/14 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.12),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.78),rgba(5,10,22,0.82))] p-4">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.22em] text-amber-200">Talent Draft Board</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">
+                            Hiring is a timing puzzle: solve coverage, protect runway, and decide which contested people you cannot afford to lose.
+                          </p>
+                        </div>
+                        <SignalChip label={contestedCandidateCount ? `${contestedCandidateCount} poach risks` : "Stable slate"} tone={contestedCandidateCount ? "bad" : "good"} />
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        {talentDraftBoard.map((card) => (
+                          <button
+                            key={card.label}
+                            type="button"
+                            onClick={() => {
+                              if (card.label === "Poach risk" && highestRiskCandidate) {
+                                setShowContestedCandidatesOnly(true);
+                                setCandidateFocusFilter(highestRiskCandidate.primaryTrack);
+                                setCandidateCoverageFilter("all");
+                                return;
+                              }
+
+                              if (card.label === "Coverage blocker" && selectedCommercializationOption?.missingRoleKeywords[0]) {
+                                setCandidateFocusFilter(selectedCommercializationOption.trackId);
+                                setCandidateCoverageFilter(selectedCommercializationOption.missingRoleKeywords[0]);
+                                return;
+                              }
+
+                              if (card.label === "Coverage blocker") {
+                                store.openPanel("track");
+                                return;
+                              }
+
+                              setShowContestedCandidatesOnly(false);
+                              setCandidateCoverageFilter("all");
+                              if (topMarketCandidate) {
+                                setCandidateFocusFilter(topMarketCandidate.generalist ? "all" : topMarketCandidate.primaryTrack);
+                              }
+                            }}
+                            className="rounded-[22px] border border-white/8 bg-slate-950/62 p-3 text-left transition hover:border-amber-300/30 hover:bg-amber-500/8"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="min-w-0">
+                                <span className="block text-[10px] uppercase tracking-[0.2em] text-slate-500">{card.label}</span>
+                                <span className="mt-2 block text-sm font-semibold text-white">{card.value}</span>
+                              </span>
+                              <SignalChip label={card.action} tone={card.tone} />
+                            </div>
+                            <p className="mt-3 text-xs leading-5 text-slate-400">{card.detail}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       {talentIntelligence.map((item) => (
                         <div key={item.label} className="rounded-[22px] border border-white/8 bg-slate-950/58 p-4">
@@ -7832,6 +7931,23 @@ export function ConvergenceApp() {
                               max={3}
                             />
                           </div>
+
+                          {candidate.contestedBy ? (
+                            <div className="mt-4 rounded-[22px] border border-rose-300/18 bg-rose-500/10 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <span>
+                                  <span className="block text-[11px] uppercase tracking-[0.2em] text-rose-200">Rival Offer Pressure</span>
+                                  <span className="mt-2 block text-sm font-semibold text-white">
+                                    {store.rivals[candidate.contestedBy].name} can sign them at quarter end
+                                  </span>
+                                </span>
+                                <SignalChip label="1Q risk" tone="bad" />
+                              </div>
+                              <p className="mt-3 text-xs leading-5 text-rose-50/90">
+                                If you wait and they vanish, that rival gains {getTrackLabel(candidate.primaryTrack)} capability and you lose this slate&apos;s best chance at that coverage.
+                              </p>
+                            </div>
+                          ) : null}
 
                           <div className="mt-4 rounded-[22px] border border-white/8 bg-white/4 p-4">
                             <div className="flex items-center justify-between gap-3">
