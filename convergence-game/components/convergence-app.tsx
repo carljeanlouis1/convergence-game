@@ -2879,6 +2879,65 @@ export function ConvergenceApp() {
   const selectedNextStageConvergence = selectedNextResearchStage?.stageConvergences.find(
     (convergence) => !convergence.triggered,
   );
+  const breakthroughRewardCards = (store.resolution?.breakthroughs ?? [])
+    .map((breakthrough) => {
+      const track = TRACK_DEFINITIONS.find((definition) =>
+        breakthrough.startsWith(`${definition.name} reached L`),
+      );
+
+      if (!track) {
+        const convergenceDefinition = CONVERGENCES.find((entry) => breakthrough.startsWith(entry.name));
+
+        return convergenceDefinition
+          ? {
+              id: `convergence-${convergenceDefinition.id}`,
+              label: "Convergence unlocked",
+              title: convergenceDefinition.name,
+              detail: convergenceDefinition.description,
+              rewardLabel: convergenceDefinition.reward.capital
+                ? `+${formatCurrency(convergenceDefinition.reward.capital)} capital`
+                : convergenceDefinition.reward.compute
+                  ? `+${convergenceDefinition.reward.compute} PFLOPS`
+                  : "Strategic unlock",
+              programs: ["Cross-track platform play", "Strategic market pressure"],
+              unlocks: ["New ending pressure", "Rival reaction", "World pulse escalation"],
+              panel: "briefing" as PanelId,
+              tone: "focus" as const,
+            }
+          : null;
+      }
+
+      const level = Number(breakthrough.match(/reached L(\d+)/)?.[1] ?? 0);
+      const stage = track.levels[level - 1];
+
+      if (!stage) {
+        return null;
+      }
+
+      return {
+        id: `${track.id}-${level}`,
+        label: `${track.shortName} L${level} breakthrough`,
+        title: stage.name,
+        detail: stage.summary,
+        rewardLabel: `+${formatCurrency(stage.revenueLift)}/Q`,
+        programs: stage.revenuePrograms.slice(0, 3),
+        unlocks: stage.unlocks.slice(0, 3),
+        panel: "track" as PanelId,
+        tone: "good" as const,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 3) as Array<{
+    id: string;
+    label: string;
+    title: string;
+    detail: string;
+    rewardLabel: string;
+    programs: string[];
+    unlocks: string[];
+    panel: PanelId;
+    tone: "focus" | "good";
+  }>;
   const pendingHirePayroll = store.pendingHires.reduce((sum, hire) => sum + hire.salary / 4, 0);
   const pendingHireCloseCost = store.pendingHires.reduce(
     (sum, hire) => sum + hire.salary / 4 + hire.signingBonus,
@@ -9043,6 +9102,45 @@ export function ConvergenceApp() {
                       <div key={item} className="rounded-2xl border border-white/8 bg-slate-950/65 p-3">{item}</div>
                     ))}
                   </div>
+                  {breakthroughRewardCards.length ? (
+                    <div className="mt-4 rounded-[22px] border border-emerald-300/16 bg-emerald-500/8 p-4">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.22em] text-emerald-200">What The Breakthrough Unlocks</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">
+                            Completed research changes your economy, product map, and story pressure. Open Research to turn the capability into a plan.
+                          </p>
+                        </div>
+                        <SignalChip label="Reward readout" tone="good" />
+                      </div>
+                      <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                        {breakthroughRewardCards.map((reward) => (
+                          <button
+                            key={`${reward.id}-briefing`}
+                            type="button"
+                            onClick={() => store.openPanel(reward.panel)}
+                            className="rounded-[20px] border border-white/8 bg-slate-950/62 p-3 text-left transition hover:border-emerald-300/28 hover:bg-emerald-500/8"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="min-w-0">
+                                <span className="block text-[10px] uppercase tracking-[0.2em] text-emerald-200">{reward.label}</span>
+                                <span className="mt-2 block text-sm font-semibold text-white">{reward.title}</span>
+                              </span>
+                              <SignalChip label={reward.rewardLabel} tone={reward.tone} />
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-slate-400">{reward.detail}</p>
+                            <div className="mt-3 grid gap-2">
+                              {reward.programs.slice(0, 2).map((program) => (
+                                <p key={`${reward.id}-${program}`} className="rounded-2xl border border-sky-400/12 bg-sky-500/8 px-3 py-2 text-xs leading-5 text-sky-50">
+                                  {program}
+                                </p>
+                              ))}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="rounded-[24px] border border-white/8 bg-white/4 p-4">
@@ -10153,6 +10251,54 @@ export function ConvergenceApp() {
                   ))}
                 </div>
               </div>
+
+              {breakthroughRewardCards.length ? (
+                <div className="mt-5 rounded-[28px] border border-emerald-300/18 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.15),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.8),rgba(5,10,22,0.88))] p-5">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.24em] text-emerald-200">Breakthrough Rewards</p>
+                      <h3 className="mt-2 text-2xl font-semibold text-white">New capability unlocked</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">
+                        This is what the discovery actually buys: passive lift, product paths, and new strategic pressure.
+                      </p>
+                    </div>
+                    <SignalChip label={`${breakthroughRewardCards.length} reward${breakthroughRewardCards.length === 1 ? "" : "s"}`} tone="good" />
+                  </div>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                    {breakthroughRewardCards.map((reward, index) => (
+                      <motion.button
+                        key={`${reward.id}-overlay`}
+                        type="button"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.12 + index * 0.05 }}
+                        onClick={() => {
+                          playSynthTone(soundEnabled, "click");
+                          setQuarterResultOpen(false);
+                          store.openPanel(reward.panel);
+                        }}
+                        className="rounded-[24px] border border-emerald-300/14 bg-slate-950/64 p-4 text-left transition hover:border-emerald-200/35 hover:bg-emerald-500/8"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block text-[10px] uppercase tracking-[0.2em] text-emerald-200">{reward.label}</span>
+                            <span className="mt-2 block text-base font-semibold text-white">{reward.title}</span>
+                          </span>
+                          <SignalChip label={reward.rewardLabel} tone={reward.tone} />
+                        </div>
+                        <p className="mt-3 text-xs leading-5 text-slate-400">{reward.detail}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {reward.unlocks.slice(0, 2).map((unlock) => (
+                            <span key={`${reward.id}-${unlock}`} className="rounded-full border border-emerald-300/12 bg-emerald-500/8 px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-emerald-100">
+                              {unlock}
+                            </span>
+                          ))}
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 {afterActionReport.map((item, index) => (
