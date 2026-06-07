@@ -561,6 +561,14 @@ const systemDecoderCards = [
   },
 ];
 
+type AcademyPlaybookCard = {
+  label: string;
+  value: string;
+  detail: string;
+  panel: PanelId;
+  tone: "neutral" | "good" | "bad" | "focus" | "warn";
+};
+
 function playSynthTone(enabled: boolean, kind: "click" | "breakthrough" | "warning") {
   if (!enabled || typeof window === "undefined") {
     return;
@@ -1609,11 +1617,13 @@ function TutorialOverlay({
   onClose,
   onOpenPanel,
   navigationEnabled = true,
+  playbookCards = [],
 }: {
   open: boolean;
   onClose: () => void;
   onOpenPanel: (panel: PanelId) => void;
   navigationEnabled?: boolean;
+  playbookCards?: AcademyPlaybookCard[];
 }) {
   const [step, setStep] = useState(0);
 
@@ -1708,6 +1718,39 @@ function TutorialOverlay({
                   </button>
                 </div>
                 <p className="mt-4 max-w-3xl text-base leading-8 text-slate-200">{slide.summary}</p>
+                {playbookCards.length ? (
+                  <div className="mt-5 rounded-[24px] border border-cyan-400/16 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_36%),linear-gradient(180deg,rgba(8,16,34,0.78),rgba(5,10,22,0.84))] p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-100">Right Now Playbook</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                          These cards are generated from the current run state, so the Academy teaches the game you are actually playing.
+                        </p>
+                      </div>
+                      <SignalChip label="Live guidance" tone="focus" />
+                    </div>
+                    <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                      {playbookCards.map((card) => (
+                        <button
+                          key={`${card.label}-${card.value}`}
+                          type="button"
+                          disabled={!navigationEnabled}
+                          onClick={() => jumpToPanel(card.panel)}
+                          className="rounded-2xl border border-white/8 bg-slate-950/62 px-3 py-3 text-left transition hover:border-cyan-300/28 hover:bg-cyan-500/8 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="block text-[10px] uppercase tracking-[0.2em] text-slate-500">{card.label}</span>
+                              <span className="mt-1 block text-sm font-semibold text-white">{card.value}</span>
+                            </span>
+                            <SignalChip label={panelGuideLabel(card.panel)} tone={card.tone} />
+                          </div>
+                          <p className="mt-2 line-clamp-4 text-xs leading-5 text-slate-400">{card.detail}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-6 grid gap-3">
                   {slide.points.map((point) => (
                     <div key={point} className="rounded-[22px] border border-white/8 bg-slate-950/55 px-4 py-4 text-sm leading-7 text-slate-300">
@@ -3541,6 +3584,69 @@ export function ConvergenceApp() {
     tone: "bad" | "focus" | "good" | "neutral";
   }>;
   const primaryNextQuarterHook = nextQuarterPreview[0];
+  const academyPriorityPanel: PanelId = store.activeDilemma
+    ? "dilemmas"
+    : commandPriority.label === "Runway risk" ||
+        commandPriority.label === "Negative net" ||
+        commandPriority.label === "Funding window"
+      ? "finance"
+      : commandPriority.label === "Research blocked" || commandPriority.label === "Idle compute"
+        ? "track"
+        : commandPriority.label === "Talent window"
+          ? "hiring"
+          : "briefing";
+  const academyPlaybookCards: AcademyPlaybookCard[] =
+    store.mode === "playing"
+      ? [
+          {
+            label: "Current priority",
+            value: commandPriority.label,
+            detail: commandPriority.message,
+            panel: academyPriorityPanel,
+            tone:
+              commandPriority.tone === "rose"
+                ? "bad"
+                : commandPriority.tone === "amber"
+                  ? "warn"
+                  : commandPriority.tone === "sky"
+                    ? "focus"
+                    : "neutral",
+          },
+          {
+            label: "Selected research",
+            value: `${getTrackLabel(store.selectedTrack)} / ${formatTurns(selectedForecast.turnsToLevel)}`,
+            detail:
+              selectedForecast.blockedReason ??
+              `${selectedForecast.projectName} is gaining +${selectedForecast.progressPerTurn}/Q with ${selectedForecast.assignedCount} staff and ${selectedTrack.compute} PFLOPS.`,
+            panel: "track",
+            tone: selectedForecast.blockedReason
+              ? "bad"
+              : selectedForecast.turnsToLevel && selectedForecast.turnsToLevel <= 3
+                ? "good"
+                : "focus",
+          },
+          {
+            label: "Runway read",
+            value: `${store.resources.runwayMonths} months`,
+            detail:
+              quarterlyNet < 0
+                ? `${formatCurrency(Math.abs(quarterlyNet))}/Q burn. Keep a visible payoff or funding answer in reach.`
+                : `${formatCurrency(quarterlyNet)} positive net gives you room to buy tempo deliberately.`,
+            panel: "finance",
+            tone: store.resources.runwayMonths < 10 ? "bad" : store.resources.runwayMonths < 18 || quarterlyNet < 0 ? "warn" : "good",
+          },
+          {
+            label: "Next hook",
+            value: primaryNextQuarterHook?.value ?? priorityObjectives[0]?.label ?? "Create one",
+            detail:
+              primaryNextQuarterHook?.detail ??
+              priorityObjectives[0]?.detail ??
+              "Set up a near ETA, hire arrival, product launch, build completion, or crisis resolution before ending the turn.",
+            panel: primaryNextQuarterHook?.panel ?? priorityObjectives[0]?.panel ?? ("briefing" as PanelId),
+            tone: primaryNextQuarterHook?.tone ?? priorityObjectives[0]?.tone ?? "warn",
+          },
+        ]
+      : [];
   const operationsTimelineEvents = ([
     store.activeDilemma
       ? {
@@ -10530,7 +10636,12 @@ export function ConvergenceApp() {
         ) : null}
       </AnimatePresence>
 
-      <TutorialOverlay open={tutorialOpen} onClose={() => setTutorialOpen(false)} onOpenPanel={store.openPanel} />
+      <TutorialOverlay
+        open={tutorialOpen}
+        onClose={() => setTutorialOpen(false)}
+        onOpenPanel={store.openPanel}
+        playbookCards={academyPlaybookCards}
+      />
     </main>
   );
 }
