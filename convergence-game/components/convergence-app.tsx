@@ -2978,7 +2978,110 @@ export function ConvergenceApp() {
   const projectedNetAfterLaunches = Number((quarterlyNet + launchingRevenueLift - launchingOpexLift).toFixed(2));
   const projectedNetAfterPendingHires = Number((quarterlyNet - pendingHirePayroll).toFixed(2));
   const projectedNetAfterPipeline = Number((projectedNetAfterLaunches - pendingHirePayroll).toFixed(2));
+  const projectedCapitalAfterQuarter = Number((store.resources.capital + quarterlyNet).toFixed(1));
   const largestFundingOffer = [...fundingOffers].sort((left, right) => right.capital - left.capital)[0] ?? null;
+  const launchableCommercializationOptions = allCommercializationOptions.filter(
+    (option) => option.available && !option.isLive && !option.isLaunching,
+  );
+  const projectedRunwayAfterLaunches = estimateRunwayMonths(store.resources.capital, projectedNetAfterLaunches);
+  const projectedRunwayAfterPendingHires = estimateRunwayMonths(store.resources.capital, projectedNetAfterPendingHires);
+  const projectedRunwayAfterPipeline = estimateRunwayMonths(store.resources.capital, projectedNetAfterPipeline);
+  const projectedRunwayAfterFunding = largestFundingOffer
+    ? estimateRunwayMonths(store.resources.capital + largestFundingOffer.capital, projectedNetAfterPipeline)
+    : store.resources.runwayMonths;
+  const financeWarRoomTone: "bad" | "focus" | "good" | "neutral" | "warn" =
+    store.resources.runwayMonths < 10 || projectedNetAfterPipeline < -3
+      ? "bad"
+      : quarterlyNet < 0 || projectedNetAfterPendingHires < quarterlyNet
+        ? "warn"
+        : launchingCommercialPrograms.length || launchableCommercializationOptions.length
+          ? "focus"
+          : "good";
+  const financeDecisionCards: Array<{
+    id: string;
+    label: string;
+    title: string;
+    value: string;
+    signal: string;
+    detail: string;
+    consequence: string;
+    cta: string;
+    panel: PanelId;
+    icon: typeof BrainCircuit;
+    tone: "bad" | "focus" | "good" | "neutral" | "warn";
+  }> = [
+    {
+      id: "cash-clock",
+      label: "01 Cash Clock",
+      title: quarterlyNet < 0 ? "Close the burn gap" : "Defend the buffer",
+      value: quarterlyNet < 0 ? `${formatCurrency(Math.abs(quarterlyNet))}/Q burn` : `+${formatCurrency(quarterlyNet)}/Q net`,
+      signal: `${store.resources.runwayMonths}mo runway`,
+      detail:
+        quarterlyNet < 0
+          ? "The lab is spending more than it earns. Any new hire, build, or sprint needs a visible payoff."
+          : "The ledger is buying freedom. Spend it on one deliberate advantage instead of quiet clutter.",
+      consequence: `Next-quarter capital estimate: ${formatCurrency(projectedCapitalAfterQuarter)}.`,
+      cta: "Review ledger",
+      panel: "finance",
+      icon: BarChart3,
+      tone: quarterlyNet < 0 ? (store.resources.runwayMonths < 10 ? "bad" : "warn") : "good",
+    },
+    {
+      id: "launch-relief",
+      label: "02 Revenue Lever",
+      title: launchingCommercialPrograms.length
+        ? "Launches can change the clock"
+        : launchableCommercializationOptions.length
+          ? "A launchable product is waiting"
+          : "No product relief queued",
+      value: launchingCommercialPrograms.length
+        ? `+${formatCurrency(launchingRevenueLift)}/Q`
+        : `${launchableCommercializationOptions.length} ready`,
+      signal: `${projectedRunwayAfterLaunches}mo after launches`,
+      detail: launchingCommercialPrograms.length
+        ? `${launchingCommercialPrograms.length} queued program${launchingCommercialPrograms.length === 1 ? "" : "s"} will add operating load too, so watch compute reserve.`
+        : launchableCommercializationOptions.length
+          ? "Commercialization can convert research progress into recurring cash, but it may reserve compute."
+          : "Research level, coverage, capital, or service compute is still blocking the next revenue program.",
+      consequence: `Projected net after launch pipeline: ${projectedNetAfterLaunches >= 0 ? "+" : ""}${formatCurrency(projectedNetAfterLaunches)}/Q.`,
+      cta: "Open Research",
+      panel: "track",
+      icon: Sparkles,
+      tone: launchingCommercialPrograms.length || launchableCommercializationOptions.length ? "focus" : "neutral",
+    },
+    {
+      id: "hiring-shock",
+      label: "03 Talent Drag",
+      title: store.pendingHires.length ? "Signed hires hit next quarter" : "No incoming payroll shock",
+      value: store.pendingHires.length ? `+${formatCurrency(pendingHirePayroll)}/Q` : "Clear",
+      signal: `${projectedRunwayAfterPendingHires}mo after hires`,
+      detail: store.pendingHires.length
+        ? `${store.pendingHires.length} incoming hire${store.pendingHires.length === 1 ? "" : "s"} will become assignable soon, but the payroll is permanent.`
+        : "Talent spending is calm right now. If you hire, make sure the person clears a named blocker.",
+      consequence: `Projected net after signed hires: ${projectedNetAfterPendingHires >= 0 ? "+" : ""}${formatCurrency(projectedNetAfterPendingHires)}/Q.`,
+      cta: "Open Talent",
+      panel: "hiring",
+      icon: Users,
+      tone: store.pendingHires.length ? (projectedRunwayAfterPendingHires < 10 ? "bad" : "warn") : "good",
+    },
+    {
+      id: "funding-window",
+      label: "04 Capital Window",
+      title: largestFundingOffer ? "A raise is available" : "No live raise window",
+      value: largestFundingOffer ? `+${formatCurrency(largestFundingOffer.capital)}` : "Standby",
+      signal: largestFundingOffer ? `${projectedRunwayAfterFunding}mo funded` : `${Math.round(store.flags.founderControl)}% control`,
+      detail: largestFundingOffer
+        ? `${largestFundingOffer.name} buys time, costs ${largestFundingOffer.founderControlLoss}% control, and moves trust ${largestFundingOffer.trustDelta >= 0 ? "+" : ""}${largestFundingOffer.trustDelta}.`
+        : "Funding windows appear under cash pressure or later market cycles. Until then, revenue and restraint are the tools.",
+      consequence: largestFundingOffer
+        ? `Pipeline runway after taking the largest offer: ${projectedRunwayAfterFunding} months.`
+        : `Pipeline runway without new capital: ${projectedRunwayAfterPipeline} months.`,
+      cta: "Review offers",
+      panel: "finance",
+      icon: Handshake,
+      tone: largestFundingOffer ? "good" : store.resources.runwayMonths < 10 ? "bad" : "neutral",
+    },
+  ];
   const financeScenarioCards = [
     {
       id: "current-ledger",
@@ -3601,7 +3704,6 @@ export function ConvergenceApp() {
   const productsDueNextQuarter = store.commercializationPrograms.filter(
     (program) => program.status === "launching" && program.turnsRemaining <= 1,
   );
-  const projectedCapitalAfterQuarter = Number((store.resources.capital + quarterlyNet).toFixed(1));
   const nextQuarterPreview = [
     store.activeDilemma
       ? {
@@ -9442,6 +9544,69 @@ export function ConvergenceApp() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+                <div className="mission-card rounded-[26px] border-amber-400/14 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.12),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.94),rgba(5,10,22,0.9))] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-amber-100">Runway War Room</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">Choose the lever before you spend the quarter</h3>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                        This is the finance command board: what the clock is doing, which revenue could land, what payroll will hit, and whether a raise is worth the control cost.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <SignalChip label={financeWarRoomTone === "bad" ? "Emergency clock" : financeWarRoomTone === "warn" ? "Pressure building" : financeWarRoomTone === "focus" ? "Decision window" : "Controlled ledger"} tone={financeWarRoomTone} />
+                      <SignalChip label={`${projectedRunwayAfterPipeline}mo pipeline runway`} tone={projectedRunwayAfterPipeline < 10 ? "bad" : projectedRunwayAfterPipeline < 18 ? "warn" : "good"} />
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {financeDecisionCards.map((card) => {
+                      const Icon = card.icon;
+                      const cardClass =
+                        card.tone === "bad"
+                          ? "border-rose-400/25 bg-rose-500/10 hover:border-rose-300/45"
+                          : card.tone === "good"
+                            ? "border-emerald-400/22 bg-emerald-500/10 hover:border-emerald-300/45"
+                            : card.tone === "warn"
+                              ? "border-amber-400/25 bg-amber-500/10 hover:border-amber-300/45"
+                              : card.tone === "focus"
+                                ? "border-sky-400/25 bg-sky-500/10 hover:border-sky-300/45"
+                                : "border-white/8 bg-slate-950/62 hover:border-white/18";
+
+                      return (
+                        <button
+                          key={card.id}
+                          type="button"
+                          onClick={() => store.openPanel(card.panel)}
+                          className={`group flex min-h-[260px] flex-col justify-between rounded-[24px] border p-4 text-left transition ${cardClass}`}
+                        >
+                          <span>
+                            <span className="flex items-start justify-between gap-3">
+                              <span>
+                                <span className="block text-[10px] uppercase tracking-[0.2em] text-slate-500">{card.label}</span>
+                                <span className="mt-2 block text-base font-semibold text-white">{card.title}</span>
+                              </span>
+                              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/55 text-sky-100">
+                                <Icon className="h-4 w-4" />
+                              </span>
+                            </span>
+                            <span className="mt-4 flex flex-wrap items-center gap-2">
+                              <span className="text-2xl font-semibold text-white">{card.value}</span>
+                              <SignalChip label={card.signal} tone={card.tone} />
+                            </span>
+                            <span className="mt-3 block text-xs leading-5 text-slate-400">{card.detail}</span>
+                            <span className="mt-3 block rounded-2xl border border-white/8 bg-slate-950/45 px-3 py-2 text-[11px] leading-5 text-slate-300">
+                              {card.consequence}
+                            </span>
+                          </span>
+                          <span className="mt-4 inline-flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em] text-sky-100">
+                            {card.cta}
+                            <ChevronRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="mission-card rounded-[26px] border-sky-400/14 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.1),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.9),rgba(5,10,22,0.88))] p-4">
