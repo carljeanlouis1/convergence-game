@@ -16,6 +16,32 @@ function BandChip({ band }: { band: TrainingRun["checkpoints"][number]["band"] }
   );
 }
 
+const BAND_Y: Record<TrainingRun["checkpoints"][number]["band"], number> = {
+  ahead: 3,
+  "on-track": 8,
+  wobbly: 14,
+  troubled: 19,
+};
+
+function LossSparkline({ run }: { run: TrainingRun }) {
+  if (run.checkpoints.length === 0) return null;
+  const pts = run.checkpoints.map((cp, i) => ({
+    x: 6 + (i * 108) / Math.max(1, run.checkpoints.length - 1 || 1),
+    y: BAND_Y[cp.band],
+  }));
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const last = pts[pts.length - 1];
+  const worried = run.checkpoints[run.checkpoints.length - 1].band;
+  const color = worried === "troubled" ? "var(--red)" : worried === "wobbly" ? "var(--orange)" : "var(--green)";
+  return (
+    <svg viewBox="0 0 120 22" className="w-28 h-5 shrink-0" aria-label="checkpoint trend">
+      <line x1="0" y1="8" x2="120" y2="8" stroke="var(--border)" strokeDasharray="2 3" strokeWidth="0.75" />
+      {pts.length > 1 && <path d={path} fill="none" stroke={color} strokeWidth="1.5" />}
+      <circle cx={last.x} cy={last.y} r="2.2" fill={color} />
+    </svg>
+  );
+}
+
 function RunCard({ run }: { run: TrainingRun }) {
   const decideRun = useGameStore(s => s.decideRun);
   const latest = run.checkpoints[run.checkpoints.length - 1];
@@ -31,7 +57,10 @@ function RunCard({ run }: { run: TrainingRun }) {
             tier {run.scaleTier} · quarter {run.turnsElapsed}/{run.turnsTotal} · {run.computePerTurn} PF committed
           </p>
         </div>
-        {latest ? <BandChip band={latest.band} /> : <span className="micro-label">no checkpoint yet</span>}
+        <div className="flex items-center gap-2">
+          <LossSparkline run={run} />
+          {latest ? <BandChip band={latest.band} /> : <span className="micro-label">no checkpoint yet</span>}
+        </div>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-sunken)" }}>
         <div

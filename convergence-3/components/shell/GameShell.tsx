@@ -17,6 +17,7 @@ import { FinancePanel } from "@/components/panels/FinancePanel";
 import { EndTurnSummary } from "@/components/modals/EndTurnSummary";
 import { DebriefModal } from "@/components/modals/DebriefModal";
 import { DilemmaModal } from "@/components/modals/DilemmaModal";
+import { ReleaseDayModal } from "@/components/modals/ReleaseDayModal";
 
 function StartScreen() {
   const newGame = useGameStore(s => s.newGame);
@@ -232,6 +233,7 @@ export function GameShell() {
 
       <DilemmaModal game={game} />
       {!dilemmaOpen && <EraBriefingModal game={game} />}
+      {!dilemmaOpen && game.pendingEraBriefing === null && <ReleaseDayModal game={game} />}
       {confirming && !dilemmaOpen && (
         <EndTurnSummary game={game} onConfirm={confirmEndTurn} onCancel={() => setConfirming(false)} />
       )}

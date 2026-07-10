@@ -1,6 +1,7 @@
 "use client";
 
-import { leaderboard } from "@/lib/engine/rivals";
+import { categoryLeaders, leaderboard } from "@/lib/engine/rivals";
+import { BENCHMARK_NAMES } from "@/lib/engine/content";
 import type { BenchCategory, GameState, Rival } from "@/lib/engine/types";
 
 const ARCHETYPE_LABEL: Record<Rival["archetype"], string> = {
@@ -29,6 +30,69 @@ const CHRONICLE_COLOR: Record<string, string> = {
   world: "var(--ink-dim)",
 };
 
+function BenchmarkTable({ game }: { game: GameState }) {
+  const rivals = game.rivals.filter(r => r.active);
+  const leaders = categoryLeaders(game);
+  const deployed = game.models.filter(m => m.positioning !== null);
+  const playerBest = (c: BenchCategory) =>
+    deployed.length ? Math.max(...deployed.map(m => m.capability[c])) : 0;
+  const crownCount = Object.values(leaders).filter(l => l.isPlayer).length;
+  return (
+    <div className="space-y-2">
+      <h2 className="micro-label" style={{ color: "var(--amber)" }}>
+        the benchmarks — {crownCount} crown{crownCount === 1 ? "" : "s"} held
+      </h2>
+      <div className="panel-card overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
+          <thead>
+            <tr className="micro-label text-left">
+              <th className="px-4 py-2.5 font-normal">benchmark</th>
+              <th className="px-3 py-2.5 font-normal" style={{ color: "var(--amber)" }}>
+                you
+              </th>
+              {rivals.map(r => (
+                <th key={r.id} className="px-3 py-2.5 font-normal">
+                  {r.name.split(" ")[0]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(Object.keys(BENCHMARK_NAMES) as BenchCategory[]).map(c => {
+              const you = playerBest(c);
+              return (
+                <tr key={c} className="border-t" style={{ borderColor: "var(--border)" }}>
+                  <td className="px-4 py-2.5 micro-label">{BENCHMARK_NAMES[c]}</td>
+                  <td
+                    className="px-3 py-2.5 stat-num"
+                    style={leaders[c].isPlayer ? { color: "var(--amber)", fontWeight: 700 } : undefined}
+                  >
+                    {leaders[c].isPlayer && "♛ "}
+                    {you > 0 ? you.toFixed(0) : "—"}
+                  </td>
+                  {rivals.map(r => {
+                    const isLeader = !leaders[c].isPlayer && leaders[c].name === r.name;
+                    return (
+                      <td
+                        key={r.id}
+                        className="px-3 py-2.5 stat-num"
+                        style={isLeader ? { color: "var(--red)", fontWeight: 700 } : { color: "var(--ink-dim)" }}
+                      >
+                        {isLeader && "♛ "}
+                        {r.capability[c].toFixed(0)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function RaceBoardPanel({ game }: { game: GameState }) {
   const lb = leaderboard(game);
   const rivals = game.rivals.filter(r => r.active);
@@ -37,8 +101,10 @@ export function RaceBoardPanel({ game }: { game: GameState }) {
     <div className="rise-in space-y-5">
       <div>
         <h1 className="font-display font-black text-2xl tracking-tight">The Race</h1>
-        <p className="micro-label mt-1">leaderboard · rival intel · the record</p>
+        <p className="micro-label mt-1">benchmarks · leaderboard · rival intel · the record</p>
       </div>
+
+      <BenchmarkTable game={game} />
 
       <div className="panel-card divide-y max-w-xl">
         {lb.map((e, i) => (

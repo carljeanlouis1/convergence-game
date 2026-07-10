@@ -14,6 +14,17 @@ const KIND_COLOR: Record<DebriefLine["kind"], string> = {
   funding: "var(--amber)",
 };
 
+const KIND_ICON: Record<DebriefLine["kind"], string> = {
+  finance: "▲",
+  run: "⚗",
+  compute: "▦",
+  world: "●",
+  rival: "⚑",
+  talent: "✦",
+  safety: "⛨",
+  funding: "◆",
+};
+
 export function BriefingPanel({ game }: { game: GameState }) {
   const d = game.lastDebrief;
   return (
@@ -40,9 +51,17 @@ export function BriefingPanel({ game }: { game: GameState }) {
             <span className="micro-label">last quarter — {d.headline}</span>
           </div>
           {d.lines.map((l, i) => (
-            <div key={i} className="px-5 py-3 flex gap-3 items-baseline">
-              <span className="micro-label shrink-0 w-14" style={{ color: KIND_COLOR[l.kind] }}>
-                {l.kind}
+            <div
+              key={`${d.turn}-${i}`}
+              className="px-5 py-3 flex gap-3 items-baseline rise-in"
+              style={{ animationDelay: `${Math.min(i, 12) * 90}ms`, animationFillMode: "backwards" }}
+            >
+              <span
+                className="shrink-0 w-5 text-center text-xs"
+                title={l.kind}
+                style={{ color: KIND_COLOR[l.kind] }}
+              >
+                {KIND_ICON[l.kind]}
               </span>
               <span className="text-sm leading-relaxed">{l.text}</span>
             </div>

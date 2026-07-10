@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useGameStore } from "@/lib/store/gameStore";
 import {
   payrollPerTurn,
@@ -8,20 +9,12 @@ import {
   revenuePerTurn,
   burnPerTurn,
   runwayMonths,
+  streamYield,
 } from "@/lib/engine/finance";
-import { projectedRevenue } from "@/lib/engine/deploy";
-import { deployRiskBand } from "@/lib/engine/safety";
 import { selectUndeployedModels } from "@/lib/store/selectors";
-import type { GameState, Positioning } from "@/lib/engine/types";
-
-const RISK_COLOR = { clear: "var(--green)", elevated: "var(--orange)", severe: "var(--red)" };
-
-const POSITIONINGS: Array<{ id: Positioning; label: string; note: string }> = [
-  { id: "api", label: "API", note: "steady, decays to fast-follow" },
-  { id: "enterprise", label: "Enterprise", note: "highest revenue, decays" },
-  { id: "consumer", label: "Consumer", note: "modest, decays" },
-  { id: "open-weights", label: "Open weights", note: "tiny but permanent" },
-];
+import { ModelCard } from "@/components/ui/ModelCard";
+import { DeployModal } from "@/components/modals/DeployModal";
+import type { GameState } from "@/lib/engine/types";
 
 function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
@@ -33,8 +26,10 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: stri
 }
 
 export function FinancePanel({ game }: { game: GameState }) {
-  const deploy = useGameStore(s => s.deploy);
   const acceptOffer = useGameStore(s => s.acceptOffer);
+  const [deployingId, setDeployingId] = useState<string | null>(null);
+  const deployingModel = deployingId ? game.models.find(m => m.id === deployingId) : null;
+  const deployed = game.models.filter(m => m.positioning !== null);
   const revenue = revenuePerTurn(game);
   const burn = burnPerTurn(game);
   const net = revenue - burn;
@@ -89,7 +84,7 @@ export function FinancePanel({ game }: { game: GameState }) {
               <Row
                 key={i}
                 label={`${r.source}${r.decayPerTurn > 0 ? ` (−${(r.decayPerTurn * 100).toFixed(0)}%/qtr)` : ""}`}
-                value={`$${r.amountPerTurn.toFixed(1)}M`}
+                value={`$${streamYield(game, r).toFixed(1)}M`}
                 tone="var(--green)"
               />
             ))}
@@ -134,41 +129,34 @@ export function FinancePanel({ game }: { game: GameState }) {
           <h2 className="micro-label" style={{ color: "var(--amber)" }}>
             undeployed models — position them
           </h2>
-          {undeployed.map(m => {
-            const avg =
-              (m.capability.coding + m.capability.reasoning + m.capability.enterprise + m.capability.consumer) / 4;
-            return (
-              <div key={m.id} className="panel-card p-4 space-y-3 pulse-amber">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <h3 className="font-display font-bold">{m.name}</h3>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="micro-label border rounded px-2 py-0.5"
-                      style={{ color: RISK_COLOR[deployRiskBand(game, m.id)], borderColor: "currentcolor" }}
-                    >
-                      safety: {deployRiskBand(game, m.id)}
-                    </span>
-                    <span className="micro-label stat-num">
-                      cod {m.capability.coding.toFixed(0)} · rsn {m.capability.reasoning.toFixed(0)} · ent{" "}
-                      {m.capability.enterprise.toFixed(0)} · con {m.capability.consumer.toFixed(0)}
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {POSITIONINGS.map(p => (
-                    <button key={p.id} className="btn text-left normal-case tracking-normal p-2.5" onClick={() => deploy(m.id, p.id)}>
-                      <span className="block font-bold uppercase text-xs tracking-widest">{p.label}</span>
-                      <span className="block stat-num mt-1" style={{ color: "var(--green)" }}>
-                        +${projectedRevenue(avg, p.id, "standard").toFixed(1)}M/qtr
-                      </span>
-                      <span className="block micro-label mt-0.5">{p.note}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {undeployed.map(m => (
+            <ModelCard
+              key={m.id}
+              game={game}
+              model={m}
+              action={
+                <button className="btn btn-primary w-full" onClick={() => setDeployingId(m.id)}>
+                  Position this model
+                </button>
+              }
+            />
+          ))}
         </div>
+      )}
+
+      {deployed.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="micro-label">the fleet — every model you ever shipped</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[...deployed].reverse().map(m => (
+              <ModelCard key={m.id} game={game} model={m} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {deployingModel && (
+        <DeployModal game={game} model={deployingModel} onClose={() => setDeployingId(null)} />
       )}
     </div>
   );
