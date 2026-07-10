@@ -131,7 +131,7 @@ function EndingScreen({ ending, turn, result }: { ending: string; turn: number; 
       <div className="rise-in max-w-md">
         <p className="micro-label mb-3">your run ended · quarter {turn}</p>
         <h1
-          className="font-display font-black text-4xl md:text-5xl tracking-tighter"
+          className="font-display font-black text-4xl md:text-5xl tracking-tighter title-in"
           style={{ color: victory ? "var(--green)" : "var(--red)" }}
         >
           {c.title}
@@ -146,8 +146,15 @@ function EndingScreen({ ending, turn, result }: { ending: string; turn: number; 
         </p>
         {result && (
           <div className="mt-6">
-            <span className="micro-label block mb-1">final grade</span>
-            <span className="font-display font-black text-6xl" style={{ color: victory ? "var(--green)" : "var(--ink-dim)" }}>
+            <span className="micro-label block mb-3">final grade</span>
+            <span
+              className="stamp-in inline-block font-display font-black text-6xl border-4 rounded-lg px-5 py-1"
+              style={{
+                color: victory ? "var(--green)" : "var(--ink-dim)",
+                borderColor: "currentcolor",
+                textShadow: victory ? "0 0 30px rgba(143,218,69,0.4)" : undefined,
+              }}
+            >
               {result.grade}
             </span>
           </div>

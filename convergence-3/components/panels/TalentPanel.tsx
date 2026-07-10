@@ -1,6 +1,7 @@
 "use client";
 
 import { useGameStore } from "@/lib/store/gameStore";
+import { Avatar } from "@/components/ui/Avatar";
 import { selectRoster } from "@/lib/store/selectors";
 import { BALANCE } from "@/lib/engine/balance";
 import type { GameState } from "@/lib/engine/types";
@@ -54,11 +55,14 @@ export function TalentPanel({ game }: { game: GameState }) {
           {roster.map(s => (
             <div key={s.id} className="panel-card p-4 space-y-2">
               <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-display font-bold">{s.name}</h3>
-                  <p className="micro-label mt-0.5">
-                    {s.specialty} · skill {s.skill} · ${s.salaryPerQuarter.toFixed(2)}M/qtr
-                  </p>
+                <div className="flex items-center gap-3">
+                  <Avatar id={s.id} name={s.name} size={40} />
+                  <div>
+                    <h3 className="font-display font-bold">{s.name}</h3>
+                    <p className="micro-label mt-0.5">
+                      {s.specialty} · skill {s.skill} · ${s.salaryPerQuarter.toFixed(2)}M/qtr
+                    </p>
+                  </div>
                 </div>
                 {s.leadingRun && (
                   <span className="micro-label border rounded px-2 py-0.5" style={{ color: "var(--amber)", borderColor: "var(--amber)" }}>
@@ -95,11 +99,14 @@ export function TalentPanel({ game }: { game: GameState }) {
             const affordable = game.capital >= c.signingBonus;
             return (
               <div key={c.id} className="panel-card p-4 space-y-2">
-                <div>
-                  <h3 className="font-display font-bold">{c.name}</h3>
-                  <p className="micro-label mt-0.5">
-                    {c.specialty} · skill {c.skill} · asks ${c.salaryPerQuarter.toFixed(2)}M/qtr
-                  </p>
+                <div className="flex items-center gap-3">
+                  <Avatar id={c.id} name={c.name} size={40} />
+                  <div>
+                    <h3 className="font-display font-bold">{c.name}</h3>
+                    <p className="micro-label mt-0.5">
+                      {c.specialty} · skill {c.skill} · asks ${c.salaryPerQuarter.toFixed(2)}M/qtr
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="stat-num text-xs" style={{ color: "var(--ink-dim)" }}>

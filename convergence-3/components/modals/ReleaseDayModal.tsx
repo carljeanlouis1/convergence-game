@@ -50,7 +50,7 @@ export function ReleaseDayModal({ game }: { game: GameState }) {
           <p className="micro-label" style={{ color: "var(--amber)" }}>
             release day
           </p>
-          <h1 className="font-display font-black text-4xl tracking-tight mt-1">{model.name}</h1>
+          <h1 className="font-display font-black text-4xl tracking-tight mt-1 title-in">{model.name}</h1>
           <p className="micro-label mt-2">
             enters the field at <span style={{ color: "var(--amber)" }}>#{model.releaseRank ?? "?"}</span> overall ·
             composite {avg.toFixed(0)}

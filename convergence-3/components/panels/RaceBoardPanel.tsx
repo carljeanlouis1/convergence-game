@@ -2,6 +2,7 @@
 
 import { categoryLeaders, leaderboard } from "@/lib/engine/rivals";
 import { BENCHMARK_NAMES } from "@/lib/engine/content";
+import { Avatar } from "@/components/ui/Avatar";
 import type { BenchCategory, GameState, Rival } from "@/lib/engine/types";
 
 const ARCHETYPE_LABEL: Record<Rival["archetype"], string> = {
@@ -129,9 +130,12 @@ export function RaceBoardPanel({ game }: { game: GameState }) {
         {rivals.map(r => (
           <div key={r.id} className="panel-card p-4 space-y-2">
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="font-display font-bold">{r.name}</h3>
-                <p className="micro-label mt-0.5">{ARCHETYPE_LABEL[r.archetype]}</p>
+              <div className="flex items-center gap-3">
+                <Avatar id={r.id} name={r.name} size={44} />
+                <div>
+                  <h3 className="font-display font-bold">{r.name}</h3>
+                  <p className="micro-label mt-0.5">{ARCHETYPE_LABEL[r.archetype]}</p>
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
