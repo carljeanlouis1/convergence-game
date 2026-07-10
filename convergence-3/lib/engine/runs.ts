@@ -42,6 +42,13 @@ export function riskBand(design: RunDesign): "low" | "medium" | "high" {
 export function launchRun(state: GameState, design: RunDesign): GameState {
   const tier = BALANCE.runTiers[design.scaleTier];
   resolveTechniques(design.techniqueIds, state.era);
+  if (
+    state.interimUntilTurn !== null &&
+    state.turn < state.interimUntilTurn &&
+    design.scaleTier > BALANCE.funding.interimRunTierCap
+  ) {
+    throw new Error("the interim board won't approve a run this large");
+  }
   if (design.leadId) {
     const lead = state.stars.find(s => s.id === design.leadId);
     if (!lead) throw new Error("unknown lead");

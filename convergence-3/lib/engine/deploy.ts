@@ -1,4 +1,5 @@
 import { BALANCE } from "./balance";
+import { recordDeploymentRisk } from "./safety";
 import type { GameState, Positioning } from "./types";
 
 export function projectedDeployRevenue(avgCapability: number, positioning: Positioning): number {
@@ -11,8 +12,9 @@ export function deployModel(state: GameState, modelId: string, positioning: Posi
   if (model.positioning) throw new Error("model already deployed");
   const avg =
     (model.capability.coding + model.capability.reasoning + model.capability.enterprise + model.capability.consumer) / 4;
+  const state2 = recordDeploymentRisk(state, modelId);
   return {
-    ...state,
+    ...state2,
     models: state.models.map(m => (m.id === modelId ? { ...m, positioning, deployedTurn: state.turn } : m)),
     revenueStreams: [
       ...state.revenueStreams,
