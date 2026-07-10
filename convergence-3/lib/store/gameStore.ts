@@ -6,7 +6,7 @@ import { launchRun, applyRunDecision } from "@/lib/engine/runs";
 import { deployModel } from "@/lib/engine/deploy";
 import { advanceTurn } from "@/lib/engine/turn";
 import { hireCandidate, respondToPoach } from "@/lib/engine/talent";
-import { acceptFunding } from "@/lib/engine/funding";
+import { acceptFunding, openRound } from "@/lib/engine/funding";
 import { resolveDilemma } from "@/lib/engine/events";
 import { startBuild } from "@/lib/engine/facilities";
 import { startFrontier } from "@/lib/engine/frontiers";
@@ -34,6 +34,7 @@ interface GameStore {
   hire: (candidateId: string) => void;
   respondPoach: (starId: string, response: "match" | "equity" | "decline") => void;
   acceptOffer: (offerId: string) => void;
+  raiseRound: () => void;
   resolveActiveDilemma: (optionId: string) => void;
   clearOutcome: () => void;
   build: (optionId: string) => void;
@@ -135,6 +136,7 @@ export const useGameStore = create<GameStore>()(
       hire: candidateId => act(set, get, g => hireCandidate(g, candidateId)),
       respondPoach: (starId, response) => act(set, get, g => respondToPoach(g, starId, response)),
       acceptOffer: offerId => act(set, get, g => acceptFunding(g, offerId)),
+      raiseRound: () => act(set, get, openRound),
       resolveActiveDilemma: optionId => {
         const game = get().game;
         if (!game) return;

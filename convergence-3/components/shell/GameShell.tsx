@@ -114,6 +114,10 @@ const ENDING_COPY: Record<string, { title: string; body: string }> = {
     title: "THE REVELATION",
     body: "The world model was too good. Somewhere in the seventh training epoch it stopped predicting reality and started rendering it — and the checksums... the checksums match. You kept it quiet, kept it closed, ran the evals three times. The simulation isn't a product. It's the room you're standing in.",
   },
+  figurehead: {
+    title: "FIGUREHEAD",
+    body: "You still have the badge, the parking spot, the title on the door. What you don't have is a single decision. Round after round, counter after counter, you traded the company away in fifteen-point increments — and the board noticed before you did. They kept you on. You test well with the press.",
+  },
   "open-road": {
     title: "THE OPEN ROAD",
     body: "Twelve years. The lab survived every quarter of them — through the raids and the coups and the shocks — without ever quite forcing history's hand. The race goes on without a winner. Maybe that was the point.",

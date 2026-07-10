@@ -5,7 +5,7 @@ import { Modal } from "./Modal";
 import { useGameStore } from "@/lib/store/gameStore";
 import { expectedQuality, riskBand } from "@/lib/engine/runs";
 import { freePF } from "@/lib/engine/compute";
-import { TECHNIQUES } from "@/lib/engine/content";
+import { TECHNIQUES, BENCHMARK_NAMES } from "@/lib/engine/content";
 import { BALANCE } from "@/lib/engine/balance";
 import type { GameState, RunDesign } from "@/lib/engine/types";
 
@@ -88,8 +88,20 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
         <div>
           <span className="micro-label block mb-1.5">techniques</span>
           <div className="flex flex-wrap gap-2">
-            {TECHNIQUES.filter(t => t.era <= game.era).map(t => {
+            {TECHNIQUES.map(t => {
+              const locked = t.era > game.era;
               const on = techniqueIds.includes(t.id);
+              const boosts = (Object.entries(t.categoryWeights) as Array<[string, number]>)
+                .filter(([, w]) => w >= 1.1)
+                .map(([c]) => BENCHMARK_NAMES[c as keyof typeof BENCHMARK_NAMES]);
+              if (locked) {
+                return (
+                  <span key={t.id} className="btn opacity-40 cursor-not-allowed" title={`unlocks in era ${t.era}`}>
+                    {t.name}
+                    <span className="ml-2 micro-label" style={{ color: "var(--orange)" }}>era {t.era}</span>
+                  </span>
+                );
+              }
               return (
                 <button
                   key={t.id}
@@ -97,10 +109,16 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
                     setTechniqueIds(on ? techniqueIds.filter(x => x !== t.id) : [...techniqueIds, t.id])
                   }
                   className="btn"
+                  title={boosts.length ? `boosts ${boosts.join(", ")}` : undefined}
                   style={on ? { borderColor: "var(--amber)", color: "var(--amber)", background: "var(--amber-dim)" } : undefined}
                 >
                   {t.name}
                   <span className="ml-2 opacity-60">+{t.qualityBonus}q {t.variance > 0 ? `±${t.variance}` : ""}</span>
+                  {boosts.length > 0 && (
+                    <span className="block micro-label mt-0.5" style={{ color: "var(--green)" }}>
+                      ▲ {boosts.join(" · ")}
+                    </span>
+                  )}
                 </button>
               );
             })}

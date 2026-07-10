@@ -18,6 +18,41 @@ export function valuation(state: GameState): number {
   );
 }
 
+function generateOffers(state: GameState): FundingOffer[] {
+  const F = BALANCE.funding;
+  const v = valuation(state) * (state.fireSaleCount > 0 ? 0.75 : 1);
+  const kinds: FundingKind[] = ["vc", "strategic", "mission"];
+  return kinds.map(kind => {
+    const terms = F[kind];
+    return {
+      id: `offer-${state.turn}-${kind}`,
+      kind,
+      amountM: Math.max(5, v * terms.amountFactor),
+      controlCost: terms.controlCost,
+      boardDelta: terms.boardDelta,
+      trustDelta: terms.trustDelta,
+      computeGrantPF: terms.computeGrantPF,
+      expiresTurn: state.turn + F.offerExpiry,
+    };
+  });
+}
+
+/** Player-initiated raise: call a round on your own timing (with a cooldown). */
+export function openRound(state: GameState): GameState {
+  if (state.fundingOffers.length > 0) throw new Error("a round is already open");
+  if (state.turn - state.lastRaiseTurn < BALANCE.funding.playerRaiseCooldown) {
+    throw new Error("too soon since the last raise — investors want a story arc, not a sequel");
+  }
+  return {
+    ...state,
+    fundingOffers: generateOffers(state),
+    chronicle: [
+      ...state.chronicle,
+      { turn: state.turn, kind: "funding", text: "You called a round. The term sheets arrived by dinner." },
+    ],
+  };
+}
+
 export function acceptFunding(state: GameState, offerId: string): GameState {
   const offer = state.fundingOffers.find(o => o.id === offerId);
   if (!offer) throw new Error("no such offer");
@@ -71,22 +106,7 @@ export function fundingTurn(state: GameState): { state: GameState; lines: string
     s.fundingOffers.length === 0 &&
     (runway < F.offerRunwayTrigger || s.turn - s.lastRaiseTurn >= F.offerCadence)
   ) {
-    const v = valuation(s) * (s.fireSaleCount > 0 ? 0.75 : 1);
-    const kinds: FundingKind[] = ["vc", "strategic", "mission"];
-    const offers: FundingOffer[] = kinds.map(kind => {
-      const terms = F[kind];
-      return {
-        id: `offer-${s.turn}-${kind}`,
-        kind,
-        amountM: Math.max(5, v * terms.amountFactor),
-        controlCost: terms.controlCost,
-        boardDelta: terms.boardDelta,
-        trustDelta: terms.trustDelta,
-        computeGrantPF: terms.computeGrantPF,
-        expiresTurn: s.turn + F.offerExpiry,
-      };
-    });
-    s = { ...s, fundingOffers: offers };
+    s = { ...s, fundingOffers: generateOffers(s) };
     lines.push("Term sheets are on the table — three ways to raise, three different leashes.");
   }
 

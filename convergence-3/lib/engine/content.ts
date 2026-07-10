@@ -72,6 +72,30 @@ export const TECHNIQUES: Technique[] = [
     variance: 7,
     categoryWeights: { coding: 1.15, reasoning: 1.2, enterprise: 1.0, consumer: 0.95 },
   },
+  {
+    id: "long-context",
+    name: "Long Context",
+    era: 2,
+    qualityBonus: 5,
+    variance: 1,
+    categoryWeights: { coding: 1.0, reasoning: 1.05, enterprise: 1.15, consumer: 1.0 },
+  },
+  {
+    id: "multimodal-fusion",
+    name: "Multimodal Fusion",
+    era: 3,
+    qualityBonus: 7,
+    variance: 2.5,
+    categoryWeights: { coding: 0.95, reasoning: 1.05, enterprise: 1.0, consumer: 1.2 },
+  },
+  {
+    id: "self-play-economies",
+    name: "Self-Play Economies",
+    era: 4,
+    qualityBonus: 11,
+    variance: 5,
+    categoryWeights: { coding: 1.0, reasoning: 1.1, enterprise: 1.15, consumer: 0.95 },
+  },
 ];
 
 export const STARTING_FACILITIES: Facility[] = [

@@ -31,10 +31,20 @@ describe("endings", () => {
     const base = createInitialState("en");
     expect(evaluateEndings({ ...base, stats: { ...base.stats, openShare: 60 } })).toBe("the-standard");
   });
-  it("frontier-crown needs a streak that spans an era", () => {
+  it("frontier-crown needs an era-spanning streak AND a frontier-class model", () => {
     const base = createInitialState("en");
-    expect(evaluateEndings({ ...base, stats: { ...base.stats, topStreak: 6, topStreakSpansEra: false } })).toBeNull();
-    expect(evaluateEndings({ ...base, stats: { ...base.stats, topStreak: 6, topStreakSpansEra: true } })).toBe("frontier-crown");
+    const frontierModel = {
+      id: "fm", name: "FM", createdTurn: 1,
+      capability: { coding: 75, reasoning: 75, enterprise: 75, consumer: 75 },
+      positioning: "api" as const, deployedTurn: 1,
+      lifetimeRevenue: 0, pricing: "standard" as const, releaseRank: null,
+    };
+    // streak without era span → no
+    expect(evaluateEndings({ ...base, models: [frontierModel], stats: { ...base.stats, topStreak: 6, topStreakSpansEra: false } })).toBeNull();
+    // streak + span but weak model (turn-12 exploit) → no
+    expect(evaluateEndings({ ...base, stats: { ...base.stats, topStreak: 6, topStreakSpansEra: true } })).toBeNull();
+    // streak + span + frontier model → crown
+    expect(evaluateEndings({ ...base, models: [frontierModel], stats: { ...base.stats, topStreak: 6, topStreakSpansEra: true } })).toBe("frontier-crown");
   });
   it("pyrrhic overlay and grades", () => {
     const base = { ...createInitialState("en"), control: 20, trust: 80 };

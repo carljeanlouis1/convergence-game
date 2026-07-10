@@ -62,6 +62,7 @@ export function evaluateEndings(state: GameState): string | null {
   const completedFrontiers = state.frontierProjects.filter(p => p.status === "completed");
   // defeats first
   if (s.incidents >= E().catastropheIncidents) return "catastrophe";
+  if (state.control <= E().figureheadControl) return "figurehead";
   if (s.laggingStreak >= E().laggingTurns) return "irrelevant";
   // convergence-era victories
   if (
@@ -82,7 +83,7 @@ export function evaluateEndings(state: GameState): string | null {
     return "simulation-revelation";
   }
   // grounded victories
-  if (s.topStreak >= E().crownStreak && s.topStreakSpansEra) return "frontier-crown";
+  if (s.topStreak >= E().crownStreak && s.topStreakSpansEra && bestDeployedAvg(state) >= E().crownMinCapability) return "frontier-crown";
   if (s.profitStreak >= E().titanStreak && revenuePerTurn(state) >= E().titanRevenue && state.control >= E().titanControl) {
     return "enterprise-titan";
   }
@@ -194,6 +195,14 @@ export function trajectory(state: GameState): TrajectoryEntry[] {
       id: "catastrophe", label: "Catastrophe", victory: false, hidden: false,
       progress: clamp01(s.incidents / E().catastropheIncidents),
       pull: s.incidents === 0 ? "Keep the incidents at zero" : `${s.incidents}/${E().catastropheIncidents} incidents — the next one might not be survivable`,
+    },
+    {
+      id: "figurehead", label: "Figurehead", victory: false, hidden: false,
+      progress: clamp01((60 - state.control) / (60 - E().figureheadControl)),
+      pull:
+        state.control > 40
+          ? "Guard your equity — every raise and every counter costs control"
+          : `Control at ${Math.round(state.control)} — at ${E().figureheadControl} the board runs the lab without you`,
     },
   ];
 }

@@ -40,18 +40,19 @@ export function TopBar({ game }: { game: GameState }) {
   const t = selectTopBar(game);
   const lowRunway = t.runwayText !== "∞" && parseInt(t.runwayText) < 9;
   // last-quarter snapshot for trend arrows (cosmetic, client-only)
-  const prevRef = useRef<{ turn: number; capital: number; trust: number; morale: number; board: number } | null>(null);
-  const shown = useRef<{ capital: number; trust: number; morale: number; board: number }>({ capital: 0, trust: 0, morale: 0, board: 0 });
+  const prevRef = useRef<{ turn: number; capital: number; trust: number; morale: number; board: number; control: number } | null>(null);
+  const shown = useRef<{ capital: number; trust: number; morale: number; board: number; control: number }>({ capital: 0, trust: 0, morale: 0, board: 0, control: 0 });
   if (prevRef.current === null) {
-    prevRef.current = { turn: game.turn, capital: game.capital, trust: game.trust, morale: game.morale, board: game.boardConfidence };
+    prevRef.current = { turn: game.turn, capital: game.capital, trust: game.trust, morale: game.morale, board: game.boardConfidence, control: game.control };
   } else if (prevRef.current.turn !== game.turn) {
     shown.current = {
       capital: game.capital - prevRef.current.capital,
       trust: game.trust - prevRef.current.trust,
       morale: game.morale - prevRef.current.morale,
       board: game.boardConfidence - prevRef.current.board,
+      control: game.control - prevRef.current.control,
     };
-    prevRef.current = { turn: game.turn, capital: game.capital, trust: game.trust, morale: game.morale, board: game.boardConfidence };
+    prevRef.current = { turn: game.turn, capital: game.capital, trust: game.trust, morale: game.morale, board: game.boardConfidence, control: game.control };
   }
   const d = shown.current;
   return (
@@ -70,6 +71,7 @@ export function TopBar({ game }: { game: GameState }) {
         <Stat label="Trust" value={`${Math.round(t.trust)}`} trend={d.trust} />
         <Stat label="Morale" value={`${Math.round(game.morale)}`} trend={d.morale} />
         <Stat label="Board" value={`${Math.round(t.board)}`} tone={t.board <= 25 ? "red" : undefined} trend={d.board} />
+        <Stat label="Control" value={`${Math.round(game.control)}%`} tone={game.control <= 25 ? "red" : undefined} trend={d.control} />
       </div>
     </header>
   );

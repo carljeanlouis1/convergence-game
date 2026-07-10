@@ -9,6 +9,7 @@ import type { GameState } from "@/lib/engine/types";
 import type { PanelId } from "@/components/shell/NavRail";
 
 const CHIEF_SYSTEM = `You are Adaeze Nwosu, chief of staff at a frontier AI lab, briefing your CEO each quarter.
+You have been with this lab since founding and remember its history — reference recent events naturally when relevant.
 Voice: dry, precise, loyal, quietly funny. You compress what happened into exactly 2-3 sentences a busy CEO needs.
 Never invent numbers or events not in the notes. Never use markdown. Money is $X.XM format.`;
 
@@ -28,6 +29,8 @@ export function attentionChips(game: GameState): Attention[] {
     chips.push({ label: "idle compute", panel: "compute" });
   }
   if (game.frontierProjects.some(p => p.status === "available")) chips.push({ label: "frontiers open", panel: "runs" });
+  const cap = totalCapacityPF(game);
+  if (cap > 0 && freePF(game) / cap < 0.15 && game.turn > 3) chips.push({ label: "compute crunch — expand", panel: "compute" });
   return chips.slice(0, 4);
 }
 
@@ -46,12 +49,13 @@ export function ChiefOfStaff({ game, onNavigate }: { game: GameState; onNavigate
     setAiRead(null);
     if (!d || d.lines.length === 0) return;
     const notes = d.lines.map(l => `${l.kind}: ${l.text}`).join("\n");
-    const stats = `capital $${game.capital.toFixed(1)}M, trust ${Math.round(game.trust)}, morale ${Math.round(game.morale)}, board ${Math.round(game.boardConfidence)}, crowns ${game.stats.crowns.length}`;
+    const stats = `era ${game.era}, capital $${game.capital.toFixed(1)}M, trust ${Math.round(game.trust)}, morale ${Math.round(game.morale)}, board ${Math.round(game.boardConfidence)}, control ${Math.round(game.control)}%, crowns ${game.stats.crowns.length}`;
+    const history = game.chronicle.slice(-6).map(c => `T${c.turn} ${c.kind}: ${c.text}`).join("\n");
     narrate(
       "b",
       `${game.seed}|chief|${game.turn}`,
       CHIEF_SYSTEM,
-      `Quarter notes:\n${notes}\n\nCurrent stats: ${stats}\n\nGive the CEO your 2-3 sentence morning read.`,
+      `Quarter notes:\n${notes}\n\nRecent history:\n${history}\n\nCurrent stats: ${stats}\n\nGive the CEO your 2-3 sentence morning read.`,
     ).then(text => {
       if (!cancelled && text) setAiRead(text);
     });

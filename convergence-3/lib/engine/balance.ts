@@ -86,6 +86,7 @@ export const BALANCE = {
     offerRunwayTrigger: 12,
     offerCadence: 10,
     offerExpiry: 3,
+    playerRaiseCooldown: 4,
     valuationCapWeight: 1.6,
     valuationRevenueWeight: 9,
     valuationTrustWeight: 0.4,
@@ -144,6 +145,7 @@ export const BALANCE = {
     titanStreak: 4,
     titanControl: 50,
     crownStreak: 6,
+    crownMinCapability: 70, // the streak only counts with a genuinely frontier model
     standardShare: 60,
     openSharePerModelPerTurn: 2,
     conscienceTrust: 85,
@@ -155,6 +157,7 @@ export const BALANCE = {
     laggingFromTurn: 24,
     laggingTurns: 6,
     catastropheIncidents: 3,
+    figureheadControl: 15, // control at or below this = the board runs your lab
     pyrrhicControl: 35,
     pyrrhicTrust: 35,
     gradeThresholds: { S: 220, A: 160, B: 110, C: 60 }, // below C = D

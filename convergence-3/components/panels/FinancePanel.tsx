@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useGameStore } from "@/lib/store/gameStore";
+import { BALANCE } from "@/lib/engine/balance";
 import {
   payrollPerTurn,
   computeUpkeepPerTurn,
@@ -27,6 +28,7 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: stri
 
 export function FinancePanel({ game }: { game: GameState }) {
   const acceptOffer = useGameStore(s => s.acceptOffer);
+  const raiseRound = useGameStore(s => s.raiseRound);
   const [deployingId, setDeployingId] = useState<string | null>(null);
   const deployingModel = deployingId ? game.models.find(m => m.id === deployingId) : null;
   const deployed = game.models.filter(m => m.positioning !== null);
@@ -38,9 +40,25 @@ export function FinancePanel({ game }: { game: GameState }) {
 
   return (
     <div className="rise-in space-y-4 max-w-2xl">
-      <div>
-        <h1 className="font-display font-black text-2xl tracking-tight">Finance</h1>
-        <p className="micro-label mt-1">quarterly ledger · projected forward</p>
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-display font-black text-2xl tracking-tight">Finance</h1>
+          <p className="micro-label mt-1">quarterly ledger · projected forward</p>
+        </div>
+        {game.fundingOffers.length === 0 && (
+          <button
+            className="btn"
+            disabled={game.turn - game.lastRaiseTurn < BALANCE.funding.playerRaiseCooldown}
+            title={
+              game.turn - game.lastRaiseTurn < BALANCE.funding.playerRaiseCooldown
+                ? `investors need ${BALANCE.funding.playerRaiseCooldown - (game.turn - game.lastRaiseTurn)} more quarter(s) of story`
+                : "call a round on your timing — cash and compute for equity"
+            }
+            onClick={() => raiseRound()}
+          >
+            Raise a round
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-3">
