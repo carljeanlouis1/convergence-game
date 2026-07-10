@@ -25,11 +25,11 @@ function StartScreen() {
   return (
     <main
       data-testid="start-screen"
-      className="min-h-dvh flex flex-col items-center justify-center gap-8 p-6 text-center"
+      className="min-h-dvh w-full overflow-x-hidden flex flex-col items-center justify-center gap-8 p-6 text-center"
     >
-      <div className="rise-in">
+      <div className="rise-in max-w-full">
         <p className="micro-label mb-3">a frontier lab survival strategy game</p>
-        <h1 className="font-display font-black text-5xl md:text-7xl tracking-tighter leading-none">
+        <h1 className="font-display font-black text-[min(3.4rem,9.5vw)] md:text-7xl tracking-tighter leading-none">
           CONVERGENCE<span style={{ color: "var(--amber)" }}>_3</span>
         </h1>
         <p className="mt-4 max-w-md mx-auto text-sm leading-relaxed" style={{ color: "var(--ink-dim)" }}>

@@ -5,7 +5,7 @@ import type { GameState } from "@/lib/engine/types";
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "amber" | "red" }) {
   return (
-    <div className="flex flex-col gap-0.5 px-3 py-1.5 border-r last:border-r-0 min-w-0">
+    <div className="flex flex-col gap-0.5 px-3 py-1.5 border-r last:border-r-0 shrink-0">
       <span className="micro-label whitespace-nowrap">{label}</span>
       <span
         className="stat-num text-sm font-medium whitespace-nowrap"
@@ -22,7 +22,7 @@ export function TopBar({ game }: { game: GameState }) {
   const lowRunway = t.runwayText !== "∞" && parseInt(t.runwayText) < 9;
   return (
     <header className="flex items-center border-b bg-[var(--bg-sunken)] sticky top-0 z-30">
-      <div className="px-4 py-2 border-r shrink-0">
+      <div className="px-4 py-2 border-r shrink-0 hidden md:block">
         <div className="font-display font-black text-base leading-none tracking-tight">
           CONVERGENCE<span style={{ color: "var(--amber)" }}>_3</span>
         </div>
