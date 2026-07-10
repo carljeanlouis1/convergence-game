@@ -74,6 +74,7 @@ export function safetyTurn(state: GameState): { state: GameState; lines: string[
         amountPerTurn: r.amountPerTurn * (1 - B.incidentRevenueHit),
       })),
       incidentRisk: s.incidentRisk * B.incidentRiskRelief,
+      stats: { ...s.stats, incidents: s.stats.incidents + 1 },
       chronicle: [
         ...s.chronicle,
         { turn: s.turn, kind: "safety", text: `A jailbreak of ${subject} is everywhere. Screenshots. Headlines. Hearings.` },

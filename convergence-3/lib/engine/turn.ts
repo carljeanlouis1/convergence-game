@@ -1,10 +1,14 @@
 import { BALANCE } from "./balance";
+import { applyEraTransition } from "./eras";
+import { buildsTurn } from "./facilities";
 import { applyFinance, revenuePerTurn, burnPerTurn, runwayMonths } from "./finance";
+import { checkAgi, frontiersTurn } from "./frontiers";
 import { advanceRuns } from "./runs";
 import { advanceRivals, applyFastFollow } from "./rivals";
 import { talentTurn } from "./talent";
 import { safetyTurn } from "./safety";
 import { fundingTurn } from "./funding";
+import { evaluateEndings, finalizeEnding, updateStats } from "./endings";
 import { maybeOpenDilemma } from "./events";
 import type { DebriefLine, GameState, TurnDebrief } from "./types";
 
@@ -19,12 +23,19 @@ export function advanceTurn(state: GameState): GameState {
   if (state.activeDilemma) throw new Error("resolve the dilemma first");
 
   const lines: DebriefLine[] = [];
-  const revenue = revenuePerTurn(state);
-  const burn = burnPerTurn(state);
-  const runsBefore = state.runs;
+
+  // 0. era transition (uses the current turn number)
+  const eraState = applyEraTransition(state);
+  if (eraState.era !== state.era) {
+    lines.push({ kind: "world", text: `A new era begins.` });
+  }
+
+  const revenue = revenuePerTurn(eraState);
+  const burn = burnPerTurn(eraState);
+  const runsBefore = eraState.runs;
 
   // 1-2. fast-follow repricing, then cashflow
-  const fin = applyFinance(applyFastFollow(state));
+  const fin = applyFinance(applyFastFollow(eraState));
   let s = fin.state;
 
   // 3. runs advance (+ morale from completions/failures)
@@ -51,6 +62,11 @@ export function advanceTurn(state: GameState): GameState {
     }
   }
 
+  // 3b. facility builds
+  const buildStep = buildsTurn(s);
+  s = buildStep.state;
+  for (const l of buildStep.lines) lines.push({ kind: "world", text: l });
+
   // 4. rivals
   const rivalStep = advanceRivals(s);
   s = rivalStep.state;
@@ -66,10 +82,29 @@ export function advanceTurn(state: GameState): GameState {
   s = safetyStep.state;
   for (const l of safetyStep.lines) lines.push({ kind: "safety", text: l });
 
+  // 6b. AGI check + applied frontiers
+  s = checkAgi(s);
+  const frontierStep = frontiersTurn(s);
+  s = frontierStep.state;
+  for (const l of frontierStep.lines) lines.push({ kind: "world", text: l });
+
   // 7. funding & governance
   const fundingStep = fundingTurn(s);
   s = fundingStep.state;
   for (const l of fundingStep.lines) lines.push({ kind: "funding", text: l });
+
+  // 7b. stats + endings
+  s = updateStats(s, fin.net);
+  if (s.ending !== null && s.endingResult === null) {
+    // ousted/absorbed arrive from fundingTurn without a result — grade them
+    s = finalizeEnding(s, s.ending);
+  } else if (s.ending === null) {
+    const endingId = evaluateEndings(s);
+    if (endingId) {
+      s = finalizeEnding(s, endingId);
+      lines.push({ kind: "world", text: `This is how it ends: ${endingId.replace(/-/g, " ")}.` });
+    }
+  }
 
   const runway = runwayMonths(s);
   if (runway < 9) {
@@ -89,8 +124,11 @@ export function advanceTurn(state: GameState): GameState {
     turn: nextTurn,
     lastDebrief: debrief,
     chronicle: s.chronicle.slice(-60),
-    ended: s.ended || s.ending !== null || nextTurn > BALANCE.totalTurns,
+    ended: s.ended || s.ending !== null,
   };
+  if (!s.ended && nextTurn > BALANCE.totalTurns) {
+    s = finalizeEnding(s, "open-road");
+  }
   if (!s.ended) s = maybeOpenDilemma(s);
   return s;
 }
