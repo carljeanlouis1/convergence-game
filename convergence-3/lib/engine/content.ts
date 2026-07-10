@@ -1,4 +1,4 @@
-import type { Star, Technique, Facility, Rival, Candidate, DilemmaDef } from "./types";
+import type { Star, Technique, Facility, Rival, Candidate, DilemmaDef, FrontierProject } from "./types";
 
 export const STARTING_STARS: Star[] = [
   { id: "star-imara", name: "Dr. Imara Osei", specialty: "reasoning", skill: 7, salaryPerQuarter: 0.9, onRunId: null, burnout: 0 },
@@ -320,4 +320,12 @@ export const DILEMMAS: DilemmaDef[] = [
       },
     ],
   },
+];
+
+export const FRONTIER_DEFS: FrontierProject[] = [
+  { id: "robotics", name: "Autonomous Labor", status: "locked", turnsLeft: 6, computePerTurn: 60 },
+  { id: "biology", name: "Cures at Scale", status: "locked", turnsLeft: 6, computePerTurn: 60 },
+  { id: "materials", name: "Post-Scarcity Materials", status: "locked", turnsLeft: 6, computePerTurn: 60 },
+  { id: "space", name: "The Off-World Push", status: "locked", turnsLeft: 6, computePerTurn: 60 },
+  { id: "simulation", name: "World Modeling", status: "locked", turnsLeft: 6, computePerTurn: 60 },
 ];

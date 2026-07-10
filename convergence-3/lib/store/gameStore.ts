@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { createInitialState, v2Defaults } from "@/lib/engine/state";
+import { createInitialState, v2Defaults, v3Defaults } from "@/lib/engine/state";
 import { setAllocation } from "@/lib/engine/compute";
 import { launchRun, applyRunDecision } from "@/lib/engine/runs";
 import { deployModel } from "@/lib/engine/deploy";
@@ -34,25 +34,27 @@ interface GameStore {
   abandonGame: () => void;
 }
 
+function backfill(g: GameState, defaults: Partial<GameState>): GameState {
+  return {
+    ...g,
+    ...Object.fromEntries(
+      Object.entries(defaults).map(([k, v]) => [k, (g as unknown as Record<string, unknown>)[k] ?? v]),
+    ),
+  } as GameState;
+}
+
 export function migrateSnapshot(persisted: unknown): { game: GameState | null } {
   const p = persisted as { game?: GameState } | undefined;
   if (!p || !p.game) return { game: null };
-  if (p.game.version === 2) return { game: p.game };
-  if (p.game.version === 1) {
-    // v1 → v2: backfill the living-world fields
-    const g = p.game as GameState;
-    return {
-      game: {
-        ...g,
-        version: 2,
-        stars: g.stars.map(s => ({ ...s, burnout: s.burnout ?? 0 })),
-        ...Object.fromEntries(
-          Object.entries(v2Defaults()).map(([k, v]) => [k, (g as unknown as Record<string, unknown>)[k] ?? v]),
-        ),
-      } as GameState,
-    };
+  let g = p.game;
+  if (g.version !== 1 && g.version !== 2 && g.version !== 3) return { game: null };
+  if (g.version === 1) {
+    g = backfill({ ...g, version: 2, stars: g.stars.map(s => ({ ...s, burnout: s.burnout ?? 0 })) }, v2Defaults());
   }
-  return { game: null };
+  if (g.version === 2) {
+    g = backfill({ ...g, version: 3 }, v3Defaults());
+  }
+  return { game: g };
 }
 
 function act(

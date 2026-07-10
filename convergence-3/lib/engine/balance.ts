@@ -113,4 +113,41 @@ export const BALANCE = {
     safetyTrustDriftPerPF: 0.05,
   },
   events: { cadence: 2 }, // dilemmas may open on turns divisible by this
+  eras: {
+    startTurns: { 2: 11, 3: 25, 4: 39 },
+    scalars: {
+      rivalJump: { 1: 1.0, 2: 1.25, 3: 1.5, 4: 1.8 },
+      fastFollow: { 1: 1.0, 2: 1.15, 3: 1.4, 4: 1.6 },
+      poachChance: { 1: 1.0, 2: 1.3, 3: 1.5, 4: 1.5 },
+    },
+  },
+  frontiers: {
+    agiThreshold: 88,
+    projectTurns: 6,
+    projectComputePerTurn: 60,
+    projectCostM: 80,
+    payoffRevenue: 30,
+    payoffTrust: 8,
+    transcendenceCount: 3,
+  },
+  endings: {
+    titanRevenue: 40,
+    titanStreak: 4,
+    titanControl: 50,
+    crownStreak: 6,
+    standardShare: 60,
+    openSharePerModelPerTurn: 2,
+    conscienceTrust: 85,
+    conscienceEval: 40,
+    asiCapability: 92,
+    asiTrust: 60,
+    asiEval: 60,
+    laggingFraction: 0.45,
+    laggingFromTurn: 24,
+    laggingTurns: 6,
+    catastropheIncidents: 3,
+    pyrrhicControl: 35,
+    pyrrhicTrust: 35,
+    gradeThresholds: { S: 220, A: 160, B: 110, C: 60 }, // below C = D
+  },
 } as const;

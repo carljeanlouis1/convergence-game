@@ -141,6 +141,7 @@ export interface DilemmaOptionOutcome {
     morale: number;
     incidentRisk: number;
     teamStrength: number;
+    standardsAdopted: boolean;
   }>;
 }
 
@@ -165,6 +166,52 @@ export interface ActiveDilemma {
   openedTurn: number;
 }
 
+export interface GameStats {
+  profitStreak: number; // consecutive turns net >= 0
+  topStreak: number; // consecutive turns ranked #1
+  topStreakSpansEra: boolean; // current topStreak crossed an era boundary
+  laggingStreak: number; // consecutive turns far behind the leader (after endings.laggingFromTurn)
+  openShare: number; // accumulates from live open-weights models
+  incidents: number; // total safety incidents fired
+  standardsAdopted: boolean; // set by the standards-body dilemma
+  agiTurn: number | null; // first turn a deployed model avg >= frontiers.agiThreshold
+}
+
+export interface FacilityBuild {
+  optionId: string;
+  name: string;
+  capacityPF: number;
+  turnsLeft: number;
+}
+
+export type FrontierId = "robotics" | "biology" | "materials" | "space" | "simulation";
+
+export interface FrontierProject {
+  id: FrontierId;
+  name: string;
+  status: "locked" | "available" | "active" | "completed";
+  turnsLeft: number;
+  computePerTurn: number; // committed while active
+}
+
+export interface BuildOption {
+  id: string;
+  name: string;
+  era: 1 | 2 | 3 | 4;
+  capacityPF: number;
+  costM: number;
+  turns: number;
+  trustDelta: number;
+  note: string;
+}
+
+export interface EndingResult {
+  id: string;
+  victory: boolean;
+  pyrrhic: boolean;
+  grade: "S" | "A" | "B" | "C" | "D";
+}
+
 export interface ChronicleEntry {
   turn: number;
   kind: "rival" | "talent" | "funding" | "safety" | "dilemma" | "world";
@@ -178,7 +225,7 @@ export interface TurnDebrief {
 }
 
 export interface GameState {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   seed: string;
   turn: number;
   era: 1 | 2 | 3 | 4;
@@ -210,4 +257,9 @@ export interface GameState {
   chronicle: ChronicleEntry[];
   ending: string | null;
   interimUntilTurn: number | null; // constrained-CEO mode after a survived-but-scarred coup
+  stats: GameStats;
+  builds: FacilityBuild[];
+  frontierProjects: FrontierProject[];
+  pendingEraBriefing: 1 | 2 | 3 | 4 | null;
+  endingResult: EndingResult | null;
 }

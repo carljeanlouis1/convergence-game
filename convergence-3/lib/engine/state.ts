@@ -1,5 +1,5 @@
 import { BALANCE } from "./balance";
-import { STARTING_STARS, STARTING_FACILITIES, RIVALS, CANDIDATE_POOL } from "./content";
+import { STARTING_STARS, STARTING_FACILITIES, RIVALS, CANDIDATE_POOL, FRONTIER_DEFS } from "./content";
 import type { Candidate, GameState } from "./types";
 
 export function initialMarket(): Candidate[] {
@@ -28,9 +28,28 @@ export function v2Defaults() {
   } satisfies Partial<GameState>;
 }
 
+export function v3Defaults() {
+  return {
+    stats: {
+      profitStreak: 0,
+      topStreak: 0,
+      topStreakSpansEra: false,
+      laggingStreak: 0,
+      openShare: 0,
+      incidents: 0,
+      standardsAdopted: false,
+      agiTurn: null,
+    },
+    builds: [],
+    frontierProjects: structuredClone(FRONTIER_DEFS),
+    pendingEraBriefing: null,
+    endingResult: null,
+  } satisfies Partial<GameState>;
+}
+
 export function createInitialState(seed: string): GameState {
   return {
-    version: 2,
+    version: 3,
     seed,
     turn: 1,
     era: 1,
@@ -49,5 +68,6 @@ export function createInitialState(seed: string): GameState {
     lastDebrief: null,
     ended: false,
     ...v2Defaults(),
+    ...v3Defaults(),
   };
 }
