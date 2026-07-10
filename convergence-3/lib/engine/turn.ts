@@ -94,7 +94,14 @@ export function advanceTurn(state: GameState): GameState {
   for (const l of fundingStep.lines) lines.push({ kind: "funding", text: l });
 
   // 7b. stats + endings
+  const crownsBefore = s.stats.crowns;
   s = updateStats(s, fin.net);
+  for (const c of s.stats.crowns.filter(c => !crownsBefore.includes(c))) {
+    lines.push({ kind: "world", text: `Crown claimed: your model now leads the field on ${c}. The board noticed.` });
+  }
+  for (const c of crownsBefore.filter(c => !s.stats.crowns.includes(c))) {
+    lines.push({ kind: "rival", text: `Crown lost: a rival now leads on ${c}. The premium goes with it.` });
+  }
   if (s.ending !== null && s.endingResult === null) {
     // ousted/absorbed arrive from fundingTurn without a result — grade them
     s = finalizeEnding(s, s.ending);

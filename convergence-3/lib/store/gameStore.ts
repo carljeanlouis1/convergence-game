@@ -15,6 +15,7 @@ import type {
   ComputeAllocation,
   GameState,
   Positioning,
+  Pricing,
   RunDecisionKind,
   RunDesign,
 } from "@/lib/engine/types";
@@ -28,7 +29,8 @@ interface GameStore {
   allocate: (alloc: ComputeAllocation) => void;
   launch: (design: RunDesign) => void;
   decideRun: (runId: string, decision: RunDecisionKind) => void;
-  deploy: (modelId: string, positioning: Positioning) => void;
+  deploy: (modelId: string, positioning: Positioning, pricing?: Pricing) => void;
+  dismissRelease: () => void;
   hire: (candidateId: string) => void;
   respondPoach: (starId: string, response: "match" | "equity" | "decline") => void;
   acceptOffer: (offerId: string) => void;
@@ -124,7 +126,12 @@ export const useGameStore = create<GameStore>()(
       allocate: alloc => act(set, get, g => setAllocation(g, alloc)),
       launch: design => act(set, get, g => launchRun(g, design)),
       decideRun: (runId, decision) => act(set, get, g => applyRunDecision(g, runId, decision)),
-      deploy: (modelId, positioning) => act(set, get, g => deployModel(g, modelId, positioning)),
+      deploy: (modelId, positioning, pricing) =>
+        act(set, get, g => ({
+          ...deployModel(g, modelId, positioning, pricing),
+          pendingRelease: g.pendingRelease === modelId ? null : g.pendingRelease,
+        })),
+      dismissRelease: () => act(set, get, g => ({ ...g, pendingRelease: null })),
       hire: candidateId => act(set, get, g => hireCandidate(g, candidateId)),
       respondPoach: (starId, response) => act(set, get, g => respondToPoach(g, starId, response)),
       acceptOffer: offerId => act(set, get, g => acceptFunding(g, offerId)),

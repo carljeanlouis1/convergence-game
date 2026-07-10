@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createInitialState } from "@/lib/engine/state";
+import { launchRun } from "@/lib/engine/runs";
 import { advanceTurn } from "@/lib/engine/turn";
 import { resolveDilemma, getDilemmaDef } from "@/lib/engine/events";
 import { startBuild } from "@/lib/engine/facilities";
@@ -51,4 +52,24 @@ describe("advanceTurn v3 — the full arc", () => {
     expect(Number.isFinite(s.stats.profitStreak)).toBe(true);
     expect(Number.isFinite(s.stats.laggingStreak)).toBe(true);
   });
+});
+
+it("a completed run raises the release-day flag", () => {
+  let s = createInitialState("release");
+  s = launchRun(s, { name: "Flagship", scaleTier: 1, techniqueIds: ["rlhf"], leadId: null });
+  for (let i = 0; i < 4 && s.pendingRelease === null; i++) {
+    if (s.activeDilemma) {
+      const def = getDilemmaDef(s.activeDilemma.defId);
+      s = resolveDilemma(s, def.options[0].id).state;
+    }
+    s = advanceTurn(s);
+  }
+  const run = s.runs[0];
+  if (run.status === "completed") {
+    expect(s.pendingRelease).toBe(`model-${run.id}`);
+    expect(s.models[0].releaseRank).toBeGreaterThanOrEqual(1);
+  } else {
+    expect(run.status).toBe("failed"); // seed-dependent; failure keeps the flag null
+    expect(s.pendingRelease).toBeNull();
+  }
 });
