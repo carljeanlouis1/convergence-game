@@ -10,8 +10,11 @@ import {
   runwayMonths,
 } from "@/lib/engine/finance";
 import { projectedDeployRevenue } from "@/lib/engine/deploy";
+import { deployRiskBand } from "@/lib/engine/safety";
 import { selectUndeployedModels } from "@/lib/store/selectors";
 import type { GameState, Positioning } from "@/lib/engine/types";
+
+const RISK_COLOR = { clear: "var(--green)", elevated: "var(--orange)", severe: "var(--red)" };
 
 const POSITIONINGS: Array<{ id: Positioning; label: string; note: string }> = [
   { id: "api", label: "API", note: "steady, decays to fast-follow" },
@@ -31,6 +34,7 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: stri
 
 export function FinancePanel({ game }: { game: GameState }) {
   const deploy = useGameStore(s => s.deploy);
+  const acceptOffer = useGameStore(s => s.acceptOffer);
   const revenue = revenuePerTurn(game);
   const burn = burnPerTurn(game);
   const net = revenue - burn;
@@ -93,6 +97,38 @@ export function FinancePanel({ game }: { game: GameState }) {
         </div>
       </div>
 
+      {game.fundingOffers.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="micro-label" style={{ color: "var(--amber)" }}>
+            open term sheets — every term is on the table
+          </h2>
+          <div className="grid gap-3 md:grid-cols-3">
+            {game.fundingOffers.map(o => (
+              <div key={o.id} className="panel-card p-4 space-y-2">
+                <h3 className="font-display font-bold uppercase text-xs tracking-widest">{o.kind}</h3>
+                <div className="micro-label space-y-1">
+                  <div>
+                    cash <span className="stat-num" style={{ color: "var(--green)" }}>+${o.amountM.toFixed(0)}M</span>
+                  </div>
+                  <div>
+                    control <span className="stat-num" style={{ color: "var(--red)" }}>−{o.controlCost}</span>
+                  </div>
+                  <div>board {o.boardDelta >= 0 ? `+${o.boardDelta}` : o.boardDelta} · trust{" "}
+                    {o.trustDelta >= 0 ? `+${o.trustDelta}` : o.trustDelta}</div>
+                  {o.computeGrantPF > 0 && (
+                    <div style={{ color: "var(--amber)" }}>+{o.computeGrantPF} PF partner compute</div>
+                  )}
+                  <div>expires {o.expiresTurn - game.turn <= 0 ? "this quarter" : `in ${o.expiresTurn - game.turn} qtr(s)`}</div>
+                </div>
+                <button className="btn btn-primary w-full" onClick={() => acceptOffer(o.id)}>
+                  Sign it
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {undeployed.length > 0 && (
         <div className="space-y-2">
           <h2 className="micro-label" style={{ color: "var(--amber)" }}>
@@ -103,12 +139,20 @@ export function FinancePanel({ game }: { game: GameState }) {
               (m.capability.coding + m.capability.reasoning + m.capability.enterprise + m.capability.consumer) / 4;
             return (
               <div key={m.id} className="panel-card p-4 space-y-3 pulse-amber">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <h3 className="font-display font-bold">{m.name}</h3>
-                  <span className="micro-label stat-num">
-                    cod {m.capability.coding.toFixed(0)} · rsn {m.capability.reasoning.toFixed(0)} · ent{" "}
-                    {m.capability.enterprise.toFixed(0)} · con {m.capability.consumer.toFixed(0)}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="micro-label border rounded px-2 py-0.5"
+                      style={{ color: RISK_COLOR[deployRiskBand(game, m.id)], borderColor: "currentcolor" }}
+                    >
+                      safety: {deployRiskBand(game, m.id)}
+                    </span>
+                    <span className="micro-label stat-num">
+                      cod {m.capability.coding.toFixed(0)} · rsn {m.capability.reasoning.toFixed(0)} · ent{" "}
+                      {m.capability.enterprise.toFixed(0)} · con {m.capability.consumer.toFixed(0)}
+                    </span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {POSITIONINGS.map(p => (

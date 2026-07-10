@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGameStore } from "@/lib/store/gameStore";
 import { totalCapacityPF, committedRunPF, allocatedPF } from "@/lib/engine/compute";
+import { capabilityTier, requiredEvalFor, riskBandLabel } from "@/lib/engine/safety";
 import { selectActiveRuns } from "@/lib/store/selectors";
 import type { ComputeAllocation, GameState } from "@/lib/engine/types";
 
@@ -96,6 +97,33 @@ export function ComputePanel({ game }: { game: GameState }) {
         <button className="btn btn-primary" disabled={over || !dirty} onClick={() => allocate(draft)} data-testid="apply-allocation">
           Apply allocation
         </button>
+      </div>
+
+      <div className="panel-card p-4 flex flex-wrap gap-x-8 gap-y-2" style={{ background: "var(--bg-sunken)" }}>
+        <div>
+          <span className="micro-label block">eval capacity</span>
+          <span className="font-display font-bold stat-num">{game.evalCapacity.toFixed(0)}</span>
+        </div>
+        <div>
+          <span className="micro-label block">tier {capabilityTier(game)} requires</span>
+          <span className="font-display font-bold stat-num">{requiredEvalFor(capabilityTier(game))}</span>
+        </div>
+        <div>
+          <span className="micro-label block">incident risk</span>
+          <span
+            className="font-display font-bold"
+            style={{
+              color:
+                riskBandLabel(game) === "low"
+                  ? "var(--green)"
+                  : riskBandLabel(game) === "elevated"
+                    ? "var(--orange)"
+                    : "var(--red)",
+            }}
+          >
+            {riskBandLabel(game)}
+          </span>
+        </div>
       </div>
 
       <div className="space-y-2">

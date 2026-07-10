@@ -33,8 +33,9 @@ export function TopBar({ game }: { game: GameState }) {
         <Stat label="Capital" value={`$${t.capital.toFixed(1)}M`} />
         <Stat label="Runway" value={t.runwayText} tone={lowRunway ? "red" : undefined} />
         <Stat label="Compute" value={t.freePFText} />
-        <Stat label="Trust" value={`${t.trust}`} />
-        <Stat label="Board" value={`${t.board}`} />
+        <Stat label="Trust" value={`${Math.round(t.trust)}`} />
+        <Stat label="Morale" value={`${Math.round(game.morale)}`} />
+        <Stat label="Board" value={`${Math.round(t.board)}`} tone={t.board <= 25 ? "red" : undefined} />
       </div>
     </header>
   );

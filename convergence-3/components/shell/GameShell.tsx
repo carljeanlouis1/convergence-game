@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useGameStore } from "@/lib/store/gameStore";
+import { selectAlerts } from "@/lib/store/selectors";
 import { TopBar } from "./TopBar";
 import { NavRail, type PanelId } from "./NavRail";
 import { BriefingPanel } from "@/components/panels/BriefingPanel";
 import { RunsPanel } from "@/components/panels/RunsPanel";
 import { ComputePanel } from "@/components/panels/ComputePanel";
+import { TalentPanel } from "@/components/panels/TalentPanel";
+import { RaceBoardPanel } from "@/components/panels/RaceBoardPanel";
 import { FinancePanel } from "@/components/panels/FinancePanel";
 import { EndTurnSummary } from "@/components/modals/EndTurnSummary";
 import { DebriefModal } from "@/components/modals/DebriefModal";
+import { DilemmaModal } from "@/components/modals/DilemmaModal";
 
 function StartScreen() {
   const newGame = useGameStore(s => s.newGame);
@@ -48,6 +52,37 @@ function StartScreen() {
   );
 }
 
+function EndingScreen({ ending, turn }: { ending: string; turn: number }) {
+  const abandonGame = useGameStore(s => s.abandonGame);
+  const COPY: Record<string, { title: string; body: string }> = {
+    ousted: {
+      title: "OUSTED",
+      body: "The board fired you overnight, and nobody threatened to walk. The lab continues — under new management. You read about its releases in the press like everyone else.",
+    },
+    absorbed: {
+      title: "ABSORBED",
+      body: "Out of money, out of credibility, out of options. The acquihire closed on a Tuesday. Your lab is now the AI division of a company that mostly sells ads.",
+    },
+  };
+  const c = COPY[ending] ?? { title: ending.toUpperCase(), body: "The run is over." };
+  return (
+    <main className="min-h-dvh flex flex-col items-center justify-center gap-6 p-6 text-center">
+      <div className="rise-in max-w-md">
+        <p className="micro-label mb-3">your run ended · quarter {turn}</p>
+        <h1 className="font-display font-black text-5xl tracking-tighter" style={{ color: "var(--red)" }}>
+          {c.title}
+        </h1>
+        <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--ink-dim)" }}>
+          {c.body}
+        </p>
+      </div>
+      <button className="btn btn-primary px-8 py-3" onClick={abandonGame}>
+        Found another lab
+      </button>
+    </main>
+  );
+}
+
 export function GameShell() {
   const game = useGameStore(s => s.game);
   const lastError = useGameStore(s => s.lastError);
@@ -69,6 +104,10 @@ export function GameShell() {
 
   if (!mounted) return null;
   if (!game) return <StartScreen />;
+  if (game.ended && game.ending) return <EndingScreen ending={game.ending} turn={game.turn} />;
+
+  const alerts = selectAlerts(game);
+  const dilemmaOpen = alerts.dilemmaOpen;
 
   const confirmEndTurn = () => {
     setConfirming(false);
@@ -81,11 +120,21 @@ export function GameShell() {
     <div className="min-h-dvh flex flex-col">
       <TopBar game={game} />
       <div className="flex flex-1">
-        <NavRail active={panel} onChange={setPanel} />
+        <NavRail
+          active={panel}
+          onChange={setPanel}
+          badges={{
+            talent: alerts.poachCount > 0,
+            finance: alerts.offerCount > 0 || alerts.undeployedCount > 0,
+            briefing: dilemmaOpen,
+          }}
+        />
         <main className="flex-1 p-4 md:p-6 pb-28 md:pb-6">
           {panel === "briefing" && <BriefingPanel game={game} />}
           {panel === "runs" && <RunsPanel game={game} />}
           {panel === "compute" && <ComputePanel game={game} />}
+          {panel === "talent" && <TalentPanel game={game} />}
+          {panel === "race" && <RaceBoardPanel game={game} />}
           {panel === "finance" && <FinancePanel game={game} />}
         </main>
       </div>
@@ -94,14 +143,19 @@ export function GameShell() {
         <button
           className="btn btn-primary fixed bottom-16 md:bottom-6 right-4 md:right-6 z-30 px-6 py-3 shadow-lg"
           data-testid="end-turn"
+          disabled={dilemmaOpen}
+          title={dilemmaOpen ? "Resolve the dilemma first" : undefined}
           onClick={() => setConfirming(true)}
         >
-          End turn ▸
+          {dilemmaOpen ? "Decision pending…" : "End turn ▸"}
         </button>
       )}
 
-      {confirming && <EndTurnSummary game={game} onConfirm={confirmEndTurn} onCancel={() => setConfirming(false)} />}
-      {debriefOpen && game.lastDebrief && (
+      <DilemmaModal game={game} />
+      {confirming && !dilemmaOpen && (
+        <EndTurnSummary game={game} onConfirm={confirmEndTurn} onCancel={() => setConfirming(false)} />
+      )}
+      {debriefOpen && game.lastDebrief && !dilemmaOpen && (
         <DebriefModal debrief={game.lastDebrief} onClose={() => setDebriefOpen(false)} />
       )}
 
