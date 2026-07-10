@@ -8,6 +8,10 @@ const KIND_COLOR: Record<DebriefLine["kind"], string> = {
   run: "var(--green)",
   compute: "var(--ink-dim)",
   world: "var(--ink-dim)",
+  rival: "#e07ab8",
+  talent: "#7ab8f5",
+  safety: "var(--orange)",
+  funding: "var(--amber)",
 };
 
 export function BriefingPanel({ game }: { game: GameState }) {

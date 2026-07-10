@@ -1,10 +1,36 @@
 import { BALANCE } from "./balance";
-import { STARTING_STARS, STARTING_FACILITIES } from "./content";
-import type { GameState } from "./types";
+import { STARTING_STARS, STARTING_FACILITIES, RIVALS, CANDIDATE_POOL } from "./content";
+import type { Candidate, GameState } from "./types";
+
+export function initialMarket(): Candidate[] {
+  return CANDIDATE_POOL.slice(0, BALANCE.talent.marketSize).map(c => ({
+    ...c,
+    exitTurn: 1 + BALANCE.talent.candidateExitAfter,
+  }));
+}
+
+export function v2Defaults() {
+  return {
+    rivals: structuredClone(RIVALS),
+    market: initialMarket(),
+    poachOffers: [],
+    fundingOffers: [],
+    lastRaiseTurn: 0,
+    fundingRound: 0,
+    evalCapacity: 0,
+    incidentRisk: 0,
+    fireSaleCount: 0,
+    activeDilemma: null,
+    usedDilemmas: [],
+    chronicle: [],
+    ending: null,
+    interimUntilTurn: null,
+  } satisfies Partial<GameState>;
+}
 
 export function createInitialState(seed: string): GameState {
   return {
-    version: 1,
+    version: 2,
     seed,
     turn: 1,
     era: 1,
@@ -22,5 +48,6 @@ export function createInitialState(seed: string): GameState {
     revenueStreams: [],
     lastDebrief: null,
     ended: false,
+    ...v2Defaults(),
   };
 }

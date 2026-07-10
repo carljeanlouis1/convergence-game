@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { createInitialState } from "@/lib/engine/state";
+import { createInitialState, v2Defaults } from "@/lib/engine/state";
 import { setAllocation } from "@/lib/engine/compute";
 import { launchRun, applyRunDecision } from "@/lib/engine/runs";
 import { deployModel } from "@/lib/engine/deploy";
@@ -27,7 +27,22 @@ interface GameStore {
 
 export function migrateSnapshot(persisted: unknown): { game: GameState | null } {
   const p = persisted as { game?: GameState } | undefined;
-  if (p && p.game && p.game.version === 1) return { game: p.game };
+  if (!p || !p.game) return { game: null };
+  if (p.game.version === 2) return { game: p.game };
+  if (p.game.version === 1) {
+    // v1 → v2: backfill the living-world fields
+    const g = p.game as GameState;
+    return {
+      game: {
+        ...g,
+        version: 2,
+        stars: g.stars.map(s => ({ ...s, burnout: s.burnout ?? 0 })),
+        ...Object.fromEntries(
+          Object.entries(v2Defaults()).map(([k, v]) => [k, (g as unknown as Record<string, unknown>)[k] ?? v]),
+        ),
+      } as GameState,
+    };
+  }
   return { game: null };
 }
 

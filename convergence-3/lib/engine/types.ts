@@ -11,6 +11,7 @@ export interface Star {
   skill: number; // 1-10
   salaryPerQuarter: number; // $M
   onRunId: string | null;
+  burnout: number; // 0-100
 }
 
 export interface Technique {
@@ -82,7 +83,91 @@ export interface RevenueStream {
 }
 
 export interface DebriefLine {
-  kind: "finance" | "run" | "compute" | "world";
+  kind: "finance" | "run" | "compute" | "world" | "rival" | "talent" | "safety" | "funding";
+  text: string;
+}
+
+export type RivalArchetype = "scaler" | "safety" | "state" | "open" | "wildcard";
+
+export interface Rival {
+  id: string;
+  name: string;
+  archetype: RivalArchetype;
+  aggression: number; // 1-10, drives run cadence + jump size
+  capability: Record<BenchCategory, number>;
+  runFinishTurn: number | null; // hidden clock; UI never shows this
+  lastRelease: string | null;
+  active: boolean; // wildcard slot starts inactive
+}
+
+export interface Candidate {
+  id: string;
+  name: string;
+  specialty: BenchCategory;
+  skill: number;
+  salaryPerQuarter: number;
+  signingBonus: number;
+  exitTurn: number; // leaves the market after this turn
+}
+
+export interface PoachOffer {
+  starId: string;
+  rivalId: string;
+  packageM: number;
+  expiresTurn: number; // -1 sentinel: star accepted, departs next talentTurn
+}
+
+export type FundingKind = "vc" | "strategic" | "mission";
+
+export interface FundingOffer {
+  id: string;
+  kind: FundingKind;
+  amountM: number;
+  controlCost: number;
+  boardDelta: number;
+  trustDelta: number;
+  computeGrantPF: number;
+  expiresTurn: number;
+}
+
+export interface DilemmaOptionOutcome {
+  chance: number; // weight within the option
+  text: string;
+  deltas: Partial<{
+    capital: number;
+    trust: number;
+    boardConfidence: number;
+    control: number;
+    morale: number;
+    incidentRisk: number;
+    teamStrength: number;
+  }>;
+}
+
+export interface DilemmaOption {
+  id: string;
+  label: string;
+  note: string; // states the trade in plain terms
+  outcomes: DilemmaOptionOutcome[];
+}
+
+export interface DilemmaDef {
+  id: string;
+  era: 1 | 2 | 3 | 4;
+  title: string;
+  body: string;
+  options: DilemmaOption[];
+  trigger?: (state: GameState) => boolean;
+}
+
+export interface ActiveDilemma {
+  defId: string;
+  openedTurn: number;
+}
+
+export interface ChronicleEntry {
+  turn: number;
+  kind: "rival" | "talent" | "funding" | "safety" | "dilemma" | "world";
   text: string;
 }
 
@@ -93,7 +178,7 @@ export interface TurnDebrief {
 }
 
 export interface GameState {
-  version: 1;
+  version: 1 | 2;
   seed: string;
   turn: number;
   era: 1 | 2 | 3 | 4;
@@ -111,4 +196,18 @@ export interface GameState {
   revenueStreams: RevenueStream[];
   lastDebrief: TurnDebrief | null;
   ended: boolean;
+  rivals: Rival[];
+  market: Candidate[];
+  poachOffers: PoachOffer[];
+  fundingOffers: FundingOffer[];
+  lastRaiseTurn: number;
+  fundingRound: number;
+  evalCapacity: number;
+  incidentRisk: number;
+  fireSaleCount: number;
+  activeDilemma: ActiveDilemma | null;
+  usedDilemmas: string[];
+  chronicle: ChronicleEntry[];
+  ending: string | null;
+  interimUntilTurn: number | null; // constrained-CEO mode after a survived-but-scarred coup
 }
