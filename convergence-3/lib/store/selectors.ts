@@ -16,3 +16,20 @@ export const selectTopBar = (g: GameState) => ({
 export const selectActiveRuns = (g: GameState) => g.runs.filter(r => r.status === "active");
 
 export const selectUndeployedModels = (g: GameState) => g.models.filter(m => m.positioning === null);
+
+export const selectAlerts = (g: GameState) => ({
+  poachCount: g.poachOffers.filter(o => o.expiresTurn !== -1).length,
+  offerCount: g.fundingOffers.length,
+  dilemmaOpen: g.activeDilemma !== null,
+  undeployedCount: g.models.filter(m => m.positioning === null).length,
+});
+
+export const selectRoster = (g: GameState) =>
+  g.stars.map(s => ({
+    ...s,
+    burnoutBand: (s.burnout < 40 ? "fresh" : s.burnout < 75 ? "strained" : "critical") as
+      | "fresh"
+      | "strained"
+      | "critical",
+    leadingRun: g.runs.find(r => r.id === s.onRunId && r.status === "active")?.name ?? null,
+  }));

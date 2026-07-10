@@ -5,6 +5,9 @@ import { setAllocation } from "@/lib/engine/compute";
 import { launchRun, applyRunDecision } from "@/lib/engine/runs";
 import { deployModel } from "@/lib/engine/deploy";
 import { advanceTurn } from "@/lib/engine/turn";
+import { hireCandidate, respondToPoach } from "@/lib/engine/talent";
+import { acceptFunding } from "@/lib/engine/funding";
+import { resolveDilemma } from "@/lib/engine/events";
 import type {
   ComputeAllocation,
   GameState,
@@ -16,12 +19,18 @@ import type {
 interface GameStore {
   game: GameState | null;
   lastError: string | null;
+  lastOutcome: string | null;
   newGame: (seed: string) => void;
   endTurn: () => void;
   allocate: (alloc: ComputeAllocation) => void;
   launch: (design: RunDesign) => void;
   decideRun: (runId: string, decision: RunDecisionKind) => void;
   deploy: (modelId: string, positioning: Positioning) => void;
+  hire: (candidateId: string) => void;
+  respondPoach: (starId: string, response: "match" | "equity" | "decline") => void;
+  acceptOffer: (offerId: string) => void;
+  resolveActiveDilemma: (optionId: string) => void;
+  clearOutcome: () => void;
   abandonGame: () => void;
 }
 
@@ -65,13 +74,28 @@ export const useGameStore = create<GameStore>()(
     (set, get) => ({
       game: null,
       lastError: null,
-      newGame: seed => set({ game: createInitialState(seed), lastError: null }),
+      lastOutcome: null,
+      newGame: seed => set({ game: createInitialState(seed), lastError: null, lastOutcome: null }),
       endTurn: () => act(set, get, advanceTurn),
       allocate: alloc => act(set, get, g => setAllocation(g, alloc)),
       launch: design => act(set, get, g => launchRun(g, design)),
       decideRun: (runId, decision) => act(set, get, g => applyRunDecision(g, runId, decision)),
       deploy: (modelId, positioning) => act(set, get, g => deployModel(g, modelId, positioning)),
-      abandonGame: () => set({ game: null, lastError: null }),
+      hire: candidateId => act(set, get, g => hireCandidate(g, candidateId)),
+      respondPoach: (starId, response) => act(set, get, g => respondToPoach(g, starId, response)),
+      acceptOffer: offerId => act(set, get, g => acceptFunding(g, offerId)),
+      resolveActiveDilemma: optionId => {
+        const game = get().game;
+        if (!game) return;
+        try {
+          const { state, outcomeText } = resolveDilemma(game, optionId);
+          set({ game: state, lastError: null, lastOutcome: outcomeText });
+        } catch (e) {
+          set({ lastError: e instanceof Error ? e.message : String(e) });
+        }
+      },
+      clearOutcome: () => set({ lastOutcome: null }),
+      abandonGame: () => set({ game: null, lastError: null, lastOutcome: null }),
     }),
     {
       name: "convergence3-save",
