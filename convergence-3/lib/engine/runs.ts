@@ -103,6 +103,7 @@ const BAND_NOTES: Record<CheckpointBand, string> = {
 export function advanceRuns(state: GameState): GameState {
   let models = state.models;
   let stars = state.stars;
+  let pendingRelease = state.pendingRelease;
   const runs = state.runs.map(run => {
     if (run.status !== "active") return run;
     const tier = BALANCE.runTiers[run.scaleTier];
@@ -127,6 +128,12 @@ export function advanceRuns(state: GameState): GameState {
           const w = techs.reduce((a, t) => a * t.categoryWeights[k], 1);
           capability[k] = Math.max(0, Math.min(100, quality * w));
         }
+        const modelAvg = (capability.coding + capability.reasoning + capability.enterprise + capability.consumer) / 4;
+        const rivalsAhead = state.rivals.filter(r => {
+          if (!r.active) return false;
+          const rAvg = (r.capability.coding + r.capability.reasoning + r.capability.enterprise + r.capability.consumer) / 4;
+          return rAvg > modelAvg;
+        }).length;
         const model: Model = {
           id: `model-${run.id}`,
           name: run.name,
@@ -134,8 +141,12 @@ export function advanceRuns(state: GameState): GameState {
           capability,
           positioning: null,
           deployedTurn: null,
+          lifetimeRevenue: 0,
+          pricing: null,
+          releaseRank: 1 + rivalsAhead,
         };
         models = [...models, model];
+        pendingRelease = model.id;
       }
     } else if (turnsElapsed % BALANCE.run.checkpointEvery === 0) {
       const reading = quality + gaussian(rng, 0, BALANCE.run.checkpointNoiseSd);
@@ -144,7 +155,7 @@ export function advanceRuns(state: GameState): GameState {
     }
     return next;
   });
-  return { ...state, runs, models, stars };
+  return { ...state, runs, models, stars, pendingRelease };
 }
 
 export function applyRunDecision(state: GameState, runId: string, decision: RunDecisionKind): GameState {

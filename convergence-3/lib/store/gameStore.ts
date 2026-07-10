@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { createInitialState, v2Defaults, v3Defaults } from "@/lib/engine/state";
+import { createInitialState, v2Defaults, v3Defaults, v4Defaults } from "@/lib/engine/state";
 import { setAllocation } from "@/lib/engine/compute";
 import { launchRun, applyRunDecision } from "@/lib/engine/runs";
 import { deployModel } from "@/lib/engine/deploy";
@@ -72,12 +72,29 @@ export function migrateSnapshot(persisted: unknown): { game: GameState | null } 
   const p = persisted as { game?: GameState } | undefined;
   if (!p || !p.game) return { game: null };
   let g = p.game;
-  if (g.version !== 1 && g.version !== 2 && g.version !== 3) return { game: null };
+  if (g.version !== 1 && g.version !== 2 && g.version !== 3 && g.version !== 4) return { game: null };
   if (g.version === 1) {
     g = backfill({ ...g, version: 2, stars: g.stars.map(s => ({ ...s, burnout: s.burnout ?? 0 })) }, v2Defaults());
   }
   if (g.version === 2) {
     g = backfill({ ...g, version: 3 }, v3Defaults());
+  }
+  if (g.version === 3) {
+    g = backfill(
+      {
+        ...g,
+        version: 4,
+        stats: { ...g.stats, crowns: g.stats.crowns ?? [] },
+        models: g.models.map(m => ({
+          ...m,
+          lifetimeRevenue: m.lifetimeRevenue ?? 0,
+          pricing: m.pricing ?? (m.positioning ? "standard" : null),
+          releaseRank: m.releaseRank ?? null,
+        })),
+        revenueStreams: g.revenueStreams.map(r => ({ ...r, pricing: r.pricing ?? "standard" })),
+      },
+      v4Defaults(),
+    );
   }
   return { game: g };
 }
@@ -129,7 +146,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: "convergence3-save",
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       partialize: s => ({ game: s.game }),
       migrate: migrateSnapshot,

@@ -34,7 +34,16 @@ export const BALANCE = {
     teamCostPerPoint: 0.09, // $M per teamStrength point per turn
     inferenceRevenuePerPF: 0.5, // $M per PF, scaled by best deployed capability/100
     positioningMultipliers: { api: 1.0, enterprise: 1.35, consumer: 0.9, "open-weights": 0.15 },
-    revenueDecayPerTurn: 0.06, // flat Era-1 stand-in for fast-follow (rivals arrive in Plan 2)
+    revenueDecayPerTurn: 0.06, // baseline decay before fast-follow repricing
+    revenueExponent: 2.5, // superlinear capability→revenue: the frontier takes most of the market
+    revenueScale: 0.16,
+    pricingMultipliers: {
+      aggressive: { revenue: 0.7, decay: 0.6 },
+      standard: { revenue: 1.0, decay: 1.0 },
+      premium: { revenue: 1.45, decay: 1.5 },
+    },
+    crownYieldBonus: 0.12, // +12% stream yield per crown the source model holds
+    crownBoardDelta: 2, // board swing on crown gain/loss
     runwayFloorBurn: 0.1,
   },
   experiments: { pfPerTechniquePoint: 6 }, // reserved hook; Era-1 techniques are pre-unlocked

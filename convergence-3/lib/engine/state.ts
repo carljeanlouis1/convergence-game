@@ -39,11 +39,18 @@ export function v3Defaults() {
       incidents: 0,
       standardsAdopted: false,
       agiTurn: null,
+      crowns: [],
     },
     builds: [],
     frontierProjects: structuredClone(FRONTIER_DEFS),
     pendingEraBriefing: null,
     endingResult: null,
+  } satisfies Partial<GameState>;
+}
+
+export function v4Defaults() {
+  return {
+    pendingRelease: null,
   } satisfies Partial<GameState>;
 }
 
@@ -69,5 +76,6 @@ export function createInitialState(seed: string): GameState {
     ended: false,
     ...v2Defaults(),
     ...v3Defaults(),
+    ...v4Defaults(),
   };
 }

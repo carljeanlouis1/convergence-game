@@ -11,6 +11,9 @@ const agiModel: Model = {
   capability: { coding: 90, reasoning: 90, enterprise: 88, consumer: 86 },
   positioning: "api",
   deployedTurn: 1,
+  lifetimeRevenue: 0,
+  pricing: "standard",
+  releaseRank: null,
 };
 
 function era4State(seed: string): GameState {

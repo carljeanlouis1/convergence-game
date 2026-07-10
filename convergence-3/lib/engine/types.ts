@@ -3,6 +3,7 @@ export type RunStatus = "active" | "completed" | "scrapped" | "failed";
 export type CheckpointBand = "ahead" | "on-track" | "wobbly" | "troubled";
 export type RunDecisionKind = "push" | "boost" | "scrap";
 export type Positioning = "api" | "enterprise" | "consumer" | "open-weights";
+export type Pricing = "aggressive" | "standard" | "premium";
 
 export interface Star {
   id: string;
@@ -68,6 +69,9 @@ export interface Model {
   capability: Record<BenchCategory, number>; // 0-100 each
   positioning: Positioning | null; // null = undeployed
   deployedTurn: number | null;
+  lifetimeRevenue: number; // $M accrued across its life
+  pricing: Pricing | null; // set at deploy
+  releaseRank: number | null; // overall rank vs rivals at completion
 }
 
 export interface ComputeAllocation {
@@ -80,6 +84,8 @@ export interface RevenueStream {
   source: string;
   amountPerTurn: number;
   decayPerTurn: number;
+  modelId?: string;
+  pricing?: Pricing;
 }
 
 export interface DebriefLine {
@@ -175,6 +181,7 @@ export interface GameStats {
   incidents: number; // total safety incidents fired
   standardsAdopted: boolean; // set by the standards-body dilemma
   agiTurn: number | null; // first turn a deployed model avg >= frontiers.agiThreshold
+  crowns: BenchCategory[]; // categories where a deployed player model currently leads the field
 }
 
 export interface FacilityBuild {
@@ -225,7 +232,7 @@ export interface TurnDebrief {
 }
 
 export interface GameState {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   seed: string;
   turn: number;
   era: 1 | 2 | 3 | 4;
@@ -262,4 +269,5 @@ export interface GameState {
   frontierProjects: FrontierProject[];
   pendingEraBriefing: 1 | 2 | 3 | 4 | null;
   endingResult: EndingResult | null;
+  pendingRelease: string | null; // modelId awaiting the Release Day screen
 }

@@ -575,3 +575,10 @@ export const BUILD_OPTIONS: BuildOption[] = [
   { id: "gigacluster", name: "Gigacluster Campus", era: 3, capacityPF: 120, costM: 90, turns: 4, trustDelta: -2, note: "A small town's worth of power, for math." },
   { id: "orbital-compute", name: "Orbital Compute Array", era: 4, capacityPF: 250, costM: 200, turns: 4, trustDelta: 2, note: "If the grid won't have you, leave the grid." },
 ];
+
+export const BENCHMARK_NAMES: Record<"coding" | "reasoning" | "enterprise" | "consumer", string> = {
+  coding: "CodeEval",
+  reasoning: "GPQA-X",
+  enterprise: "EnterpriseBench",
+  consumer: "ConsumerPref",
+};

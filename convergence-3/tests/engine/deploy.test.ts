@@ -10,6 +10,9 @@ const model: Model = {
   capability: { coding: 40, reasoning: 40, enterprise: 60, consumer: 20 },
   positioning: null,
   deployedTurn: null,
+  lifetimeRevenue: 0,
+  pricing: null,
+  releaseRank: null,
 };
 
 describe("deployModel", () => {

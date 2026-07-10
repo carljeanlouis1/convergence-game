@@ -11,6 +11,9 @@ const model: Model = {
   capability: { coding: 50, reasoning: 50, enterprise: 50, consumer: 50 },
   positioning: "api",
   deployedTurn: 1,
+  lifetimeRevenue: 0,
+  pricing: "standard",
+  releaseRank: null,
 };
 
 describe("rivals", () => {

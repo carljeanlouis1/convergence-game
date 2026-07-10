@@ -11,6 +11,9 @@ const strong: Model = {
   capability: { coding: 60, reasoning: 60, enterprise: 60, consumer: 60 },
   positioning: null,
   deployedTurn: null,
+  lifetimeRevenue: 0,
+  pricing: null,
+  releaseRank: null,
 };
 
 describe("safety", () => {

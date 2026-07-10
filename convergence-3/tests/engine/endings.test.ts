@@ -67,6 +67,7 @@ describe("endings", () => {
           id: "m", name: "OW", createdTurn: 1,
           capability: { coding: 50, reasoning: 50, enterprise: 50, consumer: 50 },
           positioning: "open-weights" as const, deployedTurn: 1,
+          lifetimeRevenue: 0, pricing: "standard" as const, releaseRank: null,
         },
       ],
     };
