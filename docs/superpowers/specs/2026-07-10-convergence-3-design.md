@@ -144,14 +144,26 @@ Once models cross the AGI threshold, the **Applied Frontiers** unlock: robotics,
 
 - 15 dilemmas (ported, re-fictioned where needed) + staff portraits + researcher catalog (reworked into stars/supporting cast) + rival identities + Pages Functions AI backend + cloud saves. The 64 commercialization programs are retired as a system; their best ideas return as deployment positioning options and Applied Frontier ventures.
 
-## 16. Out of scope for v3.0
+## 16. Onboarding & learnability
+
+The player learns by playing — which only works if designed for explicitly:
+
+- **Transparency as design law.** Every commitment shows stakes before it's taken: runs show cost/duration/risk band, deals show what's surrendered, poach offers show retention odds. Quarter debriefs explain *why* every meaningful number moved ("revenue fell — OpenCollective replicated your coding capability"). No formula reverse-engineering required; hidden state (run quality, incident risk) is communicated as qualitative bands, never as invisible mystery.
+- **Eras are the tutorial.** Era 1 starts deliberately small (one facility, two rivals, small runs, no megadeals, no safety tiers). Each era's new mechanics get a one-time explanatory briefing moment on first appearance. Full complexity arrives only after each piece has been played for an era.
+- **Chief of Staff as diegetic teacher.** The chief-of-staff character flags what needs attention each turn, explains mechanics on first relevance, and can offer a recommended action *with reasoning* (teaching strategy, not just controls). Dismissible; authored offline fallbacks.
+- **Codex** — searchable in-game reference of short entries ("How training runs work", "Fast-follow", each ending's requirements). Lookup, not required reading.
+- **Pre-End-Turn commitment summary** — a review of everything about to be locked in, so no turn ends with an unnoticed commitment.
+
+Success criterion #1 gains a corollary: a new player completes Era 1 without external help and can explain what a training run is risking.
+
+## 17. Out of scope for v3.0
 
 - Multiplayer of any kind.
 - LLM-generated *mechanical* content (dilemma variants, generated candidates) — revisit post-launch.
 - Native/desktop packaging; it's a web game.
 - Real-money/monetization features.
 
-## 17. Success criteria
+## 18. Success criteria
 
 1. A full campaign is completable in 2–4 hours with no dead mid-game stretch (every turn contains ≥1 meaningful decision).
 2. Training runs produce genuine tension: failed runs happen, abort decisions are real, and players can articulate why they won or lost.
