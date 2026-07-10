@@ -122,10 +122,20 @@ Once models cross the AGI threshold, the **Applied Frontiers** unlock: robotics,
 
 ## 13. AI layer (runtime)
 
-- **Deterministic core, decorative AI** — LLM output never affects game state. Fully playable offline via authored fallbacks.
-- **Cost-tiered:** cheap/fast models (e.g., Haiku-class / flash-class) for routine news ticker and rival chatter; stronger models for big moments — rival CEO reactions to the player's releases, era-transition cinematics, chief-of-staff quarterly readout. Rival CEOs have persistent personas (stable system prompts + rolling memory of the run's events) so they stay in character all campaign.
-- Reuses v2's Cloudflare Pages Functions backend (narrative/scene-image/TTS/cinematic + KV rate limiting + same-origin guard) with per-system prompts updated for the new fiction. BYOK fallback mode retained.
-- Scene images / cinematics for era transitions and endings; atlas-memory MCP image generation available at build time for static art assets.
+- **Deterministic core, decorative AI** — LLM output never affects game state. Fully playable offline via authored fallbacks; every AI surface has a zero-cost deterministic fallback and degrades gracefully (never errors) when caps or refusals hit.
+- **Provider: OpenRouter, open-weight models only** (owner decision — no Anthropic/frontier-priced models at runtime). Text calls go through v2's Pages Functions pattern with the OpenRouter key server-side; BYOK fallback retained.
+- **Call-type tiers** (models verified on OpenRouter, July 2026; re-verify before ship — this segment reprices monthly):
+
+| Tier | Calls | Model (backup) | $/Mtok in/out | Est. per session |
+|---|---|---|---|---|
+| A — flavor (news ticker, rival chatter, staff one-liners; ~60/session) | 400 in / 100 out | `z-ai/glm-4.7-flash` (`qwen/qwen3-32b`) | 0.06 / 0.40 | ~$0.004 |
+| B — structured narrative (briefings, debriefs, chief-of-staff; ~25/session) | 1.75K in / 350 out | `moonshotai/kimi-k2.5` (`z-ai/glm-4.6`, cost-floor `deepseek/deepseek-v3.2`) | 0.375 / 2.025 | ~$0.03 |
+| C — showpiece (rival CEO personas w/ run memory, era transitions, epilogues; ~6/session) | 3K in / 550 out | `moonshotai/kimi-k2.6` — top open-weight EQ-Bench creative score (1753) (`z-ai/glm-5`) | 0.66 / 3.41 | ~$0.02 |
+
+  Total ≈ **$0.04–0.06 per full campaign session** (vs ~$0.18 Haiku-anchor). Rival CEOs keep persistent personas: stable cacheable system prompts + rolling event memory.
+- **Cost levers applied:** stable cacheable prompt prefixes (volatile content in user turn only); lazy generation (fallback text unless surface is visible); batching (one call returns all rivals' reactions to an event as JSON); response dedupe; per-session spend cap in code.
+- **Implementation gotchas (from research):** disable reasoning flags (DeepSeek `reasoning_enabled`, avoid Kimi "Thinking" variants) or pay for hidden tokens; pin providers (`provider` object / `:floor` for A/B, `:nitro` if ticker feels slow — K2-line MoE can run ~20 tok/s); parse-and-retry-once on structured JSON; test aggressive rival-persona lines against GLM's inconsistent censorship before shipping them on GLM routes; `:free` variants only for dev (20 req/min, low daily caps).
+- Scene images / cinematics for era transitions and endings; atlas-memory MCP image generation available at build time for static art assets. Image/TTS/cinematic endpoints carry over from v2 as-is.
 
 ## 14. Platform, UI & architecture
 
