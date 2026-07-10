@@ -60,6 +60,7 @@ export function resolveDilemma(
     morale: clamp(state.morale + (d.morale ?? 0)),
     incidentRisk: Math.max(0, state.incidentRisk + (d.incidentRisk ?? 0)),
     teamStrength: clamp(state.teamStrength + (d.teamStrength ?? 0)),
+    stats: d.standardsAdopted ? { ...state.stats, standardsAdopted: true } : state.stats,
     activeDilemma: null,
     usedDilemmas: [...state.usedDilemmas, def.id],
     chronicle: [

@@ -5,7 +5,10 @@ export function totalCapacityPF(state: GameState): number {
 }
 
 export function committedRunPF(state: GameState): number {
-  return state.runs.filter(r => r.status === "active").reduce((a, r) => a + r.computePerTurn, 0);
+  return (
+    state.runs.filter(r => r.status === "active").reduce((a, r) => a + r.computePerTurn, 0) +
+    state.frontierProjects.filter(p => p.status === "active").reduce((a, p) => a + p.computePerTurn, 0)
+  );
 }
 
 export function allocatedPF(a: ComputeAllocation): number {

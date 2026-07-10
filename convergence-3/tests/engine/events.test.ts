@@ -4,8 +4,10 @@ import { maybeOpenDilemma, resolveDilemma, getDilemmaDef } from "@/lib/engine/ev
 import { DILEMMAS } from "@/lib/engine/content";
 
 describe("dilemmas", () => {
-  it("has 8 era-appropriate defs with valid weights", () => {
-    expect(DILEMMAS.length).toBeGreaterThanOrEqual(8);
+  it("has 14 era-appropriate defs with valid weights", () => {
+    expect(DILEMMAS.length).toBeGreaterThanOrEqual(14);
+    expect(DILEMMAS.filter(d => d.era === 2).length).toBeGreaterThanOrEqual(3);
+    expect(DILEMMAS.filter(d => d.era === 3).length).toBeGreaterThanOrEqual(3);
     for (const d of DILEMMAS) {
       expect(d.options.length).toBeGreaterThanOrEqual(2);
       for (const o of d.options) {

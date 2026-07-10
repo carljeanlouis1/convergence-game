@@ -1,4 +1,4 @@
-import type { Star, Technique, Facility, Rival, Candidate, DilemmaDef, FrontierProject } from "./types";
+import type { Star, Technique, Facility, Rival, Candidate, DilemmaDef, FrontierProject, BuildOption } from "./types";
 
 export const STARTING_STARS: Star[] = [
   { id: "star-imara", name: "Dr. Imara Osei", specialty: "reasoning", skill: 7, salaryPerQuarter: 0.9, onRunId: null, burnout: 0 },
@@ -360,6 +360,186 @@ export const DILEMMAS: DilemmaDef[] = [
       },
     ],
   },
+  {
+    id: "standards-body-invite",
+    era: 2,
+    title: "The Chair Nobody Wants",
+    body:
+      "The new industry safety-standards body needs a chair. It's unpaid, it's endless meetings, and whoever writes the rules, rules. Your general counsel says it's a distraction. Your head of policy says it's the whole game.",
+    options: [
+      {
+        id: "accept",
+        label: "Take the chair",
+        note: "\u2248 -$6M in staff time. Your framework becomes everyone's framework.",
+        outcomes: [
+          { chance: 0.8, text: "Eighteen months of meetings later, the industry standard has your fingerprints on every page.", deltas: { capital: -6, trust: 9, standardsAdopted: true } },
+          { chance: 0.2, text: "You chair it, you shape it \u2014 and every rival now cites YOUR standard when criticizing you.", deltas: { capital: -6, trust: 5, standardsAdopted: true, boardConfidence: -4 } },
+        ],
+      },
+      {
+        id: "decline",
+        label: "Send a polite no",
+        note: "Focus on shipping. Someone else writes the rules.",
+        outcomes: [
+          { chance: 0.7, text: "Velocity takes the chair. Their standard is very friendly to labs that move fast.", deltas: { boardConfidence: 5 } },
+          { chance: 0.3, text: "The body drifts toward rules written by people who've never trained a model.", deltas: { boardConfidence: 5, trust: -4 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: "gpu-allocation-queue",
+    era: 2,
+    title: "The Allocation Call",
+    body:
+      "Your chip vendor calls: next-generation accelerators are oversubscribed 4-to-1, and your allocation just slipped a year \u2014 unless. The 'unless' comes in two flavors, and both of them hurt.",
+    options: [
+      {
+        id: "prepay",
+        label: "Prepay for priority",
+        note: "\u2248 -$25M now for chips that arrive on schedule.",
+        outcomes: [
+          { chance: 0.75, text: "Wire sent, place held. Painful and worth it.", deltas: { capital: -25, boardConfidence: 3 } },
+          { chance: 0.25, text: "You prepaid \u2014 and the schedule slipped anyway. Six weeks, with apologies.", deltas: { capital: -25, morale: -4 } },
+        ],
+      },
+      {
+        id: "exclusivity",
+        label: "Sign the exclusivity clause",
+        note: "Free priority. They own your roadmap for two years.",
+        outcomes: [
+          { chance: 0.6, text: "Chips on time, no cash down \u2014 and a vendor who now attends your planning meetings.", deltas: { control: -6 } },
+          { chance: 0.4, text: "The clause leaks. 'Captive lab' is the phrase analysts keep using.", deltas: { control: -6, trust: -5 } },
+        ],
+      },
+      {
+        id: "wait",
+        label: "Take the delay",
+        note: "Keep your money and your freedom. Fall a year behind on silicon.",
+        outcomes: [
+          { chance: 0.7, text: "You sweat it out on last-gen hardware. The team gets creative with efficiency.", deltas: { morale: -5, teamStrength: 2 } },
+          { chance: 0.3, text: "A rival's new cluster comes online the same month your queue position expires.", deltas: { morale: -8, boardConfidence: -5 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: "sovereign-fund-offer",
+    era: 2,
+    title: "The Blank Check",
+    body:
+      "A sovereign wealth fund wants in \u2014 any amount, any valuation, minimal diligence. The money is real. So are the strings, even the ones you can't see yet.",
+    options: [
+      {
+        id: "take-it",
+        label: "Take the check",
+        note: "\u2248 +$60M. Questions about your cap table follow you forever.",
+        outcomes: [
+          { chance: 0.65, text: "The wire clears. The op-eds write themselves, then stop. Money is money.", deltas: { capital: 60, control: -8, trust: -6 } },
+          { chance: 0.35, text: "A congressional letter asks pointed questions about your new investor's other holdings.", deltas: { capital: 60, control: -8, trust: -12, boardConfidence: -4 } },
+        ],
+      },
+      {
+        id: "refuse-loudly",
+        label: "Refuse \u2014 and let it be known",
+        note: "No money, maximum halo.",
+        outcomes: [
+          { chance: 0.7, text: "'The lab that said no' plays well everywhere except your board meeting.", deltas: { trust: 8, boardConfidence: -6, morale: 5 } },
+          { chance: 0.3, text: "The fund invests in Zhongguancun instead. Their next cluster is enormous.", deltas: { trust: 6, boardConfidence: -8 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: "export-control-whiplash",
+    era: 3,
+    title: "The Whiplash",
+    body:
+      "Friday: your accelerator supplier is banned from exporting to half your datacenter footprint. Monday: the ban is 'paused pending review.' Your procurement team has both purchase orders drafted and no idea which one is real.",
+    options: [
+      {
+        id: "hedge",
+        label: "Hedge both ways",
+        note: "\u2248 -$18M buying optionality on two supply chains.",
+        outcomes: [
+          { chance: 0.75, text: "Expensive insurance that pays off: whichever way policy lands, you're covered.", deltas: { capital: -18, boardConfidence: 4 } },
+          { chance: 0.25, text: "Both hedges clear \u2014 and the rules change a third time. Procurement drinks now.", deltas: { capital: -18, morale: -4 } },
+        ],
+      },
+      {
+        id: "bet-repeal",
+        label: "Bet on the ban dying",
+        note: "Free if right. A quarter of idle compute if wrong.",
+        outcomes: [
+          { chance: 0.55, text: "The ban dies in committee. Your rivals overpaid for nothing.", deltas: { capital: 5, boardConfidence: 5 } },
+          { chance: 0.45, text: "The ban sticks. Racks sit dark waiting on paperwork.", deltas: { capital: -12, morale: -6, boardConfidence: -5 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: "deepseek-shock",
+    era: 3,
+    title: "The Shock",
+    body:
+      "A lab nobody ranked just shipped a frontier-class model \u2014 open weights, a tenth of your training budget, and a technical report your researchers keep calling 'annoyingly elegant.' Your enterprise customers are asking why they pay you.",
+    options: [
+      {
+        id: "price-war",
+        label: "Cut prices before customers ask twice",
+        note: "\u2248 -$15M in margin. Keep the logos.",
+        outcomes: [
+          { chance: 0.7, text: "Churn stays low. Margins don't. The board notes both.", deltas: { capital: -15, boardConfidence: -3 } },
+          { chance: 0.3, text: "Customers pocket the discount and ask what else you'll match.", deltas: { capital: -15, boardConfidence: -6 } },
+        ],
+      },
+      {
+        id: "research-sprint",
+        label: "Answer with research, not discounts",
+        note: "The team goes to war footing. Burnout is the currency.",
+        outcomes: [
+          { chance: 0.6, text: "Three months of nights produce genuinely new techniques \u2014 and genuinely tired people.", deltas: { teamStrength: 5, morale: -10 } },
+          { chance: 0.4, text: "The sprint produces a good model and two resignation letters.", deltas: { teamStrength: 3, morale: -14 } },
+        ],
+      },
+      {
+        id: "study-it",
+        label: "Adopt their techniques openly",
+        note: "Swallow pride, ship faster. 'Fast follower' stings.",
+        outcomes: [
+          { chance: 0.8, text: "Their elegance plus your compute. It works, and saying so publicly wins odd respect.", deltas: { teamStrength: 4, trust: 3, boardConfidence: -3 } },
+          { chance: 0.2, text: "The integration takes longer than promised. The memes are brutal.", deltas: { teamStrength: 2, morale: -5 } },
+        ],
+      },
+    ],
+  },
+  {
+    id: "agi-doomer-protest",
+    era: 3,
+    title: "The Gates",
+    body:
+      "Two hundred protesters have chained themselves to your datacenter gates. Their signs quote your own safety blog posts. The sheriff is asking whether you want them removed. The cameras are already here.",
+    options: [
+      {
+        id: "engage",
+        label: "Go out and talk to them",
+        note: "An hour of unscripted CEO on camera. High variance, high humanity.",
+        outcomes: [
+          { chance: 0.65, text: "You take questions in the parking lot for two hours. The clip is genuinely good.", deltas: { trust: 8, boardConfidence: -4, morale: 4 } },
+          { chance: 0.35, text: "One exchange goes badly. It's the only part anyone clips.", deltas: { trust: -5, boardConfidence: -6 } },
+        ],
+      },
+      {
+        id: "clear-them",
+        label: "Let the sheriff clear the gates",
+        note: "Operations resume today. The footage lives forever.",
+        outcomes: [
+          { chance: 0.6, text: "It's orderly, mostly. The story dies in a news cycle.", deltas: { trust: -6, boardConfidence: 4 } },
+          { chance: 0.4, text: "It is not orderly. A researcher recognizes her college roommate in the footage and quits.", deltas: { trust: -12, boardConfidence: 3, morale: -8, incidentRisk: 4 } },
+        ],
+      },
+    ],
+  },
 ];
 
 export const FRONTIER_DEFS: FrontierProject[] = [
@@ -387,3 +567,11 @@ export const ERA_BRIEFINGS: Record<2 | 3 | 4, { title: string; body: string }> =
       "The models are doing the research now. Whatever happens in the next three years makes everything before it a footnote — the race is no longer about market share, it's about what kind of future ships first. Cross the threshold carefully. Or first. Choosing is the whole game now.",
   },
 };
+
+export const BUILD_OPTIONS: BuildOption[] = [
+  { id: "colo-expansion", name: "Colo Expansion", era: 1, capacityPF: 20, costM: 12, turns: 2, trustDelta: 0, note: "Rented halls, quick power." },
+  { id: "regional-dc", name: "Regional Datacenter", era: 2, capacityPF: 50, costM: 35, turns: 3, trustDelta: 0, note: "Your own building, your own substation queue." },
+  { id: "own-power-plant", name: "Behind-the-Meter Power Plant", era: 2, capacityPF: 40, costM: 25, turns: 2, trustDelta: -4, note: "Gas turbines behind the meter. Fast, loud, unpopular." },
+  { id: "gigacluster", name: "Gigacluster Campus", era: 3, capacityPF: 120, costM: 90, turns: 4, trustDelta: -2, note: "A small town's worth of power, for math." },
+  { id: "orbital-compute", name: "Orbital Compute Array", era: 4, capacityPF: 250, costM: 200, turns: 4, trustDelta: 2, note: "If the grid won't have you, leave the grid." },
+];
