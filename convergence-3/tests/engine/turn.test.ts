@@ -21,11 +21,15 @@ describe("advanceTurn", () => {
     if (s.runs[0].status === "completed") expect(s.models).toHaveLength(1);
     expect(s.lastDebrief!.lines.some(l => l.kind === "run")).toBe(true);
   });
-  it("is deterministic end-to-end", () => {
+  it("is deterministic end-to-end", async () => {
+    const { resolveDilemma, getDilemmaDef } = await import("@/lib/engine/events");
     const play = () => {
       const design: RunDesign = { name: "N", scaleTier: 1, techniqueIds: ["dpo"], leadId: "star-jonas" };
       let s = launchRun(createInitialState("det"), design);
-      for (let i = 0; i < 6; i++) s = advanceTurn(s);
+      for (let i = 0; i < 6; i++) {
+        if (s.activeDilemma) s = resolveDilemma(s, getDilemmaDef(s.activeDilemma.defId).options[0].id).state;
+        s = advanceTurn(s);
+      }
       return s;
     };
     expect(play()).toEqual(play());
