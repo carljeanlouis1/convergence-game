@@ -152,6 +152,62 @@ function panelGuideLabel(panel: PanelId) {
   return NAV_PANELS.find((entry) => entry.id === panel)?.label ?? "Decision";
 }
 
+const LATEST_UPGRADE_CARDS: Array<{
+  id: string;
+  label: string;
+  title: string;
+  detail: string;
+  panel: PanelId;
+  icon: typeof BrainCircuit;
+  tone: "bad" | "focus" | "good" | "neutral" | "warn";
+}> = [
+  {
+    id: "finance-war-room",
+    label: "Finance",
+    title: "Runway War Room",
+    detail: "Open Finance to see the cash clock, revenue lever, talent drag, and capital window in one command board.",
+    panel: "finance",
+    icon: BarChart3,
+    tone: "warn",
+  },
+  {
+    id: "research-compute-feedback",
+    label: "Research",
+    title: "Exact Compute ETA Feedback",
+    detail: "Open Research to see the best compute move, exact ETA pace, and why a headline ETA may still round to the same quarter.",
+    panel: "track",
+    icon: BrainCircuit,
+    tone: "focus",
+  },
+  {
+    id: "talent-draft-board",
+    label: "Talent",
+    title: "Talent Draft Board",
+    detail: "Open Talent to see the best visible hire, poach risks, coverage blockers, and market timing pressure.",
+    panel: "hiring",
+    icon: Users,
+    tone: "good",
+  },
+  {
+    id: "rival-threat-board",
+    label: "Briefing",
+    title: "Rival Threat Board",
+    detail: "Open Briefing to see rival response cards, counter-moves, and what happens if you ignore the strongest lab pressure.",
+    panel: "briefing",
+    icon: Radar,
+    tone: "bad",
+  },
+  {
+    id: "quarter-result-overlay",
+    label: "Turn Result",
+    title: "Quarter Result Overlay",
+    detail: "After launching a quarter, the result overlay summarizes momentum, rewards, risks, and the next best click.",
+    panel: "briefing",
+    icon: Sparkles,
+    tone: "focus",
+  },
+];
+
 const LAYOUT_PREFS_KEY = "convergence-layout-v3";
 const TRACK_MAP_LAYOUT_KEY = "convergence-v4-track-map-layout";
 
@@ -2384,6 +2440,28 @@ export function ConvergenceApp() {
   const lastQuarterResultTurnRef = useRef<number | null>(null);
   const hasAutosave =
     typeof window !== "undefined" && Boolean(window.localStorage.getItem("convergence-autosave"));
+  const openUpgradeTarget = (panel: PanelId) => {
+    playSynthTone(soundEnabled, "click");
+
+    if (panel === "finance" || panel === "track" || panel === "facilities") {
+      setDetailCollapsed(false);
+    }
+
+    if (store.mode === "menu") {
+      if (hasAutosave) {
+        store.continueAutosave();
+      } else {
+        store.newGame("founder");
+      }
+
+      window.setTimeout(() => {
+        useConvergenceStore.getState().openPanel(panel);
+      }, 0);
+      return;
+    }
+
+    store.openPanel(panel);
+  };
   const [cloudCredentials, setCloudCredentials] = useState<CloudCredentials | null>(null);
   const [cloudCommanderIdDraft, setCloudCommanderIdDraft] = useState("");
   const [cloudPassphraseDraft, setCloudPassphraseDraft] = useState("");
@@ -6105,6 +6183,46 @@ export function ConvergenceApp() {
                     <p className="mt-2 text-sm leading-6 text-slate-200">{sceneArtModeSummary}</p>
                   </div>
                 </div>
+                <div className="mt-6 rounded-[28px] border border-sky-400/20 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.16),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.82),rgba(5,10,22,0.72))] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Latest Mission Upgrades</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">
+                        These are the systems you asked about. Click any card to continue or launch a run and jump directly to the screen where it lives.
+                      </p>
+                    </div>
+                    <SignalChip label="Visible in this build" tone="good" />
+                  </div>
+                  <div className="mt-4 grid gap-2 md:grid-cols-2">
+                    {LATEST_UPGRADE_CARDS.map((card) => {
+                      const Icon = card.icon;
+
+                      return (
+                        <button
+                          key={`menu-upgrade-${card.id}`}
+                          type="button"
+                          onClick={() => openUpgradeTarget(card.panel)}
+                          className="group rounded-2xl border border-white/8 bg-slate-950/56 px-3 py-3 text-left transition hover:border-sky-300/35 hover:bg-sky-500/10"
+                        >
+                          <span className="flex items-start justify-between gap-3">
+                            <span className="min-w-0">
+                              <span className="block text-[10px] uppercase tracking-[0.2em] text-sky-200">{card.label}</span>
+                              <span className="mt-1 block text-sm font-semibold text-white">{card.title}</span>
+                            </span>
+                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sky-100">
+                              <Icon className="h-4 w-4" />
+                            </span>
+                          </span>
+                          <span className="mt-2 block text-xs leading-5 text-slate-400">{card.detail}</span>
+                          <span className="mt-3 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-sky-100">
+                            Open {panelGuideLabel(card.panel)}
+                            <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => setTutorialOpen(true)}
@@ -6290,6 +6408,51 @@ export function ConvergenceApp() {
                   <PanelButton active={store.panel === "hiring"} icon={Users} label="Talent" onClick={() => store.openPanel("hiring")} />
                   <PanelButton active={store.panel === "facilities"} icon={Building2} label="Facilities" onClick={() => store.openPanel("facilities")} />
                   <PanelButton active={store.panel === "settings"} icon={Handshake} label="Settings" onClick={() => store.openPanel("settings")} />
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-sky-400/18 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_34%),linear-gradient(180deg,rgba(8,16,34,0.74),rgba(5,10,22,0.68))] p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Latest Mission Upgrades</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      If you are looking for the newest systems, use these cards. They restore the relevant detail rail and jump to the right dashboard tab.
+                    </p>
+                  </div>
+                  <SignalChip label="Click to locate" tone="focus" />
+                </div>
+                <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                  {LATEST_UPGRADE_CARDS.map((card) => {
+                    const Icon = card.icon;
+
+                    return (
+                      <button
+                        key={`dashboard-upgrade-${card.id}`}
+                        type="button"
+                        onClick={() => openUpgradeTarget(card.panel)}
+                        className={`group rounded-2xl border px-3 py-3 text-left transition ${
+                          store.panel === card.panel
+                            ? "border-sky-300/35 bg-sky-500/14"
+                            : "border-white/8 bg-slate-950/52 hover:border-sky-300/28 hover:bg-sky-500/8"
+                        }`}
+                      >
+                        <span className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block text-[10px] uppercase tracking-[0.2em] text-sky-200">{card.label}</span>
+                            <span className="mt-1 block text-sm font-semibold text-white">{card.title}</span>
+                          </span>
+                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sky-100">
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                        </span>
+                        <span className="mt-2 block text-xs leading-5 text-slate-400">{card.detail}</span>
+                        <span className="mt-3 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-sky-100">
+                          Open {panelGuideLabel(card.panel)}
+                          <ChevronRight className="h-3 w-3 transition group-hover:translate-x-1" />
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
