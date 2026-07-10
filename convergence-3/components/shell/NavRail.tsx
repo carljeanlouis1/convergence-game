@@ -1,6 +1,6 @@
 "use client";
 
-export type PanelId = "briefing" | "runs" | "compute" | "talent" | "race" | "finance";
+export type PanelId = "briefing" | "runs" | "compute" | "talent" | "race" | "finance" | "compass";
 
 const PANELS: Array<{ id: PanelId; label: string; short: string; glyph: string }> = [
   { id: "briefing", label: "Briefing", short: "Brief", glyph: "◈" },
@@ -9,6 +9,7 @@ const PANELS: Array<{ id: PanelId; label: string; short: string; glyph: string }
   { id: "talent", label: "Talent", short: "Team", glyph: "◉" },
   { id: "race", label: "Race", short: "Race", glyph: "⇅" },
   { id: "finance", label: "Finance", short: "Fin", glyph: "$" },
+  { id: "compass", label: "Compass", short: "Goal", glyph: "◎" },
 ];
 
 export function NavRail({

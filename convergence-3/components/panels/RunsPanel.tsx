@@ -6,6 +6,7 @@ import { selectActiveRuns } from "@/lib/store/selectors";
 import type { GameState, TrainingRun } from "@/lib/engine/types";
 import { BALANCE } from "@/lib/engine/balance";
 import { RunDesigner } from "@/components/modals/RunDesigner";
+import { freePF } from "@/lib/engine/compute";
 
 function BandChip({ band }: { band: TrainingRun["checkpoints"][number]["band"] }) {
   return (
@@ -64,8 +65,10 @@ function RunCard({ run }: { run: TrainingRun }) {
 
 export function RunsPanel({ game }: { game: GameState }) {
   const [designing, setDesigning] = useState(false);
+  const startFrontierProject = useGameStore(s => s.startFrontierProject);
   const active = selectActiveRuns(game);
   const history = game.runs.filter(r => r.status !== "active");
+  const frontiers = game.frontierProjects.filter(p => p.status !== "locked");
   return (
     <div className="rise-in space-y-4">
       <div className="flex items-center justify-between">
@@ -88,6 +91,46 @@ export function RunsPanel({ game }: { game: GameState }) {
           <RunCard key={r.id} run={r} />
         ))}
       </div>
+
+      {frontiers.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="micro-label" style={{ color: "var(--amber)" }}>
+            applied frontiers — point the AGI at a domain
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {frontiers.map(p => (
+              <div key={p.id} className="panel-card p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display font-bold">{p.name}</h3>
+                  <span
+                    className="micro-label uppercase"
+                    style={{
+                      color:
+                        p.status === "completed" ? "var(--green)" : p.status === "active" ? "var(--amber)" : "var(--ink-dim)",
+                    }}
+                  >
+                    {p.status === "active" ? `${p.turnsLeft} qtrs left` : p.status}
+                  </span>
+                </div>
+                {p.status === "available" && (
+                  <>
+                    <p className="micro-label">
+                      $80M upfront · {p.computePerTurn} PF committed · 6 quarters
+                    </p>
+                    <button
+                      className="btn"
+                      disabled={game.capital < 80 || freePF(game) < p.computePerTurn}
+                      onClick={() => startFrontierProject(p.id)}
+                    >
+                      {game.capital < 80 ? "Can't afford" : freePF(game) < p.computePerTurn ? "Not enough compute" : "Begin"}
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {history.length > 0 && (
         <div className="space-y-2">

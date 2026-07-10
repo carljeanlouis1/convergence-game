@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGameStore } from "@/lib/store/gameStore";
 import { totalCapacityPF, committedRunPF, allocatedPF } from "@/lib/engine/compute";
+import { availableBuilds } from "@/lib/engine/facilities";
 import { capabilityTier, requiredEvalFor, riskBandLabel } from "@/lib/engine/safety";
 import { selectActiveRuns } from "@/lib/store/selectors";
 import type { ComputeAllocation, GameState } from "@/lib/engine/types";
@@ -15,6 +16,7 @@ const SEGMENTS: Array<{ key: keyof ComputeAllocation; label: string; color: stri
 
 export function ComputePanel({ game }: { game: GameState }) {
   const allocate = useGameStore(s => s.allocate);
+  const build = useGameStore(s => s.build);
   const [draft, setDraft] = useState<ComputeAllocation>(game.allocation);
   useEffect(() => setDraft(game.allocation), [game.turn, game.allocation]);
 
@@ -132,11 +134,47 @@ export function ComputePanel({ game }: { game: GameState }) {
           {game.facilities.map(f => (
             <div key={f.id} className="px-4 py-2.5 flex items-center justify-between text-sm">
               <span>{f.name}</span>
-              <span className="stat-num micro-label">{f.capacityPF} PF · online</span>
+              <span className="stat-num micro-label">
+                {f.capacityPF.toFixed(0)} PF · {f.onlineTurn <= game.turn ? "online" : "coming online"}
+              </span>
+            </div>
+          ))}
+          {game.builds.map(b => (
+            <div key={b.optionId} className="px-4 py-2.5 flex items-center justify-between text-sm">
+              <span style={{ color: "var(--amber)" }}>{b.name}</span>
+              <span className="stat-num micro-label" style={{ color: "var(--amber)" }}>
+                +{b.capacityPF} PF in {b.turnsLeft} qtr{b.turnsLeft === 1 ? "" : "s"}
+              </span>
             </div>
           ))}
         </div>
       </div>
+
+      {availableBuilds(game).length > 0 && (
+        <div className="space-y-2">
+          <h2 className="micro-label" style={{ color: "var(--amber)" }}>expand capacity</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {availableBuilds(game).map(o => {
+              const affordable = game.capital >= o.costM;
+              return (
+                <div key={o.id} className="panel-card p-4 space-y-2">
+                  <div>
+                    <h3 className="font-display font-bold">{o.name}</h3>
+                    <p className="micro-label mt-0.5">
+                      +{o.capacityPF} PF · ${o.costM}M · {o.turns} qtrs
+                      {o.trustDelta !== 0 && ` · trust ${o.trustDelta > 0 ? "+" : ""}${o.trustDelta}`}
+                    </p>
+                  </div>
+                  <p className="text-xs italic" style={{ color: "var(--ink-faint)" }}>{o.note}</p>
+                  <button className="btn" disabled={!affordable} onClick={() => build(o.id)}>
+                    {affordable ? "Break ground" : "Can't afford"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

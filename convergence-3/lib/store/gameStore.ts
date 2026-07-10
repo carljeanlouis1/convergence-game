@@ -8,6 +8,9 @@ import { advanceTurn } from "@/lib/engine/turn";
 import { hireCandidate, respondToPoach } from "@/lib/engine/talent";
 import { acceptFunding } from "@/lib/engine/funding";
 import { resolveDilemma } from "@/lib/engine/events";
+import { startBuild } from "@/lib/engine/facilities";
+import { startFrontier } from "@/lib/engine/frontiers";
+import type { FrontierId } from "@/lib/engine/types";
 import type {
   ComputeAllocation,
   GameState,
@@ -31,7 +34,29 @@ interface GameStore {
   acceptOffer: (offerId: string) => void;
   resolveActiveDilemma: (optionId: string) => void;
   clearOutcome: () => void;
+  build: (optionId: string) => void;
+  startFrontierProject: (id: FrontierId) => void;
+  dismissEraBriefing: () => void;
   abandonGame: () => void;
+}
+
+const META_KEY = "convergence3-meta";
+
+export function getEndingsSeen(): Array<{ id: string; grade: string; pyrrhic: boolean }> {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(META_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function recordEnding(result: { id: string; grade: string; pyrrhic: boolean }): void {
+  if (typeof window === "undefined") return;
+  const seen = getEndingsSeen();
+  if (!seen.some(e => e.id === result.id && e.grade === result.grade)) {
+    localStorage.setItem(META_KEY, JSON.stringify([...seen, result]));
+  }
 }
 
 function backfill(g: GameState, defaults: Partial<GameState>): GameState {
@@ -97,6 +122,9 @@ export const useGameStore = create<GameStore>()(
         }
       },
       clearOutcome: () => set({ lastOutcome: null }),
+      build: optionId => act(set, get, g => startBuild(g, optionId)),
+      startFrontierProject: id => act(set, get, g => startFrontier(g, id)),
+      dismissEraBriefing: () => act(set, get, g => ({ ...g, pendingEraBriefing: null })),
       abandonGame: () => set({ game: null, lastError: null, lastOutcome: null }),
     }),
     {
