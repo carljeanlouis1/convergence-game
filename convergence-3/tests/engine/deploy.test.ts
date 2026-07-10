@@ -19,13 +19,13 @@ describe("deployModel", () => {
   it("positions a model and opens a revenue stream", () => {
     const s = deployModel({ ...createInitialState("d"), models: [model] }, "model-x", "enterprise");
     expect(s.models[0].positioning).toBe("enterprise");
-    // avg 40 → 4 base × 1.35 = 5.4
-    expect(s.revenueStreams[0].amountPerTurn).toBeCloseTo(5.4, 5);
+    // avg 40 → (4)^2.5 × 0.16 × 1.35 = 6.912 (superlinear)
+    expect(s.revenueStreams[0].amountPerTurn).toBeCloseTo(6.912, 3);
     expect(s.revenueStreams[0].decayPerTurn).toBeCloseTo(0.06, 5);
   });
   it("open-weights earns little but does not decay", () => {
     const s = deployModel({ ...createInitialState("d"), models: [model] }, "model-x", "open-weights");
-    expect(s.revenueStreams[0].amountPerTurn).toBeCloseTo(0.6, 5);
+    expect(s.revenueStreams[0].amountPerTurn).toBeCloseTo(0.768, 3);
     expect(s.revenueStreams[0].decayPerTurn).toBe(0);
   });
   it("rejects unknown and double deploys", () => {

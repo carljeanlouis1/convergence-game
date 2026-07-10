@@ -9,7 +9,7 @@ import {
   burnPerTurn,
   runwayMonths,
 } from "@/lib/engine/finance";
-import { projectedDeployRevenue } from "@/lib/engine/deploy";
+import { projectedRevenue } from "@/lib/engine/deploy";
 import { deployRiskBand } from "@/lib/engine/safety";
 import { selectUndeployedModels } from "@/lib/store/selectors";
 import type { GameState, Positioning } from "@/lib/engine/types";
@@ -159,7 +159,7 @@ export function FinancePanel({ game }: { game: GameState }) {
                     <button key={p.id} className="btn text-left normal-case tracking-normal p-2.5" onClick={() => deploy(m.id, p.id)}>
                       <span className="block font-bold uppercase text-xs tracking-widest">{p.label}</span>
                       <span className="block stat-num mt-1" style={{ color: "var(--green)" }}>
-                        +${projectedDeployRevenue(avg, p.id).toFixed(1)}M/qtr
+                        +${projectedRevenue(avg, p.id, "standard").toFixed(1)}M/qtr
                       </span>
                       <span className="block micro-label mt-0.5">{p.note}</span>
                     </button>

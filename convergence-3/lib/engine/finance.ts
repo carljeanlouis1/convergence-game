@@ -1,6 +1,7 @@
 import { BALANCE } from "./balance";
 import { totalCapacityPF } from "./compute";
-import type { GameState } from "./types";
+import { categoryLeaders } from "./rivals";
+import type { GameState, RevenueStream } from "./types";
 
 export function payrollPerTurn(state: GameState): number {
   return (
@@ -29,8 +30,20 @@ function bestDeployedCapabilityAvg(state: GameState): number {
   );
 }
 
+/** Number of benchmark categories this deployed model currently leads across the whole field. */
+export function crownsOf(state: GameState, modelId: string): number {
+  const leaders = categoryLeaders(state);
+  return Object.values(leaders).filter(l => l.isPlayer && l.modelId === modelId).length;
+}
+
+/** A stream's actual yield this turn: base amount boosted by its model's crowns. */
+export function streamYield(state: GameState, stream: RevenueStream): number {
+  if (!stream.modelId) return stream.amountPerTurn;
+  return stream.amountPerTurn * (1 + BALANCE.finance.crownYieldBonus * crownsOf(state, stream.modelId));
+}
+
 export function revenuePerTurn(state: GameState): number {
-  const streams = state.revenueStreams.reduce((a, r) => a + r.amountPerTurn, 0);
+  const streams = state.revenueStreams.reduce((a, r) => a + streamYield(state, r), 0);
   const inference =
     state.allocation.inference *
     BALANCE.finance.inferenceRevenuePerPF *
@@ -50,8 +63,16 @@ export function runwayMonths(state: GameState): number {
 
 export function applyFinance(state: GameState): { state: GameState; net: number } {
   const net = revenuePerTurn(state) - burnPerTurn(state);
+  // accrue lifetime revenue per source model before decay
+  const earnedByModel = new Map<string, number>();
+  for (const r of state.revenueStreams) {
+    if (r.modelId) earnedByModel.set(r.modelId, (earnedByModel.get(r.modelId) ?? 0) + streamYield(state, r));
+  }
+  const models = state.models.map(m =>
+    earnedByModel.has(m.id) ? { ...m, lifetimeRevenue: m.lifetimeRevenue + earnedByModel.get(m.id)! } : m,
+  );
   const revenueStreams = state.revenueStreams
     .map(r => ({ ...r, amountPerTurn: r.amountPerTurn * (1 - r.decayPerTurn) }))
     .filter(r => r.amountPerTurn >= 0.05);
-  return { state: { ...state, capital: state.capital + net, revenueStreams }, net };
+  return { state: { ...state, capital: state.capital + net, revenueStreams, models }, net };
 }

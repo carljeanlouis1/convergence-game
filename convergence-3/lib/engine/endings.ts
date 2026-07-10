@@ -1,8 +1,8 @@
 import { BALANCE } from "./balance";
 import { eraForTurn } from "./eras";
 import { revenuePerTurn } from "./finance";
-import { bestDeployedAvg, leaderboard } from "./rivals";
-import type { EndingResult, GameState } from "./types";
+import { bestDeployedAvg, categoryLeaders, leaderboard } from "./rivals";
+import type { BenchCategory, EndingResult, GameState } from "./types";
 
 const E = () => BALANCE.endings;
 
@@ -43,7 +43,18 @@ export function updateStats(state: GameState, netThisTurn: number): GameState {
   const liveOpen = state.models.filter(m => m.positioning === "open-weights").length;
   stats.openShare += liveOpen * E().openSharePerModelPerTurn;
 
-  return { ...state, stats };
+  // benchmark crowns: categories where a deployed player model leads the whole field
+  const leaders = categoryLeaders(state);
+  const crowns = (Object.keys(leaders) as BenchCategory[]).filter(cat => leaders[cat].isPlayer);
+  const gained = crowns.filter(c => !state.stats.crowns.includes(c)).length;
+  const lost = state.stats.crowns.filter(c => !crowns.includes(c)).length;
+  stats.crowns = crowns;
+  const boardConfidence = Math.max(
+    0,
+    Math.min(100, state.boardConfidence + (gained - lost) * BALANCE.finance.crownBoardDelta),
+  );
+
+  return { ...state, stats, boardConfidence };
 }
 
 export function evaluateEndings(state: GameState): string | null {

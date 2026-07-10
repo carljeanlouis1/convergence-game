@@ -62,6 +62,35 @@ export function leaderboard(
   return entries.sort((a, b) => b.overall - a.overall);
 }
 
+export function categoryLeaders(
+  state: GameState,
+): Record<BenchCategory, { name: string; value: number; isPlayer: boolean; modelId: string | null }> {
+  const result = {} as Record<BenchCategory, { name: string; value: number; isPlayer: boolean; modelId: string | null }>;
+  const deployed = state.models.filter(m => m.positioning !== null);
+  for (const cat of CATEGORIES) {
+    let best = { name: "—", value: 0, isPlayer: false, modelId: null as string | null };
+    for (const r of state.rivals) {
+      if (r.active && r.capability[cat] > best.value) {
+        best = { name: r.name, value: r.capability[cat], isPlayer: false, modelId: null };
+      }
+    }
+    for (const m of deployed) {
+      if (m.capability[cat] > best.value) {
+        best = { name: m.name, value: m.capability[cat], isPlayer: true, modelId: m.id };
+      }
+    }
+    result[cat] = best;
+  }
+  return result;
+}
+
+export function isEclipsed(state: GameState, modelId: string): boolean {
+  const model = state.models.find(m => m.id === modelId);
+  if (!model) return false;
+  const mAvg = avg(model.capability);
+  return state.rivals.some(r => r.active && avg(r.capability) > mAvg);
+}
+
 export function applyFastFollow(state: GameState): GameState {
   const B = BALANCE.rivals;
   const revenueStreams = state.revenueStreams.map(stream => {
@@ -72,12 +101,14 @@ export function applyFastFollow(state: GameState): GameState {
     const pressure = state.rivals.filter(
       r => r.active && avg(r.capability) >= modelAvg * B.fastFollowThreshold,
     ).length;
+    const pricingDecayMult = BALANCE.finance.pricingMultipliers[stream.pricing ?? "standard"].decay;
     return {
       ...stream,
-      decayPerTurn: Math.min(
-        (B.fastFollowBaseDecay + pressure * B.fastFollowPerRival) * eraScalar("fastFollow", state.era),
-        B.fastFollowCap,
-      ),
+      decayPerTurn:
+        Math.min(
+          (B.fastFollowBaseDecay + pressure * B.fastFollowPerRival) * eraScalar("fastFollow", state.era),
+          B.fastFollowCap,
+        ) * pricingDecayMult,
     };
   });
   return { ...state, revenueStreams };
