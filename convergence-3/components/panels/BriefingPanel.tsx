@@ -2,6 +2,8 @@
 
 import type { GameState, DebriefLine } from "@/lib/engine/types";
 import { turnLabel } from "@/lib/engine/turn";
+import { ChiefOfStaff } from "@/components/ui/ChiefOfStaff";
+import type { PanelId } from "@/components/shell/NavRail";
 
 const KIND_COLOR: Record<DebriefLine["kind"], string> = {
   finance: "var(--amber)",
@@ -25,7 +27,13 @@ const KIND_ICON: Record<DebriefLine["kind"], string> = {
   funding: "◆",
 };
 
-export function BriefingPanel({ game }: { game: GameState }) {
+export function BriefingPanel({
+  game,
+  onNavigate,
+}: {
+  game: GameState;
+  onNavigate: (p: PanelId) => void;
+}) {
   const d = game.lastDebrief;
   return (
     <div className="rise-in space-y-4">
@@ -33,6 +41,8 @@ export function BriefingPanel({ game }: { game: GameState }) {
         <h1 className="font-display font-black text-2xl tracking-tight">{turnLabel(game.turn)}</h1>
         <p className="micro-label mt-1">morning briefing</p>
       </div>
+
+      <ChiefOfStaff game={game} onNavigate={onNavigate} />
 
       {!d ? (
         <div className="panel-card p-5 space-y-3 max-w-xl">

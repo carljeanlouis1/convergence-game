@@ -17,6 +17,7 @@ import { FinancePanel } from "@/components/panels/FinancePanel";
 import { EndTurnSummary } from "@/components/modals/EndTurnSummary";
 import { DebriefModal } from "@/components/modals/DebriefModal";
 import { DilemmaModal } from "@/components/modals/DilemmaModal";
+import { CodexModal } from "@/components/modals/CodexModal";
 import { ReleaseDayModal } from "@/components/modals/ReleaseDayModal";
 
 function StartScreen() {
@@ -173,6 +174,7 @@ export function GameShell() {
   const endTurn = useGameStore(s => s.endTurn);
   const [panel, setPanel] = useState<PanelId>("briefing");
   const [confirming, setConfirming] = useState(false);
+  const [codexOpen, setCodexOpen] = useState(false);
   const [debriefOpen, setDebriefOpen] = useState(false);
   const [errorVisible, setErrorVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -216,7 +218,7 @@ export function GameShell() {
           }}
         />
         <main className="flex-1 p-4 md:p-6 pb-28 md:pb-6">
-          {panel === "briefing" && <BriefingPanel game={game} />}
+          {panel === "briefing" && <BriefingPanel game={game} onNavigate={setPanel} />}
           {panel === "runs" && <RunsPanel game={game} />}
           {panel === "compute" && <ComputePanel game={game} />}
           {panel === "talent" && <TalentPanel game={game} />}
@@ -237,6 +239,16 @@ export function GameShell() {
           {dilemmaOpen ? "Decision pending…" : "End turn ▸"}
         </button>
       )}
+
+      <button
+        className="btn fixed bottom-16 md:bottom-6 left-4 md:left-44 z-30 w-9 h-9 p-0 rounded-full"
+        title="Codex — how this world works"
+        aria-label="Open codex"
+        onClick={() => setCodexOpen(true)}
+      >
+        ?
+      </button>
+      {codexOpen && <CodexModal onClose={() => setCodexOpen(false)} />}
 
       <DilemmaModal game={game} />
       {!dilemmaOpen && <EraBriefingModal game={game} />}
