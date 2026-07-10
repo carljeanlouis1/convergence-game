@@ -6,7 +6,8 @@ import type { GameState } from "@/lib/engine/types";
 export const selectTopBar = (g: GameState) => ({
   turnText: turnLabel(g.turn),
   capital: g.capital,
-  runwayText: runwayMonths(g) === Infinity ? "∞" : `${runwayMonths(g).toFixed(0)}mo`,
+  runwayText:
+    runwayMonths(g) === Infinity ? "∞" : runwayMonths(g) > 99 ? "99+mo" : `${runwayMonths(g).toFixed(0)}mo`,
   freePFText: `${freePF(g).toFixed(0)} PF free`,
   trust: g.trust,
   board: g.boardConfidence,
