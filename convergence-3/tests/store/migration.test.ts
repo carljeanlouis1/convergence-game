@@ -40,6 +40,18 @@ describe("save migration chain", () => {
     expect(out.game!.stats.profitStreak).toBe(0);
     expect(out.game!.frontierProjects).toHaveLength(5);
   });
+  it("hydrates an old localStorage snapshot without crashing (production bug repro)", async () => {
+    // Simulates a save written by the Plan-1/2 deploys: persist wrapper version 1, old game shape.
+    localStorage.setItem("convergence3-save", JSON.stringify({ state: { game: v1Game() }, version: 1 }));
+    const { useGameStore } = await import("@/lib/store/gameStore");
+    await useGameStore.persist.rehydrate();
+    const g = useGameStore.getState().game;
+    expect(g).not.toBeNull();
+    expect(g!.version).toBe(3);
+    expect(Array.isArray(g!.poachOffers)).toBe(true); // selectAlerts calls .filter on this
+    expect(Array.isArray(g!.frontierProjects)).toBe(true); // RunsPanel calls .filter on this
+    expect(g!.stats.profitStreak).toBe(0);
+  });
   it("keeps v3 saves and rejects garbage", () => {
     expect(migrateSnapshot({ game: createInitialState("x") }).game!.seed).toBe("x");
     expect(migrateSnapshot({ nope: 1 })).toEqual({ game: null });

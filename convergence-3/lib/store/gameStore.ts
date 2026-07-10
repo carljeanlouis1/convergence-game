@@ -129,10 +129,14 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: "convergence3-save",
-      version: 1,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       partialize: s => ({ game: s.game }),
       migrate: migrateSnapshot,
+      // Defense in depth: migrate regardless of the wrapper version. Saves written when the
+      // persist version lagged the game version (v1 wrapper, v2/v3 game) skip `migrate`
+      // because the versions match — this guarantees the game shape is current anyway.
+      merge: (persisted, current) => ({ ...current, ...migrateSnapshot(persisted) }),
     },
   ),
 );
