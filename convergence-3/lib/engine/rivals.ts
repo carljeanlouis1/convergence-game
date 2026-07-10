@@ -1,4 +1,5 @@
 import { BALANCE } from "./balance";
+import { eraScalar } from "./eras";
 import { gaussian, makeRng, rollRange } from "./rng";
 import type { BenchCategory, GameState, Rival } from "./types";
 
@@ -35,7 +36,9 @@ export function advanceRivals(state: GameState): { state: GameState; releases: s
     const jumped: BenchCategory[] = [];
     for (let i = 0; i < jumpCount; i++) {
       const cat = sorted[i];
-      const jump = B.jumpBase + rival.aggression * B.jumpAggressionWeight + gaussian(rng, 0, B.jumpNoiseSd);
+      const jump =
+        (B.jumpBase + rival.aggression * B.jumpAggressionWeight) * eraScalar("rivalJump", state.era) +
+        gaussian(rng, 0, B.jumpNoiseSd);
       capability[cat] = Math.max(0, Math.min(100, capability[cat] + Math.max(1, jump)));
       jumped.push(cat);
     }
@@ -71,7 +74,10 @@ export function applyFastFollow(state: GameState): GameState {
     ).length;
     return {
       ...stream,
-      decayPerTurn: Math.min(B.fastFollowBaseDecay + pressure * B.fastFollowPerRival, B.fastFollowCap),
+      decayPerTurn: Math.min(
+        (B.fastFollowBaseDecay + pressure * B.fastFollowPerRival) * eraScalar("fastFollow", state.era),
+        B.fastFollowCap,
+      ),
     };
   });
   return { ...state, revenueStreams };

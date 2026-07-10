@@ -74,8 +74,11 @@ export function launchRun(state: GameState, design: RunDesign): GameState {
     status: "active",
     startedTurn: state.turn,
   };
+  // recursive self-improvement is a bet against your own safety margin
+  const rsiRisk = design.techniqueIds.includes("recursive-self-improvement") ? 6 : 0;
   return {
     ...state,
+    incidentRisk: state.incidentRisk + rsiRisk,
     runs: [...state.runs, run],
     stars: state.stars.map(s => (s.id === design.leadId ? { ...s, onRunId: id } : s)),
   };

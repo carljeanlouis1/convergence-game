@@ -32,6 +32,46 @@ export const TECHNIQUES: Technique[] = [
     variance: 2.5,
     categoryWeights: { coding: 1.15, reasoning: 1.1, enterprise: 0.95, consumer: 0.9 },
   },
+  {
+    id: "rlvr",
+    name: "RLVR",
+    era: 2,
+    qualityBonus: 9,
+    variance: 4,
+    categoryWeights: { coding: 1.15, reasoning: 1.15, enterprise: 0.95, consumer: 0.9 },
+  },
+  {
+    id: "moe-architecture",
+    name: "MoE Architecture",
+    era: 2,
+    qualityBonus: 6,
+    variance: 2,
+    categoryWeights: { coding: 1.05, reasoning: 1.05, enterprise: 1.05, consumer: 1.05 },
+  },
+  {
+    id: "distillation",
+    name: "Distillation Pipeline",
+    era: 3,
+    qualityBonus: 5,
+    variance: 0.5,
+    categoryWeights: { coding: 1.0, reasoning: 1.0, enterprise: 1.05, consumer: 1.05 },
+  },
+  {
+    id: "agentic-scaffolding",
+    name: "Agentic Scaffolding",
+    era: 3,
+    qualityBonus: 8,
+    variance: 3,
+    categoryWeights: { coding: 1.2, reasoning: 1.1, enterprise: 1.0, consumer: 0.9 },
+  },
+  {
+    id: "recursive-self-improvement",
+    name: "Recursive Self-Improvement",
+    era: 4,
+    qualityBonus: 14,
+    variance: 7,
+    categoryWeights: { coding: 1.15, reasoning: 1.2, enterprise: 1.0, consumer: 0.95 },
+  },
 ];
 
 export const STARTING_FACILITIES: Facility[] = [
@@ -329,3 +369,21 @@ export const FRONTIER_DEFS: FrontierProject[] = [
   { id: "space", name: "The Off-World Push", status: "locked", turnsLeft: 6, computePerTurn: 60 },
   { id: "simulation", name: "World Modeling", status: "locked", turnsLeft: 6, computePerTurn: 60 },
 ];
+
+export const ERA_BRIEFINGS: Record<2 | 3 | 4, { title: string; body: string }> = {
+  2: {
+    title: "The Scale-Up Era",
+    body:
+      "The hobbyist phase is over. Enterprise buyers arrived with real budgets and real lawyers, hyperscalers are writing compute-for-equity term sheets, and the first safety frameworks just grew teeth. Bigger training runs are possible now — and bigger mistakes. Your rivals noticed the same thing.",
+  },
+  3: {
+    title: "The Frontier Wars",
+    body:
+      "Somebody shipped a frontier-class model for a tenth of your training budget, and the market repriced everyone overnight. Export controls whiplash monthly, regulators have model access now, and every capability you reveal gets cloned in weeks. Leads are rented. The rent just went up.",
+  },
+  4: {
+    title: "The Convergence",
+    body:
+      "The models are doing the research now. Whatever happens in the next three years makes everything before it a footnote — the race is no longer about market share, it's about what kind of future ships first. Cross the threshold carefully. Or first. Choosing is the whole game now.",
+  },
+};

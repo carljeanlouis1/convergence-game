@@ -1,5 +1,6 @@
 import { BALANCE } from "./balance";
 import { CANDIDATE_POOL } from "./content";
+import { eraScalar } from "./eras";
 import { makeRng, pick } from "./rng";
 import { spawnWildcard } from "./rivals";
 import type { GameState, PoachOffer, Star } from "./types";
@@ -149,7 +150,11 @@ export function talentTurn(state: GameState): { state: GameState; lines: string[
   // 4. maybe generate one new poach offer
   const topRival = [...s.rivals].filter(r => r.active).sort((a, b) => b.aggression - a.aggression)[0];
   const poachable = s.stars.filter(st => !s.poachOffers.some(o => o.starId === st.id));
-  if (topRival && poachable.length > 0 && rng() < B.poachBaseChance + topRival.aggression * B.poachAggressionWeight) {
+  if (
+    topRival &&
+    poachable.length > 0 &&
+    rng() < (B.poachBaseChance + topRival.aggression * B.poachAggressionWeight) * eraScalar("poachChance", s.era)
+  ) {
     const target = pick(rng, poachable);
     const rival = pick(rng, s.rivals.filter(r => r.active));
     const offer: PoachOffer = {
