@@ -72,6 +72,8 @@ export const onRequestPost: PagesFunction<Env> = async ctx => {
         model: tier.model,
         max_tokens: tier.maxTokens,
         temperature: 0.8,
+        // reasoning tokens silently eat the budget on GLM/Kimi thinking variants — force them off
+        reasoning: { enabled: false },
         messages: [
           { role: "system", content: body.system },
           { role: "user", content: body.prompt },

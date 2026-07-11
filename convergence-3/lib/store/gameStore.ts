@@ -24,6 +24,7 @@ interface GameStore {
   game: GameState | null;
   lastError: string | null;
   lastOutcome: string | null;
+  inMenu: boolean;
   newGame: (seed: string) => void;
   endTurn: () => void;
   allocate: (alloc: ComputeAllocation) => void;
@@ -35,6 +36,9 @@ interface GameStore {
   respondPoach: (starId: string, response: "match" | "equity" | "decline") => void;
   acceptOffer: (offerId: string) => void;
   raiseRound: () => void;
+  toMenu: () => void;
+  continueGame: () => void;
+  setActiveGame: (game: GameState) => void;
   resolveActiveDilemma: (optionId: string) => void;
   clearOutcome: () => void;
   build: (optionId: string) => void;
@@ -122,7 +126,11 @@ export const useGameStore = create<GameStore>()(
       game: null,
       lastError: null,
       lastOutcome: null,
-      newGame: seed => set({ game: createInitialState(seed), lastError: null, lastOutcome: null }),
+      inMenu: false,
+      newGame: seed => set({ game: createInitialState(seed), lastError: null, lastOutcome: null, inMenu: false }),
+      toMenu: () => set({ inMenu: true }),
+      continueGame: () => set({ inMenu: false }),
+      setActiveGame: game => set({ game, lastError: null, lastOutcome: null, inMenu: false }),
       endTurn: () => act(set, get, advanceTurn),
       allocate: alloc => act(set, get, g => setAllocation(g, alloc)),
       launch: design => act(set, get, g => launchRun(g, design)),
@@ -151,7 +159,7 @@ export const useGameStore = create<GameStore>()(
       build: optionId => act(set, get, g => startBuild(g, optionId)),
       startFrontierProject: id => act(set, get, g => startFrontier(g, id)),
       dismissEraBriefing: () => act(set, get, g => ({ ...g, pendingEraBriefing: null })),
-      abandonGame: () => set({ game: null, lastError: null, lastOutcome: null }),
+      abandonGame: () => set({ game: null, lastError: null, lastOutcome: null, inMenu: false }),
     }),
     {
       name: "convergence3-save",

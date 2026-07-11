@@ -18,10 +18,13 @@ import { EndTurnSummary } from "@/components/modals/EndTurnSummary";
 import { DebriefModal } from "@/components/modals/DebriefModal";
 import { DilemmaModal } from "@/components/modals/DilemmaModal";
 import { CodexModal } from "@/components/modals/CodexModal";
+import { SaveSlots } from "@/components/ui/SaveSlots";
 import { ReleaseDayModal } from "@/components/modals/ReleaseDayModal";
 
 function StartScreen() {
   const newGame = useGameStore(s => s.newGame);
+  const game = useGameStore(s => s.game);
+  const continueGame = useGameStore(s => s.continueGame);
   const [seed, setSeed] = useState("");
   const endingsSeen = getEndingsSeen();
   return (
@@ -39,6 +42,15 @@ function StartScreen() {
           else&apos;s.
         </p>
       </div>
+      {game && !game.ended && (
+        <button
+          className="btn btn-primary px-10 py-3 text-sm rise-in"
+          data-testid="continue-game"
+          onClick={continueGame}
+        >
+          Continue — {`${2026 + Math.floor((game.turn - 1) / 4)} Q${((game.turn - 1) % 4) + 1}`} · ${game.capital.toFixed(0)}M
+        </button>
+      )}
       <div className="rise-in flex flex-col items-center gap-3" style={{ animationDelay: "140ms" }}>
         <input
           value={seed}
@@ -47,12 +59,16 @@ function StartScreen() {
           className="bg-[var(--bg-sunken)] border rounded px-3 py-2 text-sm text-center outline-none focus:border-[var(--amber)] w-64"
         />
         <button
-          className="btn btn-primary px-8 py-3 text-sm"
+          className={game ? "btn px-8 py-3 text-sm" : "btn btn-primary px-8 py-3 text-sm"}
           data-testid="found-lab"
+          title={game ? "starts fresh — save the current game to a slot first if you want to keep it" : undefined}
           onClick={() => newGame(seed.trim() || `lab-${Math.random().toString(36).slice(2, 10)}`)}
         >
-          Found the lab
+          {game ? "Found a new lab" : "Found the lab"}
         </button>
+      </div>
+      <div className="rise-in" style={{ animationDelay: "200ms" }}>
+        <SaveSlots />
       </div>
       {endingsSeen.length > 0 && (
         <div className="rise-in flex flex-wrap justify-center gap-2 max-w-md" style={{ animationDelay: "260ms" }}>
@@ -179,6 +195,8 @@ export function GameShell() {
   const [panel, setPanel] = useState<PanelId>("briefing");
   const [confirming, setConfirming] = useState(false);
   const [codexOpen, setCodexOpen] = useState(false);
+  const inMenu = useGameStore(st => st.inMenu);
+  const toMenu = useGameStore(st => st.toMenu);
   const [debriefOpen, setDebriefOpen] = useState(false);
   const [errorVisible, setErrorVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -193,7 +211,7 @@ export function GameShell() {
   }, [lastError]);
 
   if (!mounted) return null;
-  if (!game) return <StartScreen />;
+  if (!game || inMenu) return <StartScreen />;
   if (game.ended && game.ending) {
     return <EndingScreen ending={game.ending} turn={game.turn} result={game.endingResult} />;
   }
@@ -251,6 +269,14 @@ export function GameShell() {
         onClick={() => setCodexOpen(true)}
       >
         ?
+      </button>
+      <button
+        className="btn fixed bottom-16 md:bottom-6 left-16 md:left-56 z-30 w-9 h-9 p-0 rounded-full"
+        title="Menu — saved games"
+        aria-label="Open menu"
+        onClick={toMenu}
+      >
+        ☰
       </button>
       {codexOpen && <CodexModal onClose={() => setCodexOpen(false)} />}
 
