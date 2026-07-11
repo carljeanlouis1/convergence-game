@@ -7,6 +7,7 @@ import { advanceRuns } from "./runs";
 import { advanceRivals, applyFastFollow } from "./rivals";
 import { talentTurn } from "./talent";
 import { safetyTurn } from "./safety";
+import { researchTurn } from "./research";
 import { fundingTurn } from "./funding";
 import { evaluateEndings, finalizeEnding, updateStats } from "./endings";
 import { maybeOpenDilemma } from "./events";
@@ -76,6 +77,11 @@ export function advanceTurn(state: GameState): GameState {
   const talentStep = talentTurn(s);
   s = talentStep.state;
   for (const l of talentStep.lines) lines.push({ kind: "talent", text: l });
+
+  // 5b. research experiments → momentum
+  const researchStep = researchTurn(s);
+  s = researchStep.state;
+  for (const l of researchStep.lines) lines.push({ kind: "compute", text: l });
 
   // 6. safety
   const safetyStep = safetyTurn(s);

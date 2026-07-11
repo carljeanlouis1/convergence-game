@@ -44,7 +44,7 @@ describe("advanceTurn v3 — the full arc", () => {
       if (s.activeDilemma) s = resolveDilemma(s, getDilemmaDef(s.activeDilemma.defId).options[0].id).state;
       s = advanceTurn(s);
     }
-    expect(s.facilities.some(f => f.id === "fac-colo-expansion")).toBe(true);
+    expect(s.facilities.some(f => f.id.startsWith("fac-colo-expansion"))).toBe(true);
   });
   it("stats accumulate during play", () => {
     const s = playCampaign("stats-check", 15);

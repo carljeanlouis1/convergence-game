@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { createInitialState, v2Defaults, v3Defaults, v4Defaults } from "@/lib/engine/state";
+import { createInitialState, v2Defaults, v3Defaults, v4Defaults, v5Defaults } from "@/lib/engine/state";
 import { setAllocation } from "@/lib/engine/compute";
 import { launchRun, applyRunDecision } from "@/lib/engine/runs";
 import { deployModel } from "@/lib/engine/deploy";
@@ -79,7 +79,9 @@ export function migrateSnapshot(persisted: unknown): { game: GameState | null } 
   const p = persisted as { game?: GameState } | undefined;
   if (!p || !p.game) return { game: null };
   let g = p.game;
-  if (g.version !== 1 && g.version !== 2 && g.version !== 3 && g.version !== 4) return { game: null };
+  if (g.version !== 1 && g.version !== 2 && g.version !== 3 && g.version !== 4 && g.version !== 5) {
+    return { game: null };
+  }
   if (g.version === 1) {
     g = backfill({ ...g, version: 2, stars: g.stars.map(s => ({ ...s, burnout: s.burnout ?? 0 })) }, v2Defaults());
   }
@@ -102,6 +104,9 @@ export function migrateSnapshot(persisted: unknown): { game: GameState | null } 
       },
       v4Defaults(),
     );
+  }
+  if (g.version === 4) {
+    g = backfill({ ...g, version: 5 }, v5Defaults());
   }
   return { game: g };
 }
@@ -163,7 +168,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: "convergence3-save",
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => localStorage),
       partialize: s => ({ game: s.game }),
       migrate: migrateSnapshot,

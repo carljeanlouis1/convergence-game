@@ -33,7 +33,15 @@ export const BALANCE = {
     computeUpkeepPerPF: 0.045, // $M per PF per turn
     teamCostPerPoint: 0.09, // $M per teamStrength point per turn
     inferenceRevenuePerPF: 0.5, // $M per PF, scaled by best deployed capability/100
-    positioningMultipliers: { api: 1.0, enterprise: 1.35, consumer: 0.9, "open-weights": 0.15 },
+    positioningMultipliers: { api: 1.0, enterprise: 1.15, consumer: 0.95, "open-weights": 0.15 },
+    // Each market weights the benchmarks it actually buys. Weights sum to 1, so a balanced
+    // model earns ~its average — but a specialized model earns more in its matching market.
+    positioningWeights: {
+      api: { coding: 0.5, reasoning: 0.5, enterprise: 0, consumer: 0 },
+      enterprise: { coding: 0, reasoning: 0.3, enterprise: 0.7, consumer: 0 },
+      consumer: { coding: 0.2, reasoning: 0.1, enterprise: 0, consumer: 0.7 },
+      "open-weights": { coding: 0.25, reasoning: 0.25, enterprise: 0.25, consumer: 0.25 },
+    },
     revenueDecayPerTurn: 0.06, // baseline decay before fast-follow repricing
     revenueExponent: 2.5, // superlinear capability→revenue: the frontier takes most of the market
     revenueScale: 0.16,
@@ -46,7 +54,15 @@ export const BALANCE = {
     crownBoardDelta: 2, // board swing on crown gain/loss
     runwayFloorBurn: 0.1,
   },
-  experiments: { pfPerTechniquePoint: 6 }, // reserved hook; Era-1 techniques are pre-unlocked
+  experiments: {
+    momentumPerPF: 0.35, // research momentum gained per PF allocated to experiments
+    momentumDecay: 0.12, // momentum bleeds off each quarter if you stop investing
+    momentumQualityWeight: 0.6, // momentum × this is added to a new run's expected quality
+    momentumCap: 30,
+  },
+  facilities: {
+    repeatCostMultiplier: 1.6, // each additional facility of the same kind costs this much more
+  },
   rivals: {
     runDurationMin: 3,
     runDurationMax: 6,
@@ -81,6 +97,7 @@ export const BALANCE = {
     runFailMorale: 6,
     runCompleteMorale: 5,
     wildcardSpawnDepartures: 3, // cumulative star departures that activate the wildcard rival
+    specialtyCapabilityBonus: 8, // the lead's specialty adds this to that benchmark in the model they finish
   },
   funding: {
     offerRunwayTrigger: 12,

@@ -28,6 +28,7 @@ export function expectedQuality(design: RunDesign, state: GameState): number {
     BALANCE.run.baseQuality +
     (lead ? lead.skill * BALANCE.run.leadSkillWeight : 0) +
     state.teamStrength * BALANCE.run.teamStrengthWeight +
+    state.researchMomentum * BALANCE.experiments.momentumQualityWeight +
     techs.reduce((a, t) => a + t.qualityBonus, 0);
   return Math.min(raw, tier.cap);
 }
@@ -127,6 +128,14 @@ export function advanceRuns(state: GameState): GameState {
         for (const k of Object.keys(capability) as (keyof typeof capability)[]) {
           const w = techs.reduce((a, t) => a * t.categoryWeights[k], 1);
           capability[k] = Math.max(0, Math.min(100, quality * w));
+        }
+        // the lead's specialty leaves its mark on the model's strongest benchmark
+        const lead = state.stars.find(st => st.id === run.leadId);
+        if (lead) {
+          capability[lead.specialty] = Math.min(
+            100,
+            capability[lead.specialty] + BALANCE.talent.specialtyCapabilityBonus,
+          );
         }
         const modelAvg = (capability.coding + capability.reasoning + capability.enterprise + capability.consumer) / 4;
         const rivalsAhead = state.rivals.filter(r => {

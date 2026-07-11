@@ -54,9 +54,15 @@ export function v4Defaults() {
   } satisfies Partial<GameState>;
 }
 
+export function v5Defaults() {
+  return {
+    researchMomentum: 0,
+  } satisfies Partial<GameState>;
+}
+
 export function createInitialState(seed: string): GameState {
   return {
-    version: 3,
+    version: 5,
     seed,
     turn: 1,
     era: 1,
@@ -77,5 +83,6 @@ export function createInitialState(seed: string): GameState {
     ...v2Defaults(),
     ...v3Defaults(),
     ...v4Defaults(),
+    ...v5Defaults(),
   };
 }

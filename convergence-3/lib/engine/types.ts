@@ -232,7 +232,7 @@ export interface TurnDebrief {
 }
 
 export interface GameState {
-  version: 1 | 2 | 3 | 4;
+  version: 1 | 2 | 3 | 4 | 5;
   seed: string;
   turn: number;
   era: 1 | 2 | 3 | 4;
@@ -257,6 +257,7 @@ export interface GameState {
   lastRaiseTurn: number;
   fundingRound: number;
   evalCapacity: number;
+  researchMomentum: number; // built by experiments allocation; raises new-run quality
   incidentRisk: number;
   fireSaleCount: number;
   activeDilemma: ActiveDilemma | null;

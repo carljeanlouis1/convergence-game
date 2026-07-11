@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createInitialState } from "@/lib/engine/state";
-import { availableBuilds, startBuild, buildsTurn } from "@/lib/engine/facilities";
+import { availableBuilds, startBuild, buildsTurn, buildCost } from "@/lib/engine/facilities";
+import { BALANCE } from "@/lib/engine/balance";
 
 describe("facility building", () => {
   it("builds a facility over multiple turns", () => {
@@ -8,11 +9,30 @@ describe("facility building", () => {
     s = startBuild(s, "colo-expansion");
     expect(s.capital).toBeCloseTo(120 - 12, 5);
     expect(s.builds).toHaveLength(1);
-    expect(() => startBuild(s, "colo-expansion")).toThrow(/already building/);
+    expect(() => startBuild(s, "colo-expansion")).toThrow(/already under construction/);
     s = buildsTurn(s).state; // 1 turn left
     const done = buildsTurn({ ...s, turn: s.turn + 1 }).state;
     expect(done.builds).toHaveLength(0);
-    expect(done.facilities.some(f => f.id === "fac-colo-expansion")).toBe(true);
+    expect(done.facilities.some(f => f.id.startsWith("fac-colo-expansion"))).toBe(true);
+  });
+  it("is repeatable with an escalating cost", () => {
+    let s = createInitialState("b");
+    expect(buildCost(s, availableBuilds(s)[0])).toBe(12);
+    // build one and bring it online
+    s = startBuild(s, "colo-expansion");
+    s = buildsTurn(s).state;
+    s = buildsTurn({ ...s, turn: s.turn + 1 }).state;
+    // the option is still offered, now more expensive
+    expect(availableBuilds(s).some(o => o.id === "colo-expansion")).toBe(true);
+    const next = buildCost(s, availableBuilds(s).find(o => o.id === "colo-expansion")!);
+    expect(next).toBe(Math.round(12 * BALANCE.facilities.repeatCostMultiplier));
+    // second one lands with a distinct id
+    s = startBuild(s, "colo-expansion");
+    s = buildsTurn(s).state;
+    const done = buildsTurn({ ...s, turn: s.turn + 1 }).state;
+    const coloFacs = done.facilities.filter(f => f.id.startsWith("fac-colo-expansion"));
+    expect(coloFacs).toHaveLength(2);
+    expect(new Set(coloFacs.map(f => f.id)).size).toBe(2);
   });
   it("era-gates options and enforces capital", () => {
     const s = createInitialState("b");

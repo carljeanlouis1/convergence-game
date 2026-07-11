@@ -1,20 +1,43 @@
 import { BALANCE } from "./balance";
 import { recordDeploymentRisk } from "./safety";
-import type { GameState, Positioning, Pricing } from "./types";
+import type { BenchCategory, GameState, Positioning, Pricing } from "./types";
 
-export function modelAvg(capability: { coding: number; reasoning: number; enterprise: number; consumer: number }): number {
+type Capability = Record<BenchCategory, number>;
+
+const POSITIONINGS: Positioning[] = ["api", "enterprise", "consumer", "open-weights"];
+
+export function modelAvg(capability: Capability): number {
   return (capability.coding + capability.reasoning + capability.enterprise + capability.consumer) / 4;
 }
 
+/** The score a market actually pays for — weighted toward the benchmarks that market buys. */
+export function positionedScore(capability: Capability, positioning: Positioning): number {
+  const w = BALANCE.finance.positioningWeights[positioning];
+  return (
+    capability.coding * w.coding +
+    capability.reasoning * w.reasoning +
+    capability.enterprise * w.enterprise +
+    capability.consumer * w.consumer
+  );
+}
+
 /** Projected $/turn for a deployment — used by the UI before committing (transparency law). */
-export function projectedRevenue(avg: number, positioning: Positioning, pricing: Pricing): number {
+export function projectedRevenue(capability: Capability, positioning: Positioning, pricing: Pricing): number {
   const F = BALANCE.finance;
   const effectivePricing = positioning === "open-weights" ? "standard" : pricing;
+  const score = positionedScore(capability, positioning);
   return (
-    Math.pow(avg / 10, F.revenueExponent) *
+    Math.pow(score / 10, F.revenueExponent) *
     F.revenueScale *
     F.positioningMultipliers[positioning] *
     F.pricingMultipliers[effectivePricing].revenue
+  );
+}
+
+/** Which market maximizes this model's revenue at standard pricing — shown as "best fit". */
+export function bestFitPositioning(capability: Capability): Positioning {
+  return POSITIONINGS.filter(p => p !== "open-weights").reduce((best, p) =>
+    projectedRevenue(capability, p, "standard") > projectedRevenue(capability, best, "standard") ? p : best,
   );
 }
 
@@ -27,9 +50,8 @@ export function deployModel(
   const model = state.models.find(m => m.id === modelId);
   if (!model) throw new Error("model not found");
   if (model.positioning) throw new Error("model already deployed");
-  const avg = modelAvg(model.capability);
   const effectivePricing: Pricing = positioning === "open-weights" ? "standard" : pricing;
-  const amount = projectedRevenue(avg, positioning, pricing);
+  const amount = projectedRevenue(model.capability, positioning, pricing);
   const state2 = recordDeploymentRisk(state, modelId);
   return {
     ...state2,

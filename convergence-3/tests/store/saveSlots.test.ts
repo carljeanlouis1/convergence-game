@@ -29,7 +29,7 @@ describe("save slots", () => {
     g.version = 2;
     localStorage.setItem("convergence3-save-slot-2", JSON.stringify({ meta: { seed: "old" }, game: g }));
     const loaded = loadSlot(2)!;
-    expect(loaded.version).toBe(4);
+    expect(loaded.version).toBe(5);
     expect(loaded.stats.profitStreak).toBe(0);
   });
 
