@@ -28,6 +28,8 @@ export const BALANCE = {
     boostQuality: 4.5,
     boostCostMultiplier: 1.6, // boost charges (multiplier - 1) x one turn of run spend
     failThreshold: 25, // completed run below this quality = failed (no model)
+    familyInheritFloor: 0.7, // a v2 keeps at least this fraction of the base model's per-category capability
+    familyQualityBonus: 4, // institutional knowledge: iterating a line adds this to expected quality
   },
   finance: {
     computeUpkeepPerPF: 0.045, // $M per PF per turn
@@ -53,6 +55,14 @@ export const BALANCE = {
     crownYieldBonus: 0.12, // +12% stream yield per crown the source model holds
     crownBoardDelta: 2, // board swing on crown gain/loss
     runwayFloorBurn: 0.1,
+    // Deployed models consume serving compute. Your inference allocation is the serving pool;
+    // under-provisioned models are throttled (customers wait, revenue dips).
+    serving: {
+      basePF: 2,
+      perCapPF: 0.11, // PF per point of capability average
+      volume: { api: 1.0, enterprise: 0.8, consumer: 1.3, "open-weights": 0 }, // open-weights: others host it
+      throttleFloor: 0.4, // fully unprovisioned models still earn this fraction
+    },
   },
   experiments: {
     momentumPerPF: 0.35, // research momentum gained per PF allocated to experiments
@@ -98,6 +108,7 @@ export const BALANCE = {
     runCompleteMorale: 5,
     wildcardSpawnDepartures: 3, // cumulative star departures that activate the wildcard rival
     specialtyCapabilityBonus: 8, // the lead's specialty adds this to that benchmark in the model they finish
+    affinityBonus: 6, // extra expected quality when the lead's affinity technique is in the run
   },
   funding: {
     offerRunwayTrigger: 12,

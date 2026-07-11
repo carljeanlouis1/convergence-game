@@ -19,6 +19,7 @@ export function hireCandidate(state: GameState, candidateId: string): GameState 
     salaryPerQuarter: c.salaryPerQuarter,
     onRunId: null,
     burnout: 0,
+    affinity: c.affinity,
   };
   return {
     ...state,

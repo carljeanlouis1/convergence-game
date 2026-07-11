@@ -22,7 +22,7 @@ describe("save migration chain", () => {
   it("upgrades a v1 save all the way to v3", () => {
     const out = migrateSnapshot({ game: v1Game() });
     expect(out.game).not.toBeNull();
-    expect(out.game!.version).toBe(5);
+    expect(out.game!.version).toBe(6);
     expect(out.game!.rivals.length).toBeGreaterThanOrEqual(5);
     expect(out.game!.market.length).toBeGreaterThan(0);
     expect(out.game!.stars.every(s => s.burnout === 0)).toBe(true);
@@ -36,7 +36,7 @@ describe("save migration chain", () => {
     for (const k of ["stats", "builds", "frontierProjects", "pendingEraBriefing", "endingResult"]) delete g[k];
     g.version = 2;
     const out = migrateSnapshot({ game: g });
-    expect(out.game!.version).toBe(5);
+    expect(out.game!.version).toBe(6);
     expect(out.game!.stats.profitStreak).toBe(0);
     expect(out.game!.frontierProjects).toHaveLength(5);
   });
@@ -47,7 +47,7 @@ describe("save migration chain", () => {
     await useGameStore.persist.rehydrate();
     const g = useGameStore.getState().game;
     expect(g).not.toBeNull();
-    expect(g!.version).toBe(5);
+    expect(g!.version).toBe(6);
     expect(Array.isArray(g!.poachOffers)).toBe(true); // selectAlerts calls .filter on this
     expect(Array.isArray(g!.frontierProjects)).toBe(true); // RunsPanel calls .filter on this
     expect(g!.stats.profitStreak).toBe(0);
@@ -59,13 +59,30 @@ describe("save migration chain", () => {
   });
 });
 
+describe("v5 → v6 migration", () => {
+  it("backfills retiredTurn and researcher affinities", () => {
+    const g = structuredClone(createInitialState("m6")) as unknown as Record<string, unknown>;
+    (g.models as unknown[]) = [
+      { id: "mm", name: "M", createdTurn: 1, capability: { coding: 50, reasoning: 50, enterprise: 50, consumer: 50 }, positioning: "api", deployedTurn: 2, lifetimeRevenue: 0, pricing: "standard", releaseRank: null },
+    ];
+    (g.stars as Array<Record<string, unknown>>).forEach(s => delete s.affinity);
+    (g.market as Array<Record<string, unknown>>).forEach(c => delete c.affinity);
+    g.version = 5;
+    const out = migrateSnapshot({ game: g });
+    expect(out.game!.version).toBe(6);
+    expect(out.game!.models[0].retiredTurn).toBeNull();
+    const imara = out.game!.stars.find(s => s.id === "star-imara");
+    expect(imara!.affinity).toBe("rlvr");
+  });
+});
+
 describe("v4 → v5 migration", () => {
   it("backfills research momentum", () => {
     const g = structuredClone(createInitialState("m5")) as unknown as Record<string, unknown>;
     delete g.researchMomentum;
     g.version = 4;
     const out = migrateSnapshot({ game: g });
-    expect(out.game!.version).toBe(5);
+    expect(out.game!.version).toBe(6);
     expect(out.game!.researchMomentum).toBe(0);
   });
 });
@@ -85,7 +102,7 @@ describe("v3 → v4 migration", () => {
     delete (g.stats as Record<string, unknown>).crowns;
     g.version = 3;
     const out = migrateSnapshot({ game: g });
-    expect(out.game!.version).toBe(5);
+    expect(out.game!.version).toBe(6);
     expect(out.game!.models[0].lifetimeRevenue).toBe(0);
     expect(out.game!.models[0].pricing).toBe("standard");
     expect(out.game!.models[0].releaseRank).toBeNull();

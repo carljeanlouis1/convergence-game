@@ -14,6 +14,7 @@ const mk = (avg: number): Model => ({
   lifetimeRevenue: 0,
   pricing: null,
   releaseRank: null,
+  retiredTurn: null,
 });
 
 describe("superlinear economy", () => {

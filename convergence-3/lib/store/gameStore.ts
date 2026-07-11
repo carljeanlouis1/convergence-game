@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { createInitialState, v2Defaults, v3Defaults, v4Defaults, v5Defaults } from "@/lib/engine/state";
+import { AFFINITY_MAP } from "@/lib/engine/content";
 import { setAllocation } from "@/lib/engine/compute";
 import { launchRun, applyRunDecision } from "@/lib/engine/runs";
 import { deployModel } from "@/lib/engine/deploy";
@@ -79,9 +80,7 @@ export function migrateSnapshot(persisted: unknown): { game: GameState | null } 
   const p = persisted as { game?: GameState } | undefined;
   if (!p || !p.game) return { game: null };
   let g = p.game;
-  if (g.version !== 1 && g.version !== 2 && g.version !== 3 && g.version !== 4 && g.version !== 5) {
-    return { game: null };
-  }
+  if (![1, 2, 3, 4, 5, 6].includes(g.version)) return { game: null };
   if (g.version === 1) {
     g = backfill({ ...g, version: 2, stars: g.stars.map(s => ({ ...s, burnout: s.burnout ?? 0 })) }, v2Defaults());
   }
@@ -107,6 +106,15 @@ export function migrateSnapshot(persisted: unknown): { game: GameState | null } 
   }
   if (g.version === 4) {
     g = backfill({ ...g, version: 5 }, v5Defaults());
+  }
+  if (g.version === 5) {
+    g = {
+      ...g,
+      version: 6,
+      models: g.models.map(m => ({ ...m, retiredTurn: m.retiredTurn ?? null })),
+      stars: g.stars.map(s => ({ ...s, affinity: s.affinity ?? AFFINITY_MAP[s.id] ?? null })),
+      market: g.market.map(c => ({ ...c, affinity: c.affinity ?? AFFINITY_MAP[c.id] ?? null })),
+    } as GameState;
   }
   return { game: g };
 }
@@ -168,7 +176,7 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: "convergence3-save",
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() => localStorage),
       partialize: s => ({ game: s.game }),
       migrate: migrateSnapshot,

@@ -8,7 +8,7 @@ describe("createInitialState", () => {
     expect(s.capital).toBe(BALANCE.startingCapital);
     expect(s.turn).toBe(1);
     expect(s.era).toBe(1);
-    expect(s.version).toBe(5);
+    expect(s.version).toBe(6);
     expect(s.facilities.reduce((a, f) => a + f.capacityPF, 0)).toBe(BALANCE.startingComputePF);
   });
   it("starts with 4 stars, none assigned", () => {

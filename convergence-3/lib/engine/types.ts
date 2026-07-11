@@ -13,6 +13,7 @@ export interface Star {
   salaryPerQuarter: number; // $M
   onRunId: string | null;
   burnout: number; // 0-100
+  affinity: string | null; // technique id this researcher is especially good with
 }
 
 export interface Technique {
@@ -37,6 +38,7 @@ export interface RunDesign {
   scaleTier: 1 | 2 | 3 | 4;
   techniqueIds: string[];
   leadId: string | null;
+  baseModelId?: string; // build this run on a prior model (a "family" v2)
 }
 
 export interface CheckpointReading {
@@ -60,6 +62,7 @@ export interface TrainingRun {
   checkpoints: CheckpointReading[];
   status: RunStatus;
   startedTurn: number;
+  baseModelId?: string; // the model this run iterates on, if any
 }
 
 export interface Model {
@@ -72,6 +75,7 @@ export interface Model {
   lifetimeRevenue: number; // $M accrued across its life
   pricing: Pricing | null; // set at deploy
   releaseRank: number | null; // overall rank vs rivals at completion
+  retiredTurn: number | null; // deprecated — no longer served or earning
 }
 
 export interface ComputeAllocation {
@@ -114,6 +118,7 @@ export interface Candidate {
   salaryPerQuarter: number;
   signingBonus: number;
   exitTurn: number; // leaves the market after this turn
+  affinity: string | null; // technique id this researcher is especially good with
 }
 
 export interface PoachOffer {
@@ -232,7 +237,7 @@ export interface TurnDebrief {
 }
 
 export interface GameState {
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
   seed: string;
   turn: number;
   era: 1 | 2 | 3 | 4;

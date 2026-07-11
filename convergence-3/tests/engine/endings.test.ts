@@ -38,6 +38,7 @@ describe("endings", () => {
       capability: { coding: 75, reasoning: 75, enterprise: 75, consumer: 75 },
       positioning: "api" as const, deployedTurn: 1,
       lifetimeRevenue: 0, pricing: "standard" as const, releaseRank: null,
+          retiredTurn: null,
     };
     // streak without era span → no
     expect(evaluateEndings({ ...base, models: [frontierModel], stats: { ...base.stats, topStreak: 6, topStreakSpansEra: false } })).toBeNull();
@@ -77,7 +78,7 @@ describe("endings", () => {
           id: "m", name: "OW", createdTurn: 1,
           capability: { coding: 50, reasoning: 50, enterprise: 50, consumer: 50 },
           positioning: "open-weights" as const, deployedTurn: 1,
-          lifetimeRevenue: 0, pricing: "standard" as const, releaseRank: null,
+          lifetimeRevenue: 0, pricing: "standard" as const, releaseRank: null, retiredTurn: null,
         },
       ],
     };

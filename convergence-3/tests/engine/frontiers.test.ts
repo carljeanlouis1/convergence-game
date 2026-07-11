@@ -14,6 +14,7 @@ const agiModel: Model = {
   lifetimeRevenue: 0,
   pricing: "standard",
   releaseRank: null,
+          retiredTurn: null,
 };
 
 function era4State(seed: string): GameState {

@@ -153,6 +153,7 @@ export function advanceRuns(state: GameState): GameState {
           lifetimeRevenue: 0,
           pricing: null,
           releaseRank: 1 + rivalsAhead,
+          retiredTurn: null,
         };
         models = [...models, model];
         pendingRelease = model.id;

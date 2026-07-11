@@ -62,7 +62,7 @@ export function v5Defaults() {
 
 export function createInitialState(seed: string): GameState {
   return {
-    version: 5,
+    version: 6,
     seed,
     turn: 1,
     era: 1,

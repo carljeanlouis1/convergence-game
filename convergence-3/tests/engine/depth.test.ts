@@ -83,7 +83,7 @@ describe("AGI-class capability is reachable", () => {
       era: 4 as const,
       teamStrength: 80,
       researchMomentum: 30,
-      stars: [{ id: "ace", name: "Ace", specialty: "reasoning" as const, skill: 10, salaryPerQuarter: 2, onRunId: null, burnout: 0 }],
+      stars: [{ id: "ace", name: "Ace", specialty: "reasoning" as const, skill: 10, salaryPerQuarter: 2, onRunId: null, burnout: 0, affinity: null }],
     };
     const q = expectedQuality(
       { name: "Titan", scaleTier: 4, techniqueIds: ["recursive-self-improvement", "self-play-economies", "agentic-scaffolding"], leadId: "ace" },

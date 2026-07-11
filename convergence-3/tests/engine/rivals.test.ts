@@ -14,6 +14,7 @@ const model: Model = {
   lifetimeRevenue: 0,
   pricing: "standard",
   releaseRank: null,
+          retiredTurn: null,
 };
 
 describe("rivals", () => {

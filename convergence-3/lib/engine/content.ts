@@ -1,10 +1,10 @@
 import type { Star, Technique, Facility, Rival, Candidate, DilemmaDef, FrontierProject, BuildOption } from "./types";
 
 export const STARTING_STARS: Star[] = [
-  { id: "star-imara", name: "Dr. Imara Osei", specialty: "reasoning", skill: 7, salaryPerQuarter: 0.9, onRunId: null, burnout: 0 },
-  { id: "star-jonas", name: "Jonas Feld", specialty: "coding", skill: 6, salaryPerQuarter: 0.7, onRunId: null, burnout: 0 },
-  { id: "star-mei", name: "Mei-Lin Zhang", specialty: "enterprise", skill: 5, salaryPerQuarter: 0.55, onRunId: null, burnout: 0 },
-  { id: "star-rafa", name: "Rafael Duarte", specialty: "consumer", skill: 5, salaryPerQuarter: 0.5, onRunId: null, burnout: 0 },
+  { id: "star-imara", name: "Dr. Imara Osei", specialty: "reasoning", skill: 7, salaryPerQuarter: 0.9, onRunId: null, burnout: 0, affinity: "rlvr" },
+  { id: "star-jonas", name: "Jonas Feld", specialty: "coding", skill: 6, salaryPerQuarter: 0.7, onRunId: null, burnout: 0, affinity: "agentic-scaffolding" },
+  { id: "star-mei", name: "Mei-Lin Zhang", specialty: "enterprise", skill: 5, salaryPerQuarter: 0.55, onRunId: null, burnout: 0, affinity: "long-context" },
+  { id: "star-rafa", name: "Rafael Duarte", specialty: "consumer", skill: 5, salaryPerQuarter: 0.5, onRunId: null, burnout: 0, affinity: "multimodal-fusion" },
 ];
 
 export const TECHNIQUES: Technique[] = [
@@ -133,20 +133,20 @@ export const RIVALS: Rival[] = [
 ];
 
 export const CANDIDATE_POOL: Candidate[] = [
-  { id: "cand-noor", name: "Tessa Noor", specialty: "coding", skill: 7, salaryPerQuarter: 1.1, signingBonus: 5, exitTurn: 0 },
-  { id: "cand-vale", name: "Marcus Vale", specialty: "enterprise", skill: 6, salaryPerQuarter: 0.85, signingBonus: 3, exitTurn: 0 },
-  { id: "cand-wei", name: "Li Wei", specialty: "reasoning", skill: 8, salaryPerQuarter: 1.4, signingBonus: 8, exitTurn: 0 },
-  { id: "cand-ortega", name: "Camila Ortega", specialty: "consumer", skill: 5, salaryPerQuarter: 0.6, signingBonus: 2, exitTurn: 0 },
-  { id: "cand-mbaye", name: "Darius Mbaye", specialty: "coding", skill: 6, salaryPerQuarter: 0.8, signingBonus: 3.5, exitTurn: 0 },
-  { id: "cand-larsen", name: "Ida Larsen", specialty: "reasoning", skill: 5, salaryPerQuarter: 0.55, signingBonus: 1.5, exitTurn: 0 },
-  { id: "cand-tan", name: "Keiko Tan", specialty: "enterprise", skill: 7, salaryPerQuarter: 1.0, signingBonus: 4.5, exitTurn: 0 },
-  { id: "cand-sato", name: "Rafael Sato", specialty: "consumer", skill: 6, salaryPerQuarter: 0.75, signingBonus: 2.5, exitTurn: 0 },
-  { id: "cand-haddad", name: "Sofia Haddad", specialty: "coding", skill: 9, salaryPerQuarter: 1.8, signingBonus: 12, exitTurn: 0 },
-  { id: "cand-park", name: "Owen Park", specialty: "reasoning", skill: 4, salaryPerQuarter: 0.45, signingBonus: 1, exitTurn: 0 },
-  { id: "cand-njeri", name: "Laila Njeri", specialty: "enterprise", skill: 5, salaryPerQuarter: 0.6, signingBonus: 1.8, exitTurn: 0 },
-  { id: "cand-aronov", name: "Viktor Aronov", specialty: "coding", skill: 8, salaryPerQuarter: 1.5, signingBonus: 9, exitTurn: 0 },
-  { id: "cand-oduro", name: "Grace Oduro", specialty: "consumer", skill: 7, salaryPerQuarter: 0.95, signingBonus: 4, exitTurn: 0 },
-  { id: "cand-kim", name: "Nora Kim", specialty: "reasoning", skill: 6, salaryPerQuarter: 0.85, signingBonus: 3, exitTurn: 0 },
+  { id: "cand-noor", name: "Tessa Noor", specialty: "coding", skill: 7, salaryPerQuarter: 1.1, signingBonus: 5, exitTurn: 0, affinity: null },
+  { id: "cand-vale", name: "Marcus Vale", specialty: "enterprise", skill: 6, salaryPerQuarter: 0.85, signingBonus: 3, exitTurn: 0, affinity: null },
+  { id: "cand-wei", name: "Li Wei", specialty: "reasoning", skill: 8, salaryPerQuarter: 1.4, signingBonus: 8, exitTurn: 0, affinity: "distillation" },
+  { id: "cand-ortega", name: "Camila Ortega", specialty: "consumer", skill: 5, salaryPerQuarter: 0.6, signingBonus: 2, exitTurn: 0, affinity: null },
+  { id: "cand-mbaye", name: "Darius Mbaye", specialty: "coding", skill: 6, salaryPerQuarter: 0.8, signingBonus: 3.5, exitTurn: 0, affinity: null },
+  { id: "cand-larsen", name: "Ida Larsen", specialty: "reasoning", skill: 5, salaryPerQuarter: 0.55, signingBonus: 1.5, exitTurn: 0, affinity: null },
+  { id: "cand-tan", name: "Keiko Tan", specialty: "enterprise", skill: 7, salaryPerQuarter: 1.0, signingBonus: 4.5, exitTurn: 0, affinity: "long-context" },
+  { id: "cand-sato", name: "Rafael Sato", specialty: "consumer", skill: 6, salaryPerQuarter: 0.75, signingBonus: 2.5, exitTurn: 0, affinity: null },
+  { id: "cand-haddad", name: "Sofia Haddad", specialty: "coding", skill: 9, salaryPerQuarter: 1.8, signingBonus: 12, exitTurn: 0, affinity: "moe-architecture" },
+  { id: "cand-park", name: "Owen Park", specialty: "reasoning", skill: 4, salaryPerQuarter: 0.45, signingBonus: 1, exitTurn: 0, affinity: null },
+  { id: "cand-njeri", name: "Laila Njeri", specialty: "enterprise", skill: 5, salaryPerQuarter: 0.6, signingBonus: 1.8, exitTurn: 0, affinity: null },
+  { id: "cand-aronov", name: "Viktor Aronov", specialty: "coding", skill: 8, salaryPerQuarter: 1.5, signingBonus: 9, exitTurn: 0, affinity: "recursive-self-improvement" },
+  { id: "cand-oduro", name: "Grace Oduro", specialty: "consumer", skill: 7, salaryPerQuarter: 0.95, signingBonus: 4, exitTurn: 0, affinity: "multimodal-fusion" },
+  { id: "cand-kim", name: "Nora Kim", specialty: "reasoning", skill: 6, salaryPerQuarter: 0.85, signingBonus: 3, exitTurn: 0, affinity: "self-play-economies" },
 ];
 
 export const DILEMMAS: DilemmaDef[] = [
@@ -605,4 +605,18 @@ export const BENCHMARK_NAMES: Record<"coding" | "reasoning" | "enterprise" | "co
   reasoning: "GPQA-X",
   enterprise: "EnterpriseBench",
   consumer: "ConsumerPref",
+};
+
+
+export const AFFINITY_MAP: Record<string, string> = {
+  "star-imara": "rlvr",
+  "star-jonas": "agentic-scaffolding",
+  "star-mei": "long-context",
+  "star-rafa": "multimodal-fusion",
+  "cand-wei": "distillation",
+  "cand-haddad": "moe-architecture",
+  "cand-aronov": "recursive-self-improvement",
+  "cand-tan": "long-context",
+  "cand-oduro": "multimodal-fusion",
+  "cand-kim": "self-play-economies",
 };

@@ -17,6 +17,7 @@ const coder: Model = {
   lifetimeRevenue: 0,
   pricing: null,
   releaseRank: null,
+          retiredTurn: null,
 };
 
 function crowned() {
