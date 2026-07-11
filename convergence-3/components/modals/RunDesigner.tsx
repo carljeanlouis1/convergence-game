@@ -10,6 +10,7 @@ import { BALANCE } from "@/lib/engine/balance";
 import type { GameState, RunDesign } from "@/lib/engine/types";
 
 const TIERS = [1, 2, 3, 4] as const;
+const TIER_LABEL: Record<1 | 2 | 3 | 4, string> = { 1: "Small", 2: "Mid", 3: "Large", 4: "Frontier" };
 
 function capabilityBand(q: number): string {
   if (q < 35) return "modest";
@@ -51,7 +52,7 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
 
   return (
     <Modal title="Design training run" onClose={onClose}>
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div>
           <label className="micro-label block mb-1.5" htmlFor="run-name">codename</label>
           <input
@@ -63,22 +64,36 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
         </div>
 
         <div>
-          <span className="micro-label block mb-1.5">scale tier</span>
+          <span className="micro-label block mb-1.5">scale tier — how big a run to commit</span>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {TIERS.map(t => {
               const d = BALANCE.runTiers[t];
               const selected = tier === t;
+              const affordable = free >= d.computePerTurn;
               return (
                 <button
                   key={t}
                   onClick={() => setTier(t)}
-                  className="panel-card p-3 text-left transition-colors"
-                  style={selected ? { borderColor: "var(--amber)", background: "var(--amber-dim)" } : undefined}
+                  className="panel-card p-2.5 text-left transition-colors"
+                  style={
+                    selected
+                      ? { borderColor: "var(--amber)", background: "var(--amber-dim)" }
+                      : !affordable
+                        ? { opacity: 0.55 }
+                        : undefined
+                  }
                 >
-                  <div className="font-display font-bold">Tier {t}</div>
-                  <div className="micro-label mt-1 space-y-0.5">
-                    <div>{d.computePerTurn} PF/qtr · {d.turns} qtrs</div>
-                    <div>${(d.computePerTurn * d.costPerPFTurn * d.turns).toFixed(0)}M total</div>
+                  <div className="flex items-baseline justify-between gap-1">
+                    <span className="font-display font-bold text-sm" style={selected ? { color: "var(--amber)" } : undefined}>
+                      {TIER_LABEL[t]}
+                    </span>
+                    <span className="micro-label">T{t}</span>
+                  </div>
+                  <div className="stat-num text-sm mt-1" style={{ color: affordable ? "var(--ink)" : "var(--red)" }}>
+                    {d.computePerTurn} PF<span className="micro-label"> /qtr</span>
+                  </div>
+                  <div className="micro-label mt-0.5 space-y-0.5">
+                    <div>{d.turns} qtrs · ${(d.computePerTurn * d.costPerPFTurn * d.turns).toFixed(0)}M</div>
                     <div>ceiling {d.cap}</div>
                   </div>
                 </button>
@@ -207,38 +222,42 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
           </p>
         )}
 
-        <div className="panel-card p-4 flex flex-wrap gap-x-8 gap-y-2" style={{ background: "var(--bg-sunken)" }}>
-          <div>
-            <span className="micro-label block">projected capability</span>
-            <span className="font-display font-bold" style={{ color: "var(--amber)" }}>
-              {capabilityBand(projection.q)}
+        {/* sticky summary + commit — always visible while you scroll the design */}
+        <div
+          className="sticky bottom-0 -mx-5 -mb-5 px-5 py-3 border-t space-y-2"
+          style={{ background: "var(--bg-raised)" }}
+        >
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+            <span className="micro-label">
+              tier <span style={{ color: "var(--amber)" }}>{TIER_LABEL[tier]}</span>
+            </span>
+            <span className="micro-label">
+              projected <span style={{ color: "var(--amber)" }}>{capabilityBand(projection.q)}</span>
+            </span>
+            <span className="micro-label">
+              volatility{" "}
+              <span className={`band-${projection.risk === "low" ? "ahead" : projection.risk === "medium" ? "wobbly" : "troubled"}`}>
+                {projection.risk}
+              </span>
+            </span>
+            <span className="micro-label">
+              spend <span className="stat-num" style={{ color: "var(--ink)" }}>${totalCost.toFixed(0)}M</span> over {tierDef.turns} qtrs
             </span>
           </div>
-          <div>
-            <span className="micro-label block">volatility</span>
-            <span className={`font-display font-bold band-${projection.risk === "low" ? "ahead" : projection.risk === "medium" ? "wobbly" : "troubled"}`}>
-              {projection.risk}
-            </span>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs" style={{ color: "var(--red)" }}>{blocker}</span>
+            <button
+              className="btn btn-primary"
+              data-testid="launch-run"
+              disabled={!!blocker}
+              onClick={() => {
+                launch(design);
+                onClose();
+              }}
+            >
+              Commit the run
+            </button>
           </div>
-          <div>
-            <span className="micro-label block">committed spend</span>
-            <span className="font-display font-bold stat-num">${totalCost.toFixed(0)}M over {tierDef.turns} qtrs</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs" style={{ color: "var(--red)" }}>{blocker}</span>
-          <button
-            className="btn btn-primary"
-            data-testid="launch-run"
-            disabled={!!blocker}
-            onClick={() => {
-              launch(design);
-              onClose();
-            }}
-          >
-            Commit the run
-          </button>
         </div>
       </div>
     </Modal>
