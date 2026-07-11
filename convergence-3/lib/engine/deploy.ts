@@ -41,6 +41,23 @@ export function bestFitPositioning(capability: Capability): Positioning {
   );
 }
 
+/** Retire a deployed model: frees its serving compute, ends its revenue. History keeps it. */
+export function deprecateModel(state: GameState, modelId: string): GameState {
+  const model = state.models.find(m => m.id === modelId);
+  if (!model) throw new Error("model not found");
+  if (model.positioning === null) throw new Error("model not deployed");
+  if (model.retiredTurn !== null) throw new Error("model already retired");
+  return {
+    ...state,
+    models: state.models.map(m => (m.id === modelId ? { ...m, retiredTurn: state.turn } : m)),
+    revenueStreams: state.revenueStreams.filter(r => r.modelId !== modelId),
+    chronicle: [
+      ...state.chronicle,
+      { turn: state.turn, kind: "world", text: `${model.name} deprecated — serving compute reclaimed, revenue ends.` },
+    ],
+  };
+}
+
 export function deployModel(
   state: GameState,
   modelId: string,

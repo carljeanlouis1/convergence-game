@@ -24,11 +24,16 @@ export function expectedQuality(design: RunDesign, state: GameState): number {
   const tier = BALANCE.runTiers[design.scaleTier];
   const lead = state.stars.find(s => s.id === design.leadId);
   const techs = resolveTechniques(design.techniqueIds, state.era);
+  const affinityBonus =
+    lead && lead.affinity && design.techniqueIds.includes(lead.affinity) ? BALANCE.talent.affinityBonus : 0;
+  const familyBonus = design.baseModelId ? BALANCE.run.familyQualityBonus : 0;
   const raw =
     BALANCE.run.baseQuality +
     (lead ? lead.skill * BALANCE.run.leadSkillWeight : 0) +
     state.teamStrength * BALANCE.run.teamStrengthWeight +
     state.researchMomentum * BALANCE.experiments.momentumQualityWeight +
+    affinityBonus +
+    familyBonus +
     techs.reduce((a, t) => a + t.qualityBonus, 0);
   return Math.min(raw, tier.cap);
 }
@@ -74,6 +79,7 @@ export function launchRun(state: GameState, design: RunDesign): GameState {
     checkpoints: [],
     status: "active",
     startedTurn: state.turn,
+    baseModelId: design.baseModelId,
   };
   // recursive self-improvement is a bet against your own safety margin
   const rsiRisk = design.techniqueIds.includes("recursive-self-improvement") ? 6 : 0;
@@ -136,6 +142,15 @@ export function advanceRuns(state: GameState): GameState {
             100,
             capability[lead.specialty] + BALANCE.talent.specialtyCapabilityBonus,
           );
+        }
+        // a family v2 inherits a floor of its base model's capability per benchmark
+        if (run.baseModelId) {
+          const base = state.models.find(m => m.id === run.baseModelId);
+          if (base) {
+            for (const k of Object.keys(capability) as (keyof typeof capability)[]) {
+              capability[k] = Math.min(100, Math.max(capability[k], base.capability[k] * BALANCE.run.familyInheritFloor));
+            }
+          }
         }
         const modelAvg = (capability.coding + capability.reasoning + capability.enterprise + capability.consumer) / 4;
         const rivalsAhead = state.rivals.filter(r => {

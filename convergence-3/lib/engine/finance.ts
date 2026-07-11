@@ -42,13 +42,33 @@ export function streamYield(state: GameState, stream: RevenueStream): number {
   return stream.amountPerTurn * (1 + BALANCE.finance.crownYieldBonus * crownsOf(state, stream.modelId));
 }
 
+function avgOf(m: { capability: { coding: number; reasoning: number; enterprise: number; consumer: number } }): number {
+  return (m.capability.coding + m.capability.reasoning + m.capability.enterprise + m.capability.consumer) / 4;
+}
+
+/** Compute a deployed model demands to keep serving. Open-weights & retired models cost nothing. */
+export function servingDemandFor(model: GameState["models"][number]): number {
+  if (model.positioning === null || model.retiredTurn !== null || model.positioning === "open-weights") return 0;
+  const S = BALANCE.finance.serving;
+  return (S.basePF + avgOf(model) * S.perCapPF) * S.volume[model.positioning];
+}
+
+export function totalServingDemand(state: GameState): number {
+  return state.models.reduce((a, m) => a + servingDemandFor(m), 0);
+}
+
+/** Your inference allocation is the serving pool. Under-provisioned models are throttled. */
+export function servingRatio(state: GameState): number {
+  const demand = totalServingDemand(state);
+  if (demand <= 0) return 1;
+  const S = BALANCE.finance.serving;
+  const provisioned = state.allocation.inference;
+  return Math.max(S.throttleFloor, Math.min(1, S.throttleFloor + (1 - S.throttleFloor) * Math.min(1, provisioned / demand)));
+}
+
 export function revenuePerTurn(state: GameState): number {
-  const streams = state.revenueStreams.reduce((a, r) => a + streamYield(state, r), 0);
-  const inference =
-    state.allocation.inference *
-    BALANCE.finance.inferenceRevenuePerPF *
-    (bestDeployedCapabilityAvg(state) / 100);
-  return streams + inference;
+  const ratio = servingRatio(state);
+  return state.revenueStreams.reduce((a, r) => a + streamYield(state, r) * (r.modelId ? ratio : 1), 0);
 }
 
 export function burnPerTurn(state: GameState): number {
@@ -63,10 +83,11 @@ export function runwayMonths(state: GameState): number {
 
 export function applyFinance(state: GameState): { state: GameState; net: number } {
   const net = revenuePerTurn(state) - burnPerTurn(state);
-  // accrue lifetime revenue per source model before decay
+  const ratio = servingRatio(state);
+  // accrue lifetime revenue per source model before decay (throttled the same as live revenue)
   const earnedByModel = new Map<string, number>();
   for (const r of state.revenueStreams) {
-    if (r.modelId) earnedByModel.set(r.modelId, (earnedByModel.get(r.modelId) ?? 0) + streamYield(state, r));
+    if (r.modelId) earnedByModel.set(r.modelId, (earnedByModel.get(r.modelId) ?? 0) + streamYield(state, r) * ratio);
   }
   const models = state.models.map(m =>
     earnedByModel.has(m.id) ? { ...m, lifetimeRevenue: m.lifetimeRevenue + earnedByModel.get(m.id)! } : m,

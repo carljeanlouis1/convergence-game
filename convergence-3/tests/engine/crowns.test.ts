@@ -34,7 +34,9 @@ describe("benchmark crowns", () => {
     expect(crownsOf(s, "coder")).toBe(1);
   });
   it("crowns boost stream yield", () => {
-    const s = crowned();
+    const base = crowned();
+    // fully provision serving so the crown effect is isolated from the serving throttle
+    const s = { ...base, allocation: { inference: 100, experiments: 0, safety: 0 } };
     const stream = s.revenueStreams[0];
     expect(streamYield(s, stream)).toBeCloseTo(stream.amountPerTurn * (1 + BALANCE.finance.crownYieldBonus), 5);
     expect(revenuePerTurn(s)).toBeGreaterThan(stream.amountPerTurn);

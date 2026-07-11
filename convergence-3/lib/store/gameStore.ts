@@ -4,7 +4,7 @@ import { createInitialState, v2Defaults, v3Defaults, v4Defaults, v5Defaults } fr
 import { AFFINITY_MAP } from "@/lib/engine/content";
 import { setAllocation } from "@/lib/engine/compute";
 import { launchRun, applyRunDecision } from "@/lib/engine/runs";
-import { deployModel } from "@/lib/engine/deploy";
+import { deployModel, deprecateModel } from "@/lib/engine/deploy";
 import { advanceTurn } from "@/lib/engine/turn";
 import { hireCandidate, respondToPoach } from "@/lib/engine/talent";
 import { acceptFunding, openRound } from "@/lib/engine/funding";
@@ -33,6 +33,7 @@ interface GameStore {
   decideRun: (runId: string, decision: RunDecisionKind) => void;
   deploy: (modelId: string, positioning: Positioning, pricing?: Pricing) => void;
   dismissRelease: () => void;
+  deprecate: (modelId: string) => void;
   hire: (candidateId: string) => void;
   respondPoach: (starId: string, response: "match" | "equity" | "decline") => void;
   acceptOffer: (offerId: string) => void;
@@ -154,6 +155,7 @@ export const useGameStore = create<GameStore>()(
           pendingRelease: g.pendingRelease === modelId ? null : g.pendingRelease,
         })),
       dismissRelease: () => act(set, get, g => ({ ...g, pendingRelease: null })),
+      deprecate: modelId => act(set, get, g => deprecateModel(g, modelId)),
       hire: candidateId => act(set, get, g => hireCandidate(g, candidateId)),
       respondPoach: (starId, response) => act(set, get, g => respondToPoach(g, starId, response)),
       acceptOffer: offerId => act(set, get, g => acceptFunding(g, offerId)),
