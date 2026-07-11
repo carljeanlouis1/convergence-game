@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useGameStore } from "@/lib/store/gameStore";
-import { projectedRevenue, modelAvg } from "@/lib/engine/deploy";
+import { projectedRevenue, bestFitPositioning } from "@/lib/engine/deploy";
 import { deployRiskBand } from "@/lib/engine/safety";
 import type { GameState, Model, Positioning, Pricing } from "@/lib/engine/types";
 
@@ -29,10 +29,10 @@ export function DeployModal({
   onClose: () => void;
 }) {
   const deploy = useGameStore(s => s.deploy);
-  const [positioning, setPositioning] = useState<Positioning>("api");
+  const bestFit = bestFitPositioning(model.capability);
+  const [positioning, setPositioning] = useState<Positioning>(bestFit);
   const [pricing, setPricing] = useState<Pricing>("standard");
-  const avg = modelAvg(model.capability);
-  const projected = projectedRevenue(avg, positioning, pricing);
+  const projected = projectedRevenue(model.capability, positioning, pricing);
   const risk = deployRiskBand(game, model.id);
   const openWeights = positioning === "open-weights";
 
@@ -50,7 +50,7 @@ export function DeployModal({
         </div>
 
         <div className="space-y-2">
-          <p className="micro-label">market</p>
+          <p className="micro-label">market — this model fits <span style={{ color: "var(--amber)" }}>{bestFit}</span> best</p>
           <div className="grid grid-cols-2 gap-2">
             {POSITIONINGS.map(p => (
               <button
@@ -59,9 +59,12 @@ export function DeployModal({
                 style={positioning === p.id ? { borderColor: "var(--amber)", color: "var(--amber)" } : undefined}
                 onClick={() => setPositioning(p.id)}
               >
-                <span className="block font-bold uppercase text-xs tracking-widest">{p.label}</span>
+                <span className="block font-bold uppercase text-xs tracking-widest">
+                  {p.label}
+                  {p.id === bestFit && <span style={{ color: "var(--amber)" }}> ★</span>}
+                </span>
                 <span className="block stat-num mt-0.5" style={{ color: "var(--green)" }}>
-                  +${projectedRevenue(avg, p.id, pricing).toFixed(1)}M/qtr
+                  +${projectedRevenue(model.capability, p.id, pricing).toFixed(1)}M/qtr
                 </span>
                 <span className="block micro-label mt-0.5">{p.note}</span>
               </button>

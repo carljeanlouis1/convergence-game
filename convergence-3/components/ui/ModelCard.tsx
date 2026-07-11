@@ -4,7 +4,7 @@ import { BENCHMARK_NAMES } from "@/lib/engine/content";
 import { crownsOf } from "@/lib/engine/finance";
 import { isEclipsed } from "@/lib/engine/rivals";
 import { deployRiskBand } from "@/lib/engine/safety";
-import { modelAvg } from "@/lib/engine/deploy";
+import { modelAvg, bestFitPositioning } from "@/lib/engine/deploy";
 import type { BenchCategory, GameState, Model } from "@/lib/engine/types";
 
 const CATEGORIES: BenchCategory[] = ["coding", "reasoning", "enterprise", "consumer"];
@@ -62,6 +62,9 @@ export function ModelCard({
               <span>
                 {model.positioning} · {model.pricing}
               </span>
+            )}
+            {!model.positioning && (
+              <span style={{ color: "var(--amber)" }}>best fit: {bestFitPositioning(model.capability)}</span>
             )}
             {model.lifetimeRevenue > 0 && (
               <span className="stat-num" style={{ color: "var(--green)" }}>

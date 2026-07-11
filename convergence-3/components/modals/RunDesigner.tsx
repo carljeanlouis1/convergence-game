@@ -126,7 +126,9 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
         </div>
 
         <div>
-          <span className="micro-label block mb-1.5">run lead</span>
+          <span className="micro-label block mb-1.5">
+            run lead <span style={{ color: "var(--ink-faint)" }}>· their specialty leaves +{BALANCE.talent.specialtyCapabilityBonus} on that benchmark</span>
+          </span>
           <div className="flex flex-wrap gap-2">
             <button
               className="btn"
@@ -138,15 +140,24 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
             {availableStars.map(s => (
               <button
                 key={s.id}
-                className="btn"
+                className="btn text-left normal-case tracking-normal"
                 onClick={() => setLeadId(s.id)}
                 style={leadId === s.id ? { borderColor: "var(--amber)", color: "var(--amber)", background: "var(--amber-dim)" } : undefined}
               >
-                {s.name} <span className="ml-1 opacity-60">skill {s.skill}</span>
+                <span className="font-bold">{s.name}</span> <span className="opacity-60">skill {s.skill}</span>
+                <span className="block micro-label mt-0.5" style={{ color: "var(--green)" }}>
+                  ▲ +{BALANCE.talent.specialtyCapabilityBonus} {BENCHMARK_NAMES[s.specialty]}
+                </span>
               </button>
             ))}
           </div>
         </div>
+
+        {game.researchMomentum >= 1 && (
+          <p className="micro-label" style={{ color: "var(--amber)" }}>
+            research momentum is contributing +{(game.researchMomentum * BALANCE.experiments.momentumQualityWeight).toFixed(0)} quality to this design
+          </p>
+        )}
 
         <div className="panel-card p-4 flex flex-wrap gap-x-8 gap-y-2" style={{ background: "var(--bg-sunken)" }}>
           <div>
