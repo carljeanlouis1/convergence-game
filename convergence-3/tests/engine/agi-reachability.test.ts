@@ -2,11 +2,12 @@ import { describe, it, expect } from "vitest";
 import { createInitialState } from "@/lib/engine/state";
 import { advanceTurn } from "@/lib/engine/turn";
 import { launchRun, expectedQuality } from "@/lib/engine/runs";
-import { deployModel } from "@/lib/engine/deploy";
+import { deployModel, deprecateModel } from "@/lib/engine/deploy";
 import { hireCandidate, respondToPoach } from "@/lib/engine/talent";
 import { acceptFunding } from "@/lib/engine/funding";
+import { totalServingDemand } from "@/lib/engine/finance";
 import { startBuild, availableBuilds, buildCost } from "@/lib/engine/facilities";
-import { setAllocation } from "@/lib/engine/compute";
+import { setAllocation, committedRunPF } from "@/lib/engine/compute";
 import { freePF, totalCapacityPF } from "@/lib/engine/compute";
 import { resolveDilemma, getDilemmaDef } from "@/lib/engine/events";
 import { TECHNIQUES } from "@/lib/engine/content";
@@ -86,23 +87,31 @@ function botTurn(s: GameState): GameState {
       }
     }
   }
+  // deprecate stale models: dead/decayed revenue but still eating serving compute
+  for (const m of s.models.filter(m => m.positioning !== null && m.retiredTurn === null)) {
+    const stream = s.revenueStreams.find(r => r.modelId === m.id);
+    if (!stream || stream.amountPerTurn < 3) {
+      try {
+        s = deprecateModel(s, m.id);
+      } catch {
+        /* fine */
+      }
+    }
+  }
   // deploy anything undeployed
   for (const m of s.models.filter(m => m.positioning === null)) {
     s = deployModel(s, m.id, "api", "standard");
     s = { ...s, pendingRelease: null };
   }
-  // allocate leftover compute: 70% inference, 30% safety
-  const spare = Math.max(0, freePF(s));
-  if (spare > 2) {
-    try {
-      s = setAllocation(s, {
-        inference: s.allocation.inference + spare * 0.7,
-        experiments: 0,
-        safety: s.allocation.safety + spare * 0.3,
-      });
-    } catch {
-      /* over-allocation race — skip */
-    }
+  // provision serving to meet demand, split the rest between research and safety
+  const forAlloc = Math.max(0, totalCapacityPF(s) - committedRunPF(s));
+  const demand = totalServingDemand(s);
+  const inf = Math.min(demand, forAlloc);
+  const rest = Math.max(0, forAlloc - inf);
+  try {
+    s = setAllocation(s, { inference: inf, experiments: rest * 0.4, safety: rest * 0.6 });
+  } catch {
+    /* over-allocation race — skip */
   }
   return advanceTurn(s);
 }

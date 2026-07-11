@@ -11,6 +11,8 @@ import {
   burnPerTurn,
   runwayMonths,
   streamYield,
+  totalServingDemand,
+  servingRatio,
 } from "@/lib/engine/finance";
 import { selectUndeployedModels } from "@/lib/store/selectors";
 import { ModelCard } from "@/components/ui/ModelCard";
@@ -29,9 +31,12 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: stri
 export function FinancePanel({ game }: { game: GameState }) {
   const acceptOffer = useGameStore(s => s.acceptOffer);
   const raiseRound = useGameStore(s => s.raiseRound);
+  const deprecate = useGameStore(s => s.deprecate);
   const [deployingId, setDeployingId] = useState<string | null>(null);
   const deployingModel = deployingId ? game.models.find(m => m.id === deployingId) : null;
   const deployed = game.models.filter(m => m.positioning !== null);
+  const serveDemand = totalServingDemand(game);
+  const servePct = Math.round(servingRatio(game) * 100);
   const revenue = revenuePerTurn(game);
   const burn = burnPerTurn(game);
   const net = revenue - burn;
@@ -164,10 +169,28 @@ export function FinancePanel({ game }: { game: GameState }) {
 
       {deployed.length > 0 && (
         <div className="space-y-2">
-          <h2 className="micro-label">the fleet — every model you ever shipped</h2>
+          <div className="flex items-baseline justify-between">
+            <h2 className="micro-label">the fleet — every model you ever shipped</h2>
+            {serveDemand > 0 && (
+              <span className="micro-label" style={{ color: servePct >= 99 ? "var(--green)" : "var(--orange)" }}>
+                serving {serveDemand.toFixed(0)} PF demand · {servePct}% revenue
+              </span>
+            )}
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             {[...deployed].reverse().map(m => (
-              <ModelCard key={m.id} game={game} model={m} />
+              <ModelCard
+                key={m.id}
+                game={game}
+                model={m}
+                action={
+                  m.retiredTurn === null ? (
+                    <button className="btn btn-danger w-full text-xs" onClick={() => deprecate(m.id)}>
+                      Deprecate — reclaim serving compute
+                    </button>
+                  ) : undefined
+                }
+              />
             ))}
           </div>
         </div>

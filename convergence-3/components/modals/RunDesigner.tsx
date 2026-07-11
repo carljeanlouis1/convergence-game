@@ -24,8 +24,10 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
   const [tier, setTier] = useState<1 | 2 | 3 | 4>(1);
   const [techniqueIds, setTechniqueIds] = useState<string[]>(["rlhf"]);
   const [leadId, setLeadId] = useState<string | null>(null);
+  const [baseModelId, setBaseModelId] = useState<string | undefined>(undefined);
 
-  const design: RunDesign = { name, scaleTier: tier, techniqueIds, leadId };
+  const design: RunDesign = { name, scaleTier: tier, techniqueIds, leadId, baseModelId };
+  const baseModel = baseModelId ? game.models.find(m => m.id === baseModelId) : null;
   const tierDef = BALANCE.runTiers[tier];
   const free = freePF(game);
   const availableStars = game.stars.filter(s => s.onRunId === null);
@@ -84,6 +86,43 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
             })}
           </div>
         </div>
+
+        {game.models.length > 0 && (
+          <div>
+            <span className="micro-label block mb-1.5">
+              build on <span style={{ color: "var(--ink-faint)" }}>· a v2 inherits ≥{Math.round(BALANCE.run.familyInheritFloor * 100)}% of the base&apos;s benchmarks, +{BALANCE.run.familyQualityBonus} quality</span>
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn"
+                onClick={() => setBaseModelId(undefined)}
+                style={!baseModelId ? { borderColor: "var(--amber)", color: "var(--amber)" } : undefined}
+              >
+                From scratch
+              </button>
+              {[...game.models].reverse().slice(0, 6).map(m => (
+                <button
+                  key={m.id}
+                  className="btn"
+                  onClick={() => {
+                    setBaseModelId(m.id);
+                    setName(`${m.name.replace(/\s\d+$/, "")} ${(parseInt(m.name.match(/\s(\d+)$/)?.[1] ?? "1") || 1) + 1}`);
+                  }}
+                  style={baseModelId === m.id ? { borderColor: "var(--amber)", color: "var(--amber)", background: "var(--amber-dim)" } : undefined}
+                >
+                  {m.name}
+                </button>
+              ))}
+            </div>
+            {baseModel && (
+              <p className="micro-label mt-1" style={{ color: "var(--amber)" }}>
+                inheriting from {baseModel.name} — a floor of{" "}
+                {Math.round(Math.max(baseModel.capability.coding, baseModel.capability.reasoning, baseModel.capability.enterprise, baseModel.capability.consumer) * BALANCE.run.familyInheritFloor)}{" "}
+                in its strongest benchmark
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <span className="micro-label block mb-1.5">techniques</span>
@@ -148,6 +187,15 @@ export function RunDesigner({ game, onClose }: { game: GameState; onClose: () =>
                 <span className="block micro-label mt-0.5" style={{ color: "var(--green)" }}>
                   ▲ +{BALANCE.talent.specialtyCapabilityBonus} {BENCHMARK_NAMES[s.specialty]}
                 </span>
+                {s.affinity && (
+                  <span
+                    className="block micro-label"
+                    style={{ color: techniqueIds.includes(s.affinity) ? "var(--amber)" : "var(--ink-faint)" }}
+                  >
+                    ◇ {TECHNIQUES.find(t => t.id === s.affinity)?.name ?? s.affinity} affinity
+                    {techniqueIds.includes(s.affinity) ? ` (+${BALANCE.talent.affinityBonus} active)` : ""}
+                  </span>
+                )}
               </button>
             ))}
           </div>

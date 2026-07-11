@@ -55,9 +55,13 @@ export function ModelCard({
           </h3>
           <div className="micro-label mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
             {model.releaseRank !== null && <span>#{model.releaseRank} at launch</span>}
-            <span style={{ color: eclipsed ? "var(--ink-faint)" : "var(--green)" }}>
-              {eclipsed ? "eclipsed" : "frontier"}
-            </span>
+            {model.retiredTurn !== null ? (
+              <span style={{ color: "var(--ink-faint)" }}>retired</span>
+            ) : (
+              <span style={{ color: eclipsed ? "var(--ink-faint)" : "var(--green)" }}>
+                {eclipsed ? "eclipsed" : "frontier"}
+              </span>
+            )}
             {model.pricing && model.positioning && (
               <span>
                 {model.positioning} · {model.pricing}

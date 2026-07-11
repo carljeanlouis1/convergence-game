@@ -5,7 +5,7 @@ import { useGameStore } from "@/lib/store/gameStore";
 import { totalCapacityPF, committedRunPF, allocatedPF } from "@/lib/engine/compute";
 import { availableBuilds, buildCost, builtCount } from "@/lib/engine/facilities";
 import { capabilityTier, requiredEvalFor, riskBandLabel } from "@/lib/engine/safety";
-import { modelAvg } from "@/lib/engine/deploy";
+import { totalServingDemand } from "@/lib/engine/finance";
 import { BALANCE } from "@/lib/engine/balance";
 import { selectActiveRuns } from "@/lib/store/selectors";
 import type { ComputeAllocation, GameState } from "@/lib/engine/types";
@@ -14,18 +14,18 @@ const F = BALANCE.finance;
 const EX = BALANCE.experiments;
 const SF = BALANCE.safety;
 
-function bestDeployedAvg(game: GameState): number {
-  const deployed = game.models.filter(m => m.positioning !== null);
-  return deployed.length ? Math.max(...deployed.map(m => modelAvg(m.capability))) : 0;
-}
-
 /** The concrete, live effect of each allocation slice — transparency law. */
 function effectFor(key: keyof ComputeAllocation, pf: number, game: GameState): { text: string; color: string } {
   if (key === "inference") {
-    const bestAvg = bestDeployedAvg(game);
-    if (bestAvg === 0) return { text: "deploy a model to earn from inference", color: "var(--ink-faint)" };
-    const rev = pf * F.inferenceRevenuePerPF * (bestAvg / 100);
-    return { text: `+$${rev.toFixed(1)}M/qtr serving revenue`, color: "var(--green)" };
+    const demand = totalServingDemand(game);
+    if (demand === 0) return { text: "no live models need serving yet", color: "var(--ink-faint)" };
+    const S = F.serving;
+    const ratio = Math.max(S.throttleFloor, Math.min(1, S.throttleFloor + (1 - S.throttleFloor) * Math.min(1, pf / demand)));
+    const pct = Math.round(ratio * 100);
+    return {
+      text: `serving ${Math.min(pf, demand).toFixed(0)}/${demand.toFixed(0)} PF demand · models at ${pct}% revenue`,
+      color: pct >= 99 ? "var(--green)" : pct >= 70 ? "var(--orange)" : "var(--red)",
+    };
   }
   if (key === "experiments") {
     const nextMomentum = Math.min(EX.momentumCap, game.researchMomentum * (1 - EX.momentumDecay) + pf * EX.momentumPerPF);
@@ -44,7 +44,7 @@ function effectFor(key: keyof ComputeAllocation, pf: number, game: GameState): {
 }
 
 const SEGMENTS: Array<{ key: keyof ComputeAllocation; label: string; color: string }> = [
-  { key: "inference", label: "Inference serving", color: "var(--green)" },
+  { key: "inference", label: "Serving pool (inference)", color: "var(--green)" },
   { key: "experiments", label: "Research experiments", color: "var(--amber)" },
   { key: "safety", label: "Safety evals", color: "#7ab8f5" },
 ];
